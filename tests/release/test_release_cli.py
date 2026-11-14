@@ -115,6 +115,67 @@ class Check(unittest.TestCase):
         self.assertEqual(run_main(fake, ["check", "v3"])[0], 1)
 
 
+class CheckHardening(unittest.TestCase):
+    def test_dirty_tree_stops_check_and_publish_before_any_push(self):
+        fake = Fake(good_rules(status=(["git", "status", "--porcelain"], 0, " M runtime/cpu.c\n")))
+        code, out = run_main(fake, ["publish", "v3", "--title", "t"])
+        self.assertEqual(code, 1)
+        self.assertIn("pas propre", out)
+        for c in (("git", "push"), ("gh", "pr"), ("gh", "release"), ("gh", "api")):
+            self.assertFalse(fake.has(*c), c)
+        self.assertEqual(run_main(fake, ["check", "v3"])[0], 1)
+
+    def test_notes_with_bom_are_read(self):
+        d = tempfile.mkdtemp()
+        os.makedirs(os.path.join(d, "release-notes"))
+        with open(os.path.join(d, "release-notes", "v3.md"), "w", encoding="utf-8-sig") as f:
+            f.write("**How to install**")
+        with mock.patch.object(release, "ROOT", d):
+            self.assertEqual(release.load_notes("v3")["release-notes/v3.md"], "**How to install**")
+
+    def test_every_gh_pr_release_run_command_targets_the_public_repo(self):
+        fake = Fake(good_rules())
+        self.assertEqual(run_main(fake, ["publish", "v3", "--title", "t"])[0], 0)
+        gh = [c for c in fake.cmds if c[:2] in (["gh", "pr"], ["gh", "release"], ["gh", "run"])]
+        self.assertTrue(gh)
+        for c in gh:
+            self.assertEqual(c[c.index("--repo") + 1], release.PUBLIC_REPO, c)
+
+    def test_verify_and_delete_target_the_public_repo(self):
+        fake = Fake([(["gh", "run", "list"], 0, runs()),
+                     (["gh", "release", "view"], 0, release_json())])
+        with mock.patch.object(release.time, "sleep", lambda s: None):
+            run_main(fake, ["verify", "v3"])
+        fake2 = Fake([(["gh", "release", "view"], 0, json.dumps({"isPrerelease": True}))])
+        run_main(fake2, ["delete-rc", "v3-rc1"])
+        self.assertTrue(fake.cmds and fake2.cmds)
+        for c in fake.cmds + fake2.cmds:
+            self.assertIn(release.PUBLIC_REPO, c)
+
+    def test_bad_version_is_refused_without_any_command(self):
+        for bad in ("3", "v3; rm", "main", "v3-rc", "v3.x"):
+            fake = Fake()
+            self.assertEqual(run_main(fake, ["check", bad])[0], 1, bad)
+            self.assertEqual(fake.cmds, [], bad)
+
+    def test_dotted_version_is_accepted(self):
+        fake = Fake(good_rules(branch=(["git", "rev-parse", "--abbrev-ref", "HEAD"], 0,
+                                       "integ/release-v3.1\n")))
+        self.assertEqual(run_main(fake, ["check", "v3.1"])[0], 0)
+
+    def test_bad_gh_json_is_a_clean_error(self):
+        fake = Fake([(["gh", "release", "view"], 0, "not json")])
+        code, out = run_main(fake, ["delete-rc", "v3-rc1"])
+        self.assertEqual(code, 1)
+        self.assertIn("ERREUR", out)
+        self.assertNotIn("Traceback", out)
+        fake = Fake([(["gh", "run", "list"], 0, "<html>")])
+        with mock.patch.object(release.time, "sleep", lambda s: None):
+            code, out = run_main(fake, ["verify", "v3"])
+        self.assertEqual(code, 1)
+        self.assertIn("illisible", out)
+
+
 class Publish(unittest.TestCase):
     def test_stable_push_failure_creates_no_release(self):
         fake = Fake(good_rules(stable=(["git", "push", "origin", "origin/main:stable"], 1, "")))
@@ -306,6 +367,33 @@ class Announce(unittest.TestCase):
         self.assertNotIn("secret-token", out)
         self.assertTrue(os.path.exists(self.path))
 
+    def test_url_without_scheme_does_not_leak_the_secret(self):
+        self.write("Salut")
+        code, out = self.announce({"DISCORD_WEBHOOK_URL": "discord.com/api/webhooks/1/SECRETTOKEN"},
+                                  mock.Mock())
+        self.assertEqual(code, 1)
+        self.assertNotIn("SECRETTOKEN", out)
+        self.assertIn(self.path, out)
+
+    def test_dry_run_does_not_post(self):
+        self.write("Salut")
+        opener = mock.Mock()
+        with mock.patch.object(release.urllib.request, "urlopen", opener):
+            code, out = run_main(Fake(), ["announce", "v3", "--file", self.path, "--dry-run"],
+                                 {"DISCORD_WEBHOOK_URL": "https://example.invalid/SECRETTOKEN"})
+        self.assertEqual(code, 0, out)
+        opener.assert_not_called()
+        self.assertIn("[dry-run] POST webhook (5 caractères)", out)
+        self.assertNotIn("SECRETTOKEN", out)
+
+    def test_announce_file_with_bom_is_read(self):
+        with open(self.path, "w", encoding="utf-8-sig") as f:
+            f.write("Salut")
+        opener = mock.MagicMock()
+        code, out = self.announce({"DISCORD_WEBHOOK_URL": "https://example.invalid/t"}, opener)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(opener.call_args[0][0].data), {"content": "Salut"})
+
     def test_no_webhook_leaves_file(self):
         self.write("Salut")
         opener = mock.Mock()
@@ -330,7 +418,8 @@ class DeleteRc(unittest.TestCase):
     def test_prerelease_deleted_with_cleanup_tag(self):
         fake = Fake([(["gh", "release", "view"], 0, json.dumps({"isPrerelease": True}))])
         self.assertEqual(run_main(fake, ["delete-rc", "v3-rc1"])[0], 0)
-        self.assertIn(["gh", "release", "delete", "v3-rc1", "--cleanup-tag", "--yes"], fake.cmds)
+        self.assertIn(["gh", "release", "delete", "v3-rc1", "--cleanup-tag", "--yes",
+                       "--repo", release.PUBLIC_REPO], fake.cmds)
 
 
 class Prepare(unittest.TestCase):

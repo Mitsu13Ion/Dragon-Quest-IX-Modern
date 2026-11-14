@@ -15,6 +15,7 @@ commands still run). Every git/gh call goes through run(), which the tests
 replace. Messages to the operator are in French."""
 import argparse
 import datetime
+import http.client
 import json
 import os
 import re
@@ -64,6 +65,14 @@ def out_of(cmd):
     return run(cmd).stdout.strip()
 
 
+def load_json(text, what):
+    """json.loads for gh output: a clean Fail instead of a traceback."""
+    try:
+        return json.loads(text)
+    except ValueError:
+        raise Fail("Réponse de gh illisible (%s)." % what)
+
+
 def base_version(tag):
     """vX for both vX and vX-rcN."""
     return re.sub(r"-rc\d+$", "", tag)
@@ -79,7 +88,7 @@ def load_notes(version):
     paths += ["release-notes/%s/%s.md" % (lang, version) for lang in NOTE_LANGS]
     for rel in paths:
         try:
-            with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+            with open(os.path.join(ROOT, rel), encoding="utf-8-sig") as f:
                 files[rel] = f.read()
         except OSError:
             pass
@@ -147,6 +156,9 @@ def cmd_check(args):
     if current != branch:
         raise Fail("La branche courante est %s, pas %s." % (current, branch))
     head = out_of(["git", "rev-parse", "HEAD"])
+    if out_of(["git", "status", "--porcelain"]):
+        raise Fail("L'arbre de travail n'est pas propre : commiter ou ranger les changements "
+                   "(le rapport cloud doit couvrir exactement ce qui est publié).")
     bad = forbidden_tracked(out_of(["git", "ls-files"]).splitlines())
     if bad:
         raise Fail("Fichiers interdits suivis par git : " + ", ".join(bad))
@@ -175,7 +187,7 @@ def cmd_check(args):
 
 def create_release(tag, target, title, notes, latest):
     cmd = ["gh", "release", "create", tag, "--target", target, "--title", title,
-           "--notes-file", notes]
+           "--notes-file", notes, "--repo", PUBLIC_REPO]
     cmd.append("--latest" if latest else "--prerelease")
     mutate(cmd)
 
@@ -198,8 +210,8 @@ def cmd_publish(args):
     body = ("Release %s.\n\nNotes: release-notes/%s.md. Tested by the cloud run on commit %s.\n\n%s"
             % (tag, tag, sha, SIGNATURE))
     mutate(["gh", "pr", "create", "--base", "main", "--head", branch,
-            "--title", "Release " + tag, "--body", body])
-    mutate(["gh", "pr", "merge", branch, "--merge"])
+            "--title", "Release " + tag, "--body", body, "--repo", PUBLIC_REPO])
+    mutate(["gh", "pr", "merge", branch, "--merge", "--repo", PUBLIC_REPO])
     mutate(["git", "fetch", "origin"])
     if DRY:
         print("[dry-run] git diff --quiet %s origin/main" % sha)
@@ -219,9 +231,9 @@ def cmd_publish(args):
 
 def find_run(tag):
     for attempt in range(6):
-        runs = json.loads(out_of(["gh", "run", "list", "--workflow", "release-zip.yml", "--json",
-                                  "databaseId,headBranch,event,status,conclusion",
-                                  "--limit", "20"]) or "[]")
+        runs = load_json(out_of(["gh", "run", "list", "--workflow", "release-zip.yml", "--json",
+                                 "databaseId,headBranch,event,status,conclusion",
+                                 "--limit", "20", "--repo", PUBLIC_REPO]) or "[]", "run list")
         for r in runs:
             if r.get("headBranch") == tag:
                 return r["databaseId"]
@@ -234,7 +246,7 @@ def cmd_verify(args):
     tag = args.version
     run_id = find_run(tag)
     try:
-        res = run(["gh", "run", "watch", str(run_id), "--exit-status"], check=False,
+        res = run(["gh", "run", "watch", str(run_id), "--exit-status", "--repo", PUBLIC_REPO], check=False,
                   timeout=WATCH_TIMEOUT)
     except subprocess.TimeoutExpired:
         raise Fail("Le workflow release-zip.yml n'a pas fini en 15 min (run %s). "
@@ -242,8 +254,8 @@ def cmd_verify(args):
     if res.returncode:
         raise Fail("Le workflow release-zip.yml est en échec (run %s). "
                    "La release reste publiée ; à corriger puis relancer à la main." % run_id)
-    info = json.loads(out_of(["gh", "release", "view", tag, "--json",
-                              "assets,isLatest,isPrerelease"]))
+    info = load_json(out_of(["gh", "release", "view", tag, "--json",
+                             "assets,isLatest,isPrerelease", "--repo", PUBLIC_REPO]), "release view")
     names = {a["name"] for a in info.get("assets", [])}
     for osname in ("Windows", "Linux"):
         want = "Dragon-Quest-IX-Modern-%s-%s-x64.zip" % (tag, osname)
@@ -266,7 +278,7 @@ def cmd_announce(args):
             raise Fail("Hors Windows, --file est obligatoire.")
         path = os.path.join(DEFAULT_ANNOUNCE_DIR, args.version + ".txt")
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8-sig") as f:
             text = f.read()
     except OSError as e:
         raise Fail("Annonce illisible (%s) : %s" % (path, e))
@@ -277,18 +289,22 @@ def cmd_announce(args):
     if not url:
         print("DISCORD_WEBHOOK_URL absent : l'annonce reste dans %s." % path)
         return
-    req = urllib.request.Request(
-        url, data=json.dumps({"content": text}).encode("utf-8"), method="POST",
-        headers={"Content-Type": "application/json", "User-Agent": "DQIX-Modern-release"})
+    if DRY:
+        print("[dry-run] POST webhook (%d caractères)" % len(text))
+        return
+    # The URL is a secret: never put it, or an exception that quotes it, in a message.
     try:
+        req = urllib.request.Request(
+            url, data=json.dumps({"content": text}).encode("utf-8"), method="POST",
+            headers={"Content-Type": "application/json", "User-Agent": "DQIX-Modern-release"})
         with urllib.request.urlopen(req, timeout=30):
             pass
     except urllib.error.HTTPError as e:
         raise Fail("Discord a répondu une erreur (HTTP %s). Le texte est conservé dans %s."
-                   % (e.code, path))
-    except (urllib.error.URLError, OSError) as e:
+                   % (e.code, path)) from None
+    except (ValueError, http.client.HTTPException, urllib.error.URLError, OSError) as e:
         raise Fail("Envoi à Discord impossible (%s). Le texte est conservé dans %s."
-                   % (type(e).__name__, path))
+                   % (type(e).__name__, path)) from None
     print("Annonce postée sur Discord (fichier conservé : %s)." % path)
 
 
@@ -298,10 +314,11 @@ def cmd_delete_rc(args):
     tag = args.version
     if not is_rc_tag(tag):
         raise Fail("%s n'est pas une pré-version vX-rcN : suppression refusée." % tag)
-    info = json.loads(out_of(["gh", "release", "view", tag, "--json", "isPrerelease"]))
+    info = load_json(out_of(["gh", "release", "view", tag, "--json", "isPrerelease",
+                             "--repo", PUBLIC_REPO]), "release view")
     if not info.get("isPrerelease"):
         raise Fail("%s n'est pas marquée pré-version : suppression refusée." % tag)
-    mutate(["gh", "release", "delete", tag, "--cleanup-tag", "--yes"])
+    mutate(["gh", "release", "delete", tag, "--cleanup-tag", "--yes", "--repo", PUBLIC_REPO])
     print("Pré-version %s supprimée (release et tag)." % tag)
 
 
@@ -335,6 +352,10 @@ def main(argv=None):
             stream.reconfigure(encoding="utf-8", errors="replace")
     args = build_parser().parse_args(argv)
     DRY = args.dry_run
+    if not (re.match(r"^v\d+(\.\d+)?$", args.version) or is_rc_tag(args.version)):
+        print("ERREUR : version invalide « %s » (attendu vX, vX.Y ou vX-rcN)." % args.version,
+              file=sys.stderr)
+        return 1
     try:
         COMMANDS[args.command](args)
     except Fail as e:

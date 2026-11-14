@@ -321,7 +321,7 @@ static void restyle(const char* game) {
     snprintf(mark, sizeof mark, "%s" SEP "hd-style.txt", tex);
     FILE* f = fopen(mark, "rb");
     if (f) { size_t l = fread(old, 1, sizeof old - 1, f); old[l] = 0; fclose(f); }
-    if (!strncmp(old, g_style, strlen(g_style))) return;
+    if (strstr(old, g_style)) return;                           /* (anywhere: "ia-seule 1 service-auto 1" is a service pack the earlier textures-hd, which reads the start only, leaves alone too) */
     char was[64] = "methode5";                                  /* the earlier way, for the folder's name */
     if (old[0]) {
         int n = 0; for (const char* q = old; *q && *q != ' ' && *q != '\r' && *q != '\n' && n < 40; q++)

@@ -32,7 +32,8 @@ l'un après l'autre, pas en parallèle.
   lisse la 2D lui-même (Smooth 2D, xBR) ; si un jour il en faut un, `--model scale4x`.
   Pas de version HD pour les textures vides, unies ou de 16 × 16 et moins.
   `textures\hd-style.txt` dit avec quoi le pack est fait (`service-auto 1`,
-  `ia-seule 1` = Real-ESRGAN). S'il change, au lancement suivant de
+  `ia-seule 1` = Real-ESRGAN ; `ia-seule 1 service-auto 1` = pack du service que
+  l'ancien outil laisse aussi tranquille). S'il change, au lancement suivant de
   `textures-hd` les textures HD qui ont leur original dans `textures\dump` sont
   déplacées dans `game\textures-avant-<ancien style>\` (sans fichier :
   `textures-methode5\`) puis refaites.

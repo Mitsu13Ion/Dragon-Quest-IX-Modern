@@ -1,11 +1,22 @@
 /* textures-hd: makes HD versions (textures/hd) of the textures the game dumped
- * (textures/dump) that don't have one yet, with Real-ESRGAN. The game starts it
+ * (textures/dump) that don't have one yet, with an AI upscaler. The game starts it
  * when it starts (to finish one cut short) and when it closes after dumping new
  * ones; double-clicking it works too. The game shows how far it is
  * (textures-hd-progress.txt) and loads the new HD textures when it's done.
  *
- * Real-ESRGAN (realesrgan-ncnn-vulkan, on the graphics card) lives in
- * textures-hd-outil/ next to the game. What it can't do well by itself:
+ * The upscaler, the first one found:
+ * - the local image service (ComfyUI's Python and graphics card, no need to
+ *   start ComfyUI): upscale.bat at TEXHD_SERVICE, or else at SERVICE_DEFAULT.
+ *   Its mode is TEXHD_MODEL, "auto" by default (FatalPixels, UltraSharp blended
+ *   into the smooth areas: Romuald's choice of 2026-11-14). Only the 3D
+ *   textures (textures/dump) go through here: the 2D ones (dump-2d: letters,
+ *   menus) are never given to an AI, which garbles pixel-art text;
+ * - else Real-ESRGAN (realesrgan-ncnn-vulkan, realesrgan-x4plus-anime) in
+ *   textures-hd-outil/ next to the game, as before.
+ * textures/hd-style.txt names the upscaler the pack was made with; when it
+ * changes, the HD textures that have their original in textures/dump are put
+ * aside (textures-avant-<earlier style>/ next to textures/) and made again.
+ * What the upscaler can't do well by itself:
  * - DS textures repeat: each one is padded by wrapping before and cropped
  *   after, so there are no seams where it tiles;
  * - see-through texels get their solid neighbours' colour first, so no dark
@@ -18,10 +29,9 @@
  *   either: Real-ESRGAN turns their few pixels into flat smudges in the wrong
  *   colours (the monsters walking on the map), and the game enlarges them with
  *   xBR instead (gl_render.c PACK_MIN_TEXELS, the same limit);
- * - Real-ESRGAN's picture is used as it is (smooth and painted, Romuald's
- *   choice); TEXHD_SHARP=<0..100> mixes in that % of a sharp (Lanczos)
- *   enlargement of the original instead, which keeps the pixels' grain
- *   (50 = the earlier "method 5").
+ * - the upscaler's picture is used as it is; TEXHD_SHARP=<0..100> mixes in
+ *   that % of a sharp (Lanczos) enlargement of the original instead, which
+ *   keeps the pixels' grain (50 = the earlier "method 5").
  * What happened goes to textures/hd-auto.log. */
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -53,7 +63,11 @@
 #define SCALE 4
 #define MIN_TEXELS 256                                         /* smaller textures: no HD version (gl_render.c PACK_MIN_TEXELS) */
 #define BATCH 100                                              /* textures per Real-ESRGAN run */
+#define BATCH_SERVICE 500                                      /* per service run: it takes a few seconds to start (Python, the model) */
+#define SERVICE_DEFAULT "J:\\Outil\\IA\\ComfyUI_windows_portable\\claude-service\\upscale.bat"
 static FILE* g_log;
+static char g_service[700];                                    /* the image service's upscale.bat, "" if none: Real-ESRGAN */
+static const char* g_model = "auto";                           /* its mode (TEXHD_MODEL) */
 static int g_sharp = 0;                                        /* % of the sharp enlargement mixed into Real-ESRGAN's (TEXHD_SHARP) */
 
 static void logf_(const char* fmt, ...) {
@@ -216,16 +230,46 @@ static int run_upscaler(const char* tool, const char* in, const char* out) {
     return system(cmd);
 }
 
+/* the image service over in/ (c/ colours, a/ alpha) into out/, at once.
+ * 0: all done; 1: some failed (the rest is good: the failed ones are left
+ * for the next run); else it could not run. Its own log (one JSON line per
+ * picture) is taken into hd-auto.log for the failures, then removed. */
+static int run_service(const char* in, const char* out) {
+    char cmd[2600];
+    snprintf(cmd, sizeof cmd, "\"\"%s\" -i \"%s\" -o \"%s\" --model %s --scale %d --recursive\"", g_service, in, out, g_model, SCALE);
+    logf_("  %s\n", cmd);
+    int rc;
+#ifdef _WIN32
+    char full[2700]; const char* sh = getenv("ComSpec");
+    snprintf(full, sizeof full, "\"%s\" /c %s", sh ? sh : "cmd.exe", cmd);
+    STARTUPINFOA si; PROCESS_INFORMATION pi; memset(&si, 0, sizeof si); si.cb = sizeof si;
+    if (!CreateProcessA(NULL, full, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) { logf_("  can't start the image service (%lu)\n", GetLastError()); return -1; }
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD r = 1; GetExitCodeProcess(pi.hProcess, &r); CloseHandle(pi.hProcess); CloseHandle(pi.hThread);
+    rc = (int)r;
+#else
+    rc = system(cmd);
+#endif
+    char p[700], line[1200]; snprintf(p, sizeof p, "%s" SEP "_upscale-log.jsonl", out);
+    FILE* f = fopen(p, "rb");
+    if (f) { while (fgets(line, sizeof line, f)) if (strstr(line, "\"error\"")) logf_("  %s", line); fclose(f); remove(p); }
+    return rc;
+}
+
 static void rmtree_files(const char* dir, char (*names)[32], int n) {
     for (int i = 0; i < n; i++) { char p[700]; snprintf(p, sizeof p, "%s" SEP "%s", dir, names[i]); remove(p); }
 }
 
-/* HD textures made the earlier way (the half and half mix, "method 5") are
- * put aside once, into textures-methode5/ next to textures/ (same folders: the
- * game reads every folder of textures/), so all are made
- * again as Real-ESRGAN alone: the ones that have their original in
- * textures/dump, in any pack folder. textures/hd-style.txt says it is done. */
-#define HD_STYLE "ia-seule 1"
+/* HD textures made another way are put aside once, next to textures/ (same
+ * folders: the game reads every folder of textures/), so all are made again
+ * the current way: the ones that have their original in textures/dump, in any
+ * pack folder. textures/hd-style.txt names the way they were made:
+ * none: the half and half mix ("method 5"), put aside into textures-methode5/;
+ * "ia-seule 1": Real-ESRGAN alone, into textures-avant-ia-seule/ (the image
+ * service took over);
+ * "service-<mode> 1": the image service, into textures-avant-service-<mode>/. */
+#define HD_STYLE_ESRGAN "ia-seule 1"
+static char g_style[80];                                       /* the current way (style_now) */
 static int g_moved; static char g_aside[620];
 static void put_aside(const char* tex, const char* rel, int depth) {
     if (depth > 8) return;
@@ -275,15 +319,34 @@ static void restyle(const char* game) {
     snprintf(mark, sizeof mark, "%s" SEP "hd-style.txt", tex);
     FILE* f = fopen(mark, "rb");
     if (f) { size_t l = fread(old, 1, sizeof old - 1, f); old[l] = 0; fclose(f); }
-    if (!strncmp(old, HD_STYLE, strlen(HD_STYLE))) return;
-    snprintf(g_aside, sizeof g_aside, "%s" SEP "textures-methode5", game);
-    if (g_sharp == 0) put_aside(tex, "", 0);                    /* (TEXHD_SHARP set: the mix is wanted, keep them) */
-    f = fopen(mark, "wb"); if (f) { fprintf(f, "%s\n", HD_STYLE); fclose(f); }
+    if (!strncmp(old, g_style, strlen(g_style))) return;
+    char was[64] = "methode5";                                  /* the earlier way, for the folder's name */
+    if (old[0]) {
+        int n = 0; for (const char* q = old; *q && *q != ' ' && *q != '\r' && *q != '\n' && n < 40; q++)
+            was[n++] = (char)((*q >= 'a' && *q <= 'z') || (*q >= '0' && *q <= '9') || *q == '-' ? *q : '-');
+        was[n] = 0;
+        char tmpw[64]; snprintf(tmpw, sizeof tmpw, "avant-%s", was); snprintf(was, sizeof was, "%s", tmpw);
+    }
+    snprintf(g_aside, sizeof g_aside, "%s" SEP "textures-%s", game, was);
+    if (g_sharp == 0 || old[0]) put_aside(tex, "", 0);          /* (TEXHD_SHARP set and the pack is the mix: it is wanted, keep them) */
+    f = fopen(mark, "wb"); if (f) { fprintf(f, "%s\n", g_style); fclose(f); }
     if (g_moved) {
         char logp[700]; snprintf(logp, sizeof logp, "%s" SEP "hd-auto.log", tex);
         FILE* lg = fopen(logp, "a");
-        if (lg) { fprintf(lg, "\n%d HD texture(s) of the earlier kind (mixed) put aside in textures-methode5: made again as Real-ESRGAN alone\n", g_moved); fclose(lg); }
+        if (lg) { fprintf(lg, "\n%d HD texture(s) made another way put aside in %s: made again (%s)\n", g_moved, g_aside, g_style); fclose(lg); }
     }
+}
+
+/* the upscaler: the image service if it is there, else Real-ESRGAN */
+static void style_now(void) {
+    const char* s = getenv("TEXHD_SERVICE");
+    if (!s || !s[0]) s = SERVICE_DEFAULT;
+    FILE* f = fopen(s, "rb");
+    if (f) { fclose(f); snprintf(g_service, sizeof g_service, "%s", s); }
+    const char* m = getenv("TEXHD_MODEL");
+    if (m && m[0]) g_model = m;
+    if (g_service[0]) snprintf(g_style, sizeof g_style, "service-%s 1", g_model);
+    else snprintf(g_style, sizeof g_style, "%s", HD_STYLE_ESRGAN);
 }
 
 /* the work folder used to be textures/hd-auto-tmp: the game read the alpha and
@@ -317,7 +380,8 @@ static void progress(const char* state, int done, int total) {
 }
 
 /* one batch: its pictures padded, Real-ESRGAN over all of them at once, the HD textures written */
-static int upscale_batch(const char* dump, const char* hd, const char* tool, const char* in_c, const char* in_a, const char* out_c, const char* out_a,
+static int upscale_batch(const char* dump, const char* hd, const char* tool, const char* in, const char* out,
+                         const char* in_c, const char* in_a, const char* out_c, const char* out_a,
                          char (*work)[32], int todo) {
     static int pads[BATCH];
     static char alist[BATCH][32]; int na = 0;
@@ -339,11 +403,19 @@ static int upscale_batch(const char* dump, const char* hd, const char* tool, con
         }
         stbi_image_free(px);
     }
-    int rc = run_upscaler(tool, in_c, out_c);
-    if (rc == 0 && na) rc = run_upscaler(tool, in_a, out_a);
-    if (rc != 0) logf_("  Real-ESRGAN failed (%d)\n", rc);
+    int rc, ok;
+    if (g_service[0]) {
+        rc = run_service(in, out);
+        ok = rc == 0 || rc == 1;
+        if (rc) logf_("  the image service %s (%d)\n", rc == 1 ? "failed on some of them" : "failed", rc);
+    } else {
+        rc = run_upscaler(tool, in_c, out_c);
+        if (rc == 0 && na) rc = run_upscaler(tool, in_a, out_a);
+        ok = rc == 0;
+        if (rc) logf_("  Real-ESRGAN failed (%d)\n", rc);
+    }
     int made = 0;
-    for (int i = 0; i < todo && rc == 0; i++) {
+    for (int i = 0; i < todo && ok; i++) {
         if (pads[i] < 0) continue;
         char p[700]; int w, h, c, W, H, c2;
         snprintf(p, sizeof p, "%s" SEP "%s", dump, work[i]);
@@ -374,13 +446,13 @@ static int upscale_batch(const char* dump, const char* hd, const char* tool, con
         free(o); free(sharp); stbi_image_free(px); stbi_image_free(big); stbi_image_free(ab);
     }
     rmtree_files((char*)in_c, work, todo); rmtree_files((char*)out_c, work, todo); rmtree_files((char*)in_a, alist, na); rmtree_files((char*)out_a, alist, na);
-    return rc == 0 ? made : -1;
+    return ok && (rc == 0 || made) ? made : -1;                 /* (the service failing on all of them: it can't run) */
 }
 
 /* in batches of BATCH, so a PC turned off loses one batch: the next run (the
  * game starts one when it starts) goes on with what has no HD version yet */
 static int upscale_new(const char* game) {
-    char dump[600], hd[600], tool[600], tmp[600], in_c[640], in_a[640], out_c[640], out_a[640], logp[600];
+    char dump[600], hd[600], tool[600], tmp[600], in[620], out[620], in_c[640], in_a[640], out_c[640], out_a[640], logp[600];
     snprintf(dump, sizeof dump, "%s" SEP "textures" SEP "dump", game);
     snprintf(hd, sizeof hd, "%s" SEP "textures" SEP "hd", game);
     snprintf(tool, sizeof tool, "%s" SEP "textures-hd-outil", game);
@@ -410,22 +482,25 @@ static int upscale_new(const char* game) {
     g_log = fopen(logp, "a");
     time_t t = time(NULL); logf_("\n%s%d new texture(s) in textures/dump (%d HD already, %d with nothing to draw or too small)\n", ctime(&t), todo, done, blank);
     mkdir_(hd); mkdir_(tmp);
-    snprintf(in_c, sizeof in_c, "%s" SEP "c", tmp); snprintf(in_a, sizeof in_a, "%s" SEP "a", tmp);
-    snprintf(out_c, sizeof out_c, "%s" SEP "c4", tmp); snprintf(out_a, sizeof out_a, "%s" SEP "a4", tmp);
-    mkdir_(in_c); mkdir_(in_a); mkdir_(out_c); mkdir_(out_a);
-    int made = 0;
+    snprintf(in, sizeof in, "%s" SEP "in", tmp); snprintf(out, sizeof out, "%s" SEP "out", tmp);
+    snprintf(in_c, sizeof in_c, "%s" SEP "c", in); snprintf(in_a, sizeof in_a, "%s" SEP "a", in);
+    snprintf(out_c, sizeof out_c, "%s" SEP "c", out); snprintf(out_a, sizeof out_a, "%s" SEP "a", out);
+    mkdir_(in); mkdir_(out); mkdir_(in_c); mkdir_(in_a); mkdir_(out_c); mkdir_(out_a);
+    int made = 0, batch = g_service[0] ? BATCH_SERVICE : BATCH;
+    logf_("  upscaler: %s%s%s\n", g_service[0] ? g_service : "Real-ESRGAN (textures-hd-outil)", g_service[0] ? ", mode " : "", g_service[0] ? g_model : "");
     progress("working", done, total);
-    for (int b = 0; b < todo; b += BATCH) {
-        int k = todo - b < BATCH ? todo - b : BATCH;
-        int m = upscale_batch(dump, hd, tool, in_c, in_a, out_c, out_a, work + b, k);
-        if (m < 0) break;                                        /* Real-ESRGAN can't run: the next run tries again */
+    for (int b = 0; b < todo; b += batch) {
+        int k = todo - b < batch ? todo - b : batch;
+        int m = upscale_batch(dump, hd, tool, in, out, in_c, in_a, out_c, out_a, work + b, k);
+        if (m < 0) break;                                        /* the upscaler can't run: the next run tries again */
         made += m; done += k;
         progress("working", done, total);
     }
 #ifdef _WIN32
-    RemoveDirectoryA(in_c); RemoveDirectoryA(in_a); RemoveDirectoryA(out_c); RemoveDirectoryA(out_a); RemoveDirectoryA(tmp);
+    RemoveDirectoryA(in_c); RemoveDirectoryA(in_a); RemoveDirectoryA(out_c); RemoveDirectoryA(out_a);
+    RemoveDirectoryA(in); RemoveDirectoryA(out); RemoveDirectoryA(tmp);
 #else
-    rmdir(in_c); rmdir(in_a); rmdir(out_c); rmdir(out_a); rmdir(tmp);
+    rmdir(in_c); rmdir(in_a); rmdir(out_c); rmdir(out_a); rmdir(in); rmdir(out); rmdir(tmp);
 #endif
     if (done >= total) progress("done", made, total);
     logf_("  %d HD texture(s) written to textures/hd\n", made);
@@ -457,6 +532,7 @@ int main(int argc, char** argv) {
 #endif
     if (getenv("TEXHD_SHARP")) { g_sharp = atoi(getenv("TEXHD_SHARP")); if (g_sharp < 0) g_sharp = 0; if (g_sharp > 100) g_sharp = 100; }
     old_tmp(game);
+    style_now();
     restyle(game);
     upscale_new(game);
 #ifdef _WIN32

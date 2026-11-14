@@ -19,14 +19,23 @@ Voir la liste des fichiers partagés dans `CLAUDE.md` (surtout `gl_render.c`,
 l'un après l'autre, pas en parallèle.
 
 ## À savoir
-- Textures HD : « IA seule » (Real-ESRGAN anime sans mélange), choix de Romuald
-  du 2026-10-29 qui remplace la méthode 5 (mélange à 50 % avec un agrandissement
-  Lanczos, toujours possible avec `TEXHD_SHARP=50`). Pas de version HD pour les
-  textures vides ou unies.
-  Passage pour ceux qui ont déjà un pack : au premier lancement de `textures-hd`
-  (donc à la mise à jour), les textures HD qui ont leur original dans
-  `textures\dump` sont déplacées dans `game\textures-methode5\` puis refaites
-  (`textures\hd-style.txt` = fait).
+- Textures HD : service d'images local (skill `comfyui-images`,
+  `J:\Outil\IA\ComfyUI_windows_portable\claude-service\upscale.bat`, autre
+  chemin : `TEXHD_SERVICE`), mode `auto` = FatalPixels avec UltraSharp fondu
+  dans les zones lisses (`TEXHD_MODEL` pour un autre mode). Choix de Romuald du
+  2026-11-14 : Real-ESRGAN anime (plastique, contours noirs) est abandonné, la
+  méthode 5 aussi (mélange à 50 % avec un agrandissement Lanczos, toujours
+  possible avec `TEXHD_SHARP=50`). Sans le service, `textures-hd` reprend
+  Real-ESRGAN dans `game\textures-hd-outil` (autres PC).
+  Seules les textures 3D (`textures\dump`) passent par l'IA : jamais le texte ni
+  l'interface (l'IA déforme les lettres). `dump-2d` n'a pas de pack : le jeu
+  lisse la 2D lui-même (Smooth 2D, xBR) ; si un jour il en faut un, `--model scale4x`.
+  Pas de version HD pour les textures vides, unies ou de 16 × 16 et moins.
+  `textures\hd-style.txt` dit avec quoi le pack est fait (`service-auto 1`,
+  `ia-seule 1` = Real-ESRGAN). S'il change, au lancement suivant de
+  `textures-hd` les textures HD qui ont leur original dans `textures\dump` sont
+  déplacées dans `game\textures-avant-<ancien style>\` (sans fichier :
+  `textures-methode5\`) puis refaites.
   Dossier de travail : `game\textures-hd-tmp\`, hors de `textures\` (le jeu lit
   tous les dossiers de `textures\` : l'ancien `textures\hd-auto-tmp` donnait des
   carrés noirs et des ombres blanches pendant la conversion ; le jeu l'ignore).

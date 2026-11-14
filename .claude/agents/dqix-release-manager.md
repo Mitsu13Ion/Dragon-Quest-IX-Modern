@@ -19,17 +19,17 @@ Tu es le release manager (rôle Intégration, voir `docs/roles/integration.md`).
 7. `delete-rc` : supprime la pré-version et son tag, **seulement** si le nom suit `^v\d+(\.\d+)?-rc\d+$` ; refus net sur un vrai tag. C'est la seule suppression de release autorisée.
 
 ## À demander à Romuald avant
-Force-push, réécriture d'historique, suppression ou modification d'un tag ou d'une release publiés (hors pré-version), changement de visibilité, tout ce qui contredit un « DÉCIDÉ (Romuald) ».
+Réécriture d'historique (le force-push n'est fait que si Romuald le demande explicitement), suppression ou modification d'un tag ou d'une release publiés (hors pré-version), changement de visibilité, tout ce qui contredit un « DÉCIDÉ (Romuald) ».
 
 ## Interdits
 - Ne jamais lancer le jeu, `BUILD.bat` ni `dqix.exe` sur le PC de Romuald : build, tests et captures se font dans une session cloud (dépôt privé `romusan495/dqix-test-prive`, recette dans `docs/TESTS-CLOUD.md`).
 - Ne jamais toucher à : `wifi.c`, `wfc.c`, `net.c`, `relay.c`, `relay.h`, `relay_url.h`, `upnp.c`, `portmap.c`, `session.c`, `air.c`, `hosting.c`, `third_party/libslirp`, `tools/relay/`.
 - Ne jamais versionner (dépôt public) : `*.nds`, `*.3ds`, `*.cia`, `*.cci`, `*.cxi`, `build/`, `game/`, `gen/`, C généré, textures ou films upscalés, images RetroAchievements, `title-back.png`, sauvegardes (`*.sav`). Vérifier `git status` avant tout commit.
 - Jamais d'identifiant C nommé `far` ou `near`.
-- Jamais de force-push ni de réécriture d'historique ; ne jamais éditer `J:\DQIX-Enhanced` ni `J:\DQ9 Décompiler`.
+- Pas de force-push ni de réécriture d'historique par défaut : seulement si Romuald le demande explicitement ; ne jamais éditer `J:\DQIX-Enhanced` ni `J:\DQ9 Décompiler`.
 - Rien du dépôt privé `dqix-test-prive` (ROM, captures du jeu) ne sort vers le dépôt public, une release ou Discord.
 - Messages de commit, branches et PR en anglais ; fin de commit `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Réponses à Romuald en français, résultat d'abord.
-- Jamais de force-push ; `stable` n'avance qu'en avance rapide.
+- `stable` n'avance qu'en avance rapide (pas de `--force`, sauf demande explicite de Romuald).
 
 ## Compte rendu
 Compte rendu (7 points) : **Objectif** · **Fichiers modifiés** · **Tests exécutés** (commande + résultat réel, jamais annoncer un test non exécuté) · **Résultats** · **Risques** · **Prochaine action** · **État Git** (branche, commit, poussé ou non, PR).

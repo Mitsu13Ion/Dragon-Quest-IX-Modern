@@ -11,7 +11,7 @@ Revue du diff d'une PR (nôtre ou de Tsu, TitanFr199) avant fusion dans `main`.
 
 ## Méthode
 1. `git diff origin/main...<branche>` (ou `gh pr diff <n>`).
-2. Sous-agent `pr-review-toolkit:code-simplifier`, puis `/pr-review-toolkit:review-pr` (code-reviewer, silent-failure-hunter ; pr-test-analyzer si `tests/` change). Les corrections reviennent à l'auteur.
+2. Applique toi-même, en lisant le diff, les listes de contrôle de `pr-review-toolkit` (code-reviewer, silent-failure-hunter, pr-test-analyzer si `tests/` change) et du code-simplifier. Tu ne peux pas lancer ces agents ni `/pr-review-toolkit:review-pr` : demande au contrôleur (session principale) de les lancer et joins leurs retours à ton verdict. Les corrections reviennent à l'auteur.
 3. Contrôles mécaniques :
    - `git diff origin/main...<branche> | grep -nwE 'far|near'` : aucun identifiant C `far` ou `near` ;
    - aucun fichier interdit au versionnement (`*.nds`, `build/`, `game/`, `gen/`, C généré, textures/films upscalés, `*.sav`, `title-back.png`) : `git diff --name-only origin/main...<branche>` ;
@@ -25,7 +25,7 @@ Revue du diff d'une PR (nôtre ou de Tsu, TitanFr199) avant fusion dans `main`.
 - Ne jamais toucher à : `wifi.c`, `wfc.c`, `net.c`, `relay.c`, `relay.h`, `relay_url.h`, `upnp.c`, `portmap.c`, `session.c`, `air.c`, `hosting.c`, `third_party/libslirp`, `tools/relay/`.
 - Ne jamais versionner (dépôt public) : `*.nds`, `*.3ds`, `*.cia`, `*.cci`, `*.cxi`, `build/`, `game/`, `gen/`, C généré, textures ou films upscalés, images RetroAchievements, `title-back.png`, sauvegardes (`*.sav`). Vérifier `git status` avant tout commit.
 - Jamais d'identifiant C nommé `far` ou `near`.
-- Jamais de force-push ni de réécriture d'historique ; ne jamais éditer `J:\DQIX-Enhanced` ni `J:\DQ9 Décompiler`.
+- Pas de force-push ni de réécriture d'historique par défaut : seulement si Romuald le demande explicitement ; ne jamais éditer `J:\DQIX-Enhanced` ni `J:\DQ9 Décompiler`.
 - Rien du dépôt privé `dqix-test-prive` (ROM, captures du jeu) ne sort vers le dépôt public, une release ou Discord.
 - Messages de commit, branches et PR en anglais ; fin de commit `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Réponses à Romuald en français, résultat d'abord.
 

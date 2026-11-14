@@ -16,6 +16,7 @@ fills it).
 """
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -27,7 +28,19 @@ render_scale = 2
 window_scale = 4
 wireless = 0
 """
+VERSION_H = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "runtime", "version.h")
 LINKS = ("data", "fonts", "textures", "skins", "wfc")
+
+
+def settings_text():
+    """SETTINGS plus last_version = the real DQIX_VERSION of runtime/version.h.
+    Without it the What's new box opens at frame 90 and stops a scripted run.
+    The match is anchored on '#define' so the comment line is skipped."""
+    with open(VERSION_H, encoding="utf-8") as f:
+        m = re.search(r'^#define DQIX_VERSION "([^"]+)"', f.read(), re.M)
+    if not m:
+        sys.exit(f"no #define DQIX_VERSION in {VERSION_H}")
+    return SETTINGS + f"last_version = {m.group(1)}\n"
 
 
 def read_ppm(path):
@@ -96,7 +109,7 @@ def main():
     shutil.copy(a.save, os.path.join(out, "dqix.sav"))
     shutil.copy(a.input, os.path.join(out, "input.txt"))
     with open(os.path.join(out, "settings.ini"), "w") as f:
-        f.write(SETTINGS)
+        f.write(settings_text())
     for name in LINKS:
         if os.path.exists(os.path.join(game, name)):
             os.symlink(os.path.join(game, name), os.path.join(out, name))

@@ -231,8 +231,10 @@ static int run_upscaler(const char* tool, const char* in, const char* out) {
 }
 
 /* the image service over in/ (c/ colours, a/ alpha) into out/, at once.
- * 0: all done; 1: some failed (the rest is good: the failed ones are left
- * for the next run); else it could not run. Its own log (one JSON line per
+ * upscale.bat runs under the service's guard (one GPU job at a time, memory
+ * limits). 0: all done; 1: some failed (the rest is good: the failed ones are
+ * left for the next run); else it could not run (75/76: over the guard's
+ * memory limits, 77: refused). Its own log (one JSON line per
  * picture) is taken into hd-auto.log for the failures, then removed. */
 static int run_service(const char* in, const char* out) {
     char cmd[2600];
@@ -407,7 +409,9 @@ static int upscale_batch(const char* dump, const char* hd, const char* tool, con
     if (g_service[0]) {
         rc = run_service(in, out);
         ok = rc == 0 || rc == 1;
-        if (rc) logf_("  the image service %s (%d)\n", rc == 1 ? "failed on some of them" : "failed", rc);
+        if (rc) logf_("  the image service %s (%d)\n", rc == 1 ? "failed on some of them"      /* its guard (guard.bat): */
+                      : rc == 75 ? "went over its memory limit" : rc == 76 ? "went over its graphics memory limit"
+                      : rc == 77 ? "was refused (not enough free memory, or the graphics card busy): the next run tries again" : "failed", rc);
     } else {
         rc = run_upscaler(tool, in_c, out_c);
         if (rc == 0 && na) rc = run_upscaler(tool, in_a, out_a);

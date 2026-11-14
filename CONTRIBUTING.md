@@ -20,9 +20,13 @@ the code. Two folders on the play PC use it:
    ```
    Roles and branch prefixes (`graph/`, `langues/`, `dev/`, `integ/`, `orga/`)
    are described in `CLAUDE.md` and `docs/roles/`.
-2. Edit, then build (see below) and test with `game\dqix.exe` in the worktree.
-3. Commit on the branch, push it and open a pull request to `main`. It is
-   reviewed, then merged once it builds and Romuald agrees.
+2. Edit and commit. Tests run in a cloud session, never on the play PC (see
+   `docs/TESTS-CLOUD.md`).
+3. Push the branch and open a pull request to `main`. It is reviewed, then
+   merged once the cloud test report passes for the exact commit. A visual
+   change needs before/after screenshots shown to Romuald first. Releases
+   follow `docs/roles/integration.md` and are published only when Romuald
+   says "release".
 4. Update the play folder from `main`:
    ```
    cd /d J:\DQIX-Enhanced

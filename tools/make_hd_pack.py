@@ -22,6 +22,8 @@ import zipfile
 TEXTURE_RE = re.compile(r"^[0-9a-fA-F]{16}\.png$")
 MOVIE_EXTS = (".mpg", ".sig")
 EOCD = 22
+# A zip without ZIP64 holds at most 65535 entries.
+MAX_ENTRIES = 65535
 # Fixed timestamp keeps the zips reproducible.
 STAMP = (2024, 1, 1, 0, 0, 0)
 
@@ -48,7 +50,7 @@ def split(files, prefix, limit):
         cost = entry_cost(prefix + name, size)
         if EOCD + cost > limit:
             raise SystemExit("%s alone exceeds the size limit" % name)
-        if cur and used + cost > limit:
+        if cur and (used + cost > limit or len(cur) >= MAX_ENTRIES):
             chunks.append(cur)
             cur, used = [], EOCD
         cur.append((name, path, size))
@@ -95,19 +97,25 @@ def main(argv=None):
     limit = int(args.max_gb * 1024 ** 3)
     textures = list_files(args.textures_dir, lambda n: TEXTURE_RE.match(n))
     movies = list_files(args.movies_dir, lambda n: n.lower().endswith(MOVIE_EXTS))
+    if not textures:
+        raise SystemExit("no <16 hex>.png textures found in %s" % args.textures_dir)
+    if not movies:
+        raise SystemExit("no .mpg/.sig movie files found in %s" % args.movies_dir)
     os.makedirs(args.out_dir, exist_ok=True)
+    for old in os.listdir(args.out_dir):
+        if old == "hd-pack.txt" or (old.startswith("hd-pack-") and old.endswith(".zip")):
+            os.remove(os.path.join(args.out_dir, old))
 
     names = []
     for i, chunk in enumerate(split(textures, "textures/", limit), 1):
         name = "hd-pack-textures-%d.zip" % i
         write_zip(os.path.join(args.out_dir, name), "textures/", chunk)
         names.append(name)
-    if movies:
-        chunks = split(movies, "movies/", limit)
-        if len(chunks) > 1:
-            raise SystemExit("movies do not fit in one zip under --max-gb")
-        write_zip(os.path.join(args.out_dir, "hd-pack-movies.zip"), "movies/", chunks[0])
-        names.append("hd-pack-movies.zip")
+    chunks = split(movies, "movies/", limit)
+    if len(chunks) > 1:
+        raise SystemExit("movies do not fit in one zip under --max-gb")
+    write_zip(os.path.join(args.out_dir, "hd-pack-movies.zip"), "movies/", chunks[0])
+    names.append("hd-pack-movies.zip")
 
     lines = ["hd-pack %d" % args.version]
     for name in names:

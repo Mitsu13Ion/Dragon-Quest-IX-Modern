@@ -59,6 +59,16 @@ with tempfile.TemporaryDirectory() as tmp:
             for info in z.infolist():
                 assert info.compress_type == zipfile.ZIP_STORED, info.filename
                 seen.append(info.filename)
+    import struct
+    for line in zips:
+        path = os.path.join(out, line.split(" ")[1])
+        data = open(path, "rb").read()
+        with zipfile.ZipFile(path) as z:
+            for info in z.infolist():
+                h = info.header_offset
+                assert data[h:h + 4] == b"PK"
+                assert struct.unpack("<H", data[h + 6:h + 8])[0] == 0, info.filename
+                assert struct.unpack("<H", data[h + 28:h + 30])[0] == 0, info.filename
     assert sorted(os.listdir(out)) == sorted(
         ["hd-pack.txt", "hd-pack-textures-1.zip", "hd-pack-textures-2.zip",
          "hd-pack-movies.zip"]), os.listdir(out)
@@ -71,4 +81,35 @@ with tempfile.TemporaryDirectory() as tmp:
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     assert open(os.path.join(out2, "hd-pack.txt")).read().startswith("hd-pack 7\n")
+
+    # stale files in out_dir are removed (only hd-pack* names)
+    with open(os.path.join(out2, "hd-pack-textures-9.zip"), "wb") as f:
+        f.write(b"stale")
+    with open(os.path.join(out2, "keep.txt"), "wb") as f:
+        f.write(b"x")
+    r = subprocess.run([sys.executable, TOOL, tex, mov, out2], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert sorted(os.listdir(out2)) == ["hd-pack-movies.zip", "hd-pack-textures-1.zip",
+                                        "hd-pack.txt", "keep.txt"], os.listdir(out2)
+
+    # empty inputs fail
+    empty = os.path.join(tmp, "empty")
+    os.makedirs(empty)
+    for a, b in ((empty, mov), (tex, empty)):
+        r = subprocess.run([sys.executable, TOOL, a, b, os.path.join(tmp, "out3")],
+                           capture_output=True, text=True)
+        assert r.returncode != 0 and "no " in r.stderr, (r.returncode, r.stderr)
+
+    # entry-count cut
+    sys.path.insert(0, os.path.join(HERE, "..", "..", "tools"))
+    import make_hd_pack
+    make_hd_pack.MAX_ENTRIES = 2
+    out4 = os.path.join(tmp, "out4")
+    assert make_hd_pack.main([tex, mov, out4]) == 0
+    assert sorted(os.listdir(out4)) == [
+        "hd-pack-movies.zip", "hd-pack-textures-1.zip", "hd-pack-textures-2.zip",
+        "hd-pack-textures-3.zip", "hd-pack.txt"], os.listdir(out4)
+    for i in (1, 2, 3):
+        with zipfile.ZipFile(os.path.join(out4, "hd-pack-textures-%d.zip" % i)) as z:
+            assert len(z.infolist()) <= 2
 print("OK")

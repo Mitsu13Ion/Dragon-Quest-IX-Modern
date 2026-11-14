@@ -383,8 +383,8 @@ static void progress(const char* state, int done, int total) {
 static int upscale_batch(const char* dump, const char* hd, const char* tool, const char* in, const char* out,
                          const char* in_c, const char* in_a, const char* out_c, const char* out_a,
                          char (*work)[32], int todo) {
-    static int pads[BATCH];
-    static char alist[BATCH][32]; int na = 0;
+    static int pads[BATCH_SERVICE];                              /* (the larger of the two batches) */
+    static char alist[BATCH_SERVICE][32]; int na = 0;
     for (int i = 0; i < todo; i++) {
         char p[700]; snprintf(p, sizeof p, "%s" SEP "%s", dump, work[i]);
         int w, h, c; unsigned char* px = stbi_load(p, &w, &h, &c, 4);

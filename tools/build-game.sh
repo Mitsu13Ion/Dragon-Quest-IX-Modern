@@ -129,6 +129,9 @@ if ! cmp -s "$ROM" game/data/dqix.nds; then cp "$ROM" game/data/dqix.nds; fi
 cp skins/*.png skins/*.txt game/skins/ 2>/dev/null || true
 cp fonts/*.ttf fonts/*.txt game/fonts/ 2>/dev/null || true             # the HD text's fonts (Graphics > Text font)
 cp lang/*.txt game/lang/ 2>/dev/null || true                          # the menus' and messages' translations (Language menu)
+rm -rf game/notes && mkdir -p game/notes                              # the release notes, shown after an update (whatsnew.c)
+cp release-notes/v*.md game/notes/ 2>/dev/null || true
+for l in fr de it es; do [ -d release-notes/$l ] && mkdir -p game/notes/$l && cp release-notes/$l/v*.md game/notes/$l/ 2>/dev/null; done; true
 # modern job icons, in the HD texture pack (runtime/hdsprite.h): made from the ROM
 # like the program's icon. Optional: without them the game shows its own.
 $PY tools/job_icons.py "$ROM" game/textures/jobs || echo "   job icons: not made (optional)"

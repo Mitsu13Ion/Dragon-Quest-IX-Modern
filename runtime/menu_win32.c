@@ -290,6 +290,7 @@ static void build(int all, const char* const* shell_names, int n_shells) {
     item(ul, MI_UILANG0 + 5, L"E&spa\u00f1ol");
     Menu help = sub(0, L"&Help");
     item(help, MI_CONTROLS, L"&Controls");
+    item(help, MI_WHATSNEW, L"&What's new");
     item(help, MI_UPDATE, L"Check for &updates...");
     item(help, MI_UPDATE_AUTO, L"Check for updates at &start");
     sep(help);

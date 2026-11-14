@@ -443,6 +443,9 @@ es = &Ayuda
 en = &Controls
 es = &Controles
 
+en = &What's new
+es = &Novedades
+
 en = Check for &updates...
 es = Buscar &actualizaciones...
 
@@ -1263,3 +1266,6 @@ es = num
 
 en = Map in the corner: roun&d, centred on you (silver compass ring)
 es = Mapa en la esquina: redon&do, centrado en ti (anillo plateado con brújula)
+
+en = What's new needs the graphics card (OpenGL)
+es = «Novedades» necesita la tarjeta gráfica (OpenGL)

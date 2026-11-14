@@ -46,6 +46,7 @@
 #include "session.h"
 #include "air.h"
 #include "update.h"
+#include "whatsnew.h"
 #include "text.h"
 #include "controls.h"
 #include "uitext.h"
@@ -3201,6 +3202,8 @@ static char g_player_name[32] = "";              /* sessions: what friends see *
 static int g_session_port = SESSION_PORT;
 static int g_update_auto = 1;                    /* look for a new stable version at start */
 static char g_update_skip[32];                   /* ...but not this one (the player said so) */
+static char g_last_version[32];                  /* settings.ini's last_version: the version that ran last (whatsnew.h) */
+static int g_had_settings;                       /* there was a settings.ini (else a new install: no "What's new") */
 static int g_net_want = 1;                     /* the menu's "connect" check: on for a new install (settings.ini keeps each player's choice) */
 static const char* wfc_dns(void) {
     for (unsigned i = 0; i < sizeof WFC / sizeof WFC[0]; i++) if (!strcmp(g_wfc_server, WFC[i].key)) return WFC[i].dns;
@@ -3260,6 +3263,7 @@ static int look_key(const char* key) {
 static void settings_load(void) {
     FILE* f = fopen(SETTINGS, "r");
     if (!f) return;
+    g_had_settings = 1;
     char line[200], color[64] = "";
     int version = 0;
     while (fgets(line, sizeof line, f)) sscanf(line, " settings_version = %d", &version);
@@ -3278,6 +3282,7 @@ static void settings_load(void) {
         }
         if (!strcmp(key, "all_options")) { g_all_options = atoi(val) != 0; continue; }
         if (!strcmp(key, "update_check")) { g_update_auto = atoi(val) != 0; continue; }
+        if (!strcmp(key, "last_version")) { snprintf(g_last_version, sizeof g_last_version, "%s", val); continue; }
         if (!strcmp(key, "update_skip")) { snprintf(g_update_skip, sizeof g_update_skip, "%s", val); continue; }
         if (!strcmp(key, "session_port")) { int v = atoi(val); if (v > 0 && v < 65536) g_session_port = v; continue; }
         if (!strcmp(key, "session_consoles")) { if (!strcmp(val, "processes")) { static char e[] = "DQIX_PROCESSES=1"; putenv(e); } continue; }
@@ -3494,6 +3499,8 @@ static void settings_save(void) {
     fprintf(f, "# updates: look for a new stable version when the game starts (Help menu); a version not to offer again\n");
     fprintf(f, "update_check = %d\n", g_update_auto);
     fprintf(f, "update_skip = %s\n", g_update_skip[0] ? g_update_skip : "-");
+    fprintf(f, "# the version that ran last: after an update, the game shows what's new once (Help > What's new)\n");
+    fprintf(f, "last_version = %s\n", DQIX_VERSION);
     fprintf(f, "session_port = %d\n", g_session_port);
     fprintf(f, "# how your friends' DSes run on this PC: thread (one thread, the usual) or processes (if thread misbehaves)\n");
     fprintf(f, "session_consoles = %s\n", getenv("DQIX_PROCESSES") ? "processes" : "thread");
@@ -3777,6 +3784,7 @@ void frontend_init(int argc, char** argv) {
     if (getenv("DQIX_NO_SETTINGS")) controls_defaults(); else controls_load();
     if (!getenv("DQIX_NO_SETTINGS")) {
         settings_load();
+        whatsnew_start(g_last_version, g_had_settings);
         if (!g_wireless.mac_set && !g_headless) { wireless_mac_new(); settings_save(); }
     }
     wireless_apply(1);                                          /* read by firmware_init */
@@ -6249,6 +6257,40 @@ static void idle_pump(void) {
     SDL_SetWindowTitle(g_win, t);
 }
 
+/* ---------------------------------------------------------------- what's new (whatsnew.h) */
+/* Help > What's new: the journal's panel (it needs OpenGL and the HD text's font) */
+static void whatsnew_ui_show(void) {
+    if (!g_gl || !text_ready()) { notice("What's new needs the graphics card (OpenGL)"); return; }
+    if (gamemenu_is_open()) gamemenu_close();
+    if (journal_open()) journal_input(JK_CLOSE);
+    whatsnew_show();
+}
+
+/* After an update: the notes once, when the window shows the game (not over
+ * logos skipped unseen, nor in a session). Tests: DQIX_WHATSNEW_TEST=frame,keys
+ * (D U: a page down, up; ',' saves the window as whatsnewN.ppm, also done at the end). */
+static void whatsnew_tick(void) {
+    static long long test = -2; static const char* keys;
+    if (test == -2) { const char* e = getenv("DQIX_WHATSNEW_TEST"); test = e ? atoll(e) : -1; keys = e ? strchr(e, ',') : NULL; }
+    if (!whatsnew_pending() && test < 0) return;
+    if (!g_gl || !text_ready() || session_requested() || bootskip_active() || gamemenu_is_open() || journal_open()) return;
+    if (g_frame < (uint64_t)(test >= 0 ? test : 90)) return;
+    whatsnew_show();
+    if (test < 0) return;
+    test = -1;
+    int shot = 0;
+    for (const char* c = keys ? keys + 1 : ""; ; c++) {
+        if (*c == ',' || !*c) {
+            snprintf(g_shot_next, sizeof g_shot_next, "whatsnew%d.ppm", shot++);
+            present();
+            if (!*c) break;
+            continue;
+        }
+        journal_input(*c == 'U' ? JK_PAGE_UP : JK_PAGE_DOWN);
+    }
+    journal_input(JK_CLOSE);
+}
+
 static void do_action(int id) {
     int relayout = 0;
     switch (id) {
@@ -6529,6 +6571,7 @@ static void do_action(int id) {
         break;
     case MI_CONTROLS: info_box(SDL_MESSAGEBOX_INFORMATION, "Controls", CONTROLS_TEXT, g_win); break;
     case MI_UPDATE: update_menu(); break;
+    case MI_WHATSNEW: whatsnew_ui_show(); break;
     case MI_UPDATE_AUTO: g_update_auto = !g_update_auto; settings_save(); break;
     case MI_ABOUT: {
         char text[600];
@@ -6583,6 +6626,7 @@ static void game_menu_toggle(void) {
 static int g_trophies_back;                                  /* the trophies were opened from the menu: back to it when closed */
 static void game_menu_chose(int id) {
     if (id == GM_TROPHIES) { gamemenu_close(); trophies_show(); g_trophies_back = 1; return; }   /* (the journal's panel, alone) */
+    if (id == MI_WHATSNEW && g_gl && text_ready()) { gamemenu_close(); whatsnew_show(); g_trophies_back = 1; return; }   /* (the same: back to the menu) */
     if (id <= 0) return;                                     /* Resume: closed already */
     do_action(id);
     gamemenu_changed();                                      /* new check marks */
@@ -7048,6 +7092,7 @@ void frontend_frame(void) {
             g_paused = 0;
         }
         if (g_autosave_done) { g_autosave_done = 0; notice("Saved"); }   /* Modern > Save by itself */
+        whatsnew_tick();                                      /* after an update: what's new, once */
         while (!session_requested() && (gamemenu_is_open() || journal_open())) {   /* (the trophies go back to the menu) */
             if (gamemenu_is_open()) {                             /* the in-game menu: the game waits */
                 update_title(0);

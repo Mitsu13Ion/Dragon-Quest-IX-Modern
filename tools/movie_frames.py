@@ -23,6 +23,9 @@ def write_movie(out_dir, name, src_frames, hd_frames):
                             "-c:v", "mpeg1video", "-q:v", "3", "-g", "24", "-bf", "0", "-f", "mpeg1video", f"{out_dir}/{name}.tmp"], stdin=subprocess.PIPE)
     for f, o in zip(src_frames, hd_frames):
         sigs.append(f.reshape(12, 16, 16, 16, 3).mean(axis=(1, 3)).round().astype(np.uint8).tobytes())
+        if o.shape != (768, 1024, 3):
+            enc.stdin.close(); enc.wait()
+            raise ValueError(f"{name}: HD frame is {o.shape}, expected (768, 1024, 3)")
         enc.stdin.write(np.ascontiguousarray(o, np.uint8).tobytes())
     enc.stdin.close()
     if enc.wait() != 0:

@@ -29,3 +29,12 @@ with tempfile.TemporaryDirectory() as out:
                         f"{out}/t.mpg"], capture_output=True, text=True)
     assert r.stdout.strip().rstrip(",") == "1024,768,30", r.stdout + r.stderr
 print("OK")
+
+# write_movie rejects a wrong-size HD frame
+with tempfile.TemporaryDirectory() as out:
+    try:
+        movie_frames.write_movie(out, "bad", iter(src[:1]), iter([np.zeros((768, 768, 3), np.uint8)]))
+        raise SystemExit("wrong-size HD frame was accepted")
+    except ValueError:
+        pass
+print("OK size")

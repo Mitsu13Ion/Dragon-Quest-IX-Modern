@@ -22,16 +22,24 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from movie_frames import frames, write_movie
 
 SERVICE = r"J:\Outil\IA\ComfyUI_windows_portable\claude-service\upscale-video.bat"
-GUARD_CODES = {75: "over the memory limits", 76: "over the memory limits", 77: "refused by the guard"}
+GUARD_CODES = {75: "over the RAM limit", 76: "over the VRAM limit", 77: "refused by the guard"}
 
 
-def decode_frames(mods, src_dir, max_frames):
-    """Write the movie's frames as %05d.png; reused if already decoded for the same count."""
+def decode_frames(mods, base, max_frames):
+    """Write the movie's frames as <base>/src/%05d.png and return the count. Reused only if they
+    were decoded for the same max_frames; otherwise src and hd (with the service's cache) are wiped."""
     from PIL import Image
-    ok = os.path.join(src_dir, "src.ok")
+    src_dir, ok = f"{base}/src", f"{base}/src.ok"
+    want = str(max_frames)
     if os.path.exists(ok):
-        return int(open(ok).read())
-    shutil.rmtree(src_dir, ignore_errors=True)
+        got, n = open(ok).read().split()
+        if got == want:
+            return int(n)
+        print(f"max-frames changed ({got} -> {want}): redoing {os.path.basename(base)}", flush=True)
+    for d in (src_dir, f"{base}/hd", f"{base}/mpg"):
+        shutil.rmtree(d, ignore_errors=True)
+    if os.path.exists(ok):
+        os.remove(ok)
     os.makedirs(src_dir)
     n = 0
     for i, f in enumerate(frames(mods)):
@@ -40,7 +48,7 @@ def decode_frames(mods, src_dir, max_frames):
         Image.fromarray(f).save(f"{src_dir}/{i:05d}.png")
         n = i + 1
     with open(ok, "w") as fh:
-        fh.write(str(n))
+        fh.write(f"{want} {n}")
     return n
 
 
@@ -65,11 +73,14 @@ def hd_frames(hd_dir, n):
 
 def remake(mods_dir, work_dir, out_dir, name, max_frames=0):
     base = f"{work_dir}/{name}"
-    if os.path.exists(f"{base}/done"):
+    marker = f"{base}/done"
+    if os.path.exists(marker) and open(marker).read() == str(max_frames):
         print(name, "already done", flush=True)
         return
+    if os.path.exists(marker):
+        os.remove(marker)
     t0 = time.time()
-    n = decode_frames(f"{mods_dir}/{name}.mods", f"{base}/src", max_frames)
+    n = decode_frames(f"{mods_dir}/{name}.mods", base, max_frames)
     print(name, n, "frames decoded", flush=True)
     seedvr2(f"{base}/src", f"{base}/hd")
     shutil.rmtree(f"{base}/mpg", ignore_errors=True)
@@ -78,7 +89,8 @@ def remake(mods_dir, work_dir, out_dir, name, max_frames=0):
         sys.exit(f"{name}: wrote {wrote} frames, expected {n}")
     subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "split_movies.py"),
                     f"{base}/mpg", out_dir, "25"], check=True)
-    open(f"{base}/done", "w").close()
+    with open(marker, "w") as fh:
+        fh.write(str(max_frames))
     print(name, "done", n, "frames", f"{time.time() - t0:.0f}s", flush=True)
 
 

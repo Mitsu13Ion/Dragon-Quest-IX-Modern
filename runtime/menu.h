@@ -35,6 +35,7 @@ enum {
     MI_MAPGATHER = 344,                                                 /* the map: the fields' gathering spots as stars (mapmarks.c) */
     MI_MAP_LEGEND = 345,                                                /* the map: a legend of its marks (mapmarks.c) */
     MI_ROUND_MAP = 815,                                                 /* the map in the corner: round, centred on the hero */
+    MI_WHATSNEW = 820,                                                  /* Help > What's new: this version's notes (whatsnew.c) */
     MI_HINTS = 346, MI_CONFIRM_BOTTOM,                                  /* the game's DS buttons as the player's own (hints.c); the controller's A on its bottom button */
     MI_BSPEED1 = 350,                                                   /* battle speed: normal, 2x, 3x (+0..2) */
     MI_BSPEED4 = 410, MI_BSPEED_TURN, MI_BVICTORY,                      /* ...4x; only while the turn plays out; the victory's messages by themselves */

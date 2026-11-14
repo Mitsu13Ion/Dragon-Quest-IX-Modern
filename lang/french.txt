@@ -443,6 +443,9 @@ fr = &Aide
 en = &Controls
 fr = &Commandes
 
+en = &What's new
+fr = &Nouveautés
+
 en = Check for &updates...
 fr = Rechercher des &mises à jour...
 
@@ -1263,3 +1266,6 @@ fr = num
 
 en = Map in the corner: roun&d, centred on you (silver compass ring)
 fr = Carte dans le coin : ron&de, centrée sur vous (anneau argenté et boussole)
+
+en = What's new needs the graphics card (OpenGL)
+fr = « Nouveautés » a besoin de la carte graphique (OpenGL)

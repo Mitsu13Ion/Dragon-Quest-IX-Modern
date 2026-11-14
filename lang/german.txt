@@ -443,6 +443,9 @@ de = &Hilfe
 en = &Controls
 de = &Steuerung
 
+en = &What's new
+de = &Neuigkeiten
+
 en = Check for &updates...
 de = Nach &Updates suchen...
 
@@ -1263,3 +1266,6 @@ de = num
 
 en = Map in the corner: roun&d, centred on you (silver compass ring)
 de = Karte in der Ecke: run&d, auf dich zentriert (silberner Kompassring)
+
+en = What's new needs the graphics card (OpenGL)
+de = „Neuigkeiten“ braucht die Grafikkarte (OpenGL)

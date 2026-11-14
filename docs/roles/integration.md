@@ -49,6 +49,15 @@ du commentaire, `#define DQIX_VERSION "v48 (vX.Y)"` (garder « v48 » devant).
    date), `release-notes/vN.md` (anglais, style des notes existantes :
    « What's new since v(N-1) », comment installer, rien du jeu inclus ; une
    ligne par point, sans retour à la ligne forcé). PR.
+   Plus ses traductions pour la fenêtre « Nouveautés » que le jeu montre
+   une fois après la mise à jour (`runtime/whatsnew.c`) :
+   `release-notes/fr/vN.md`, `de/`, `it/`, `es/`. Seulement le résumé et les
+   parties nouveautés / corrections (pas « How to install », « Not
+   included », « Playing with friends »), mêmes noms d'options que les menus
+   traduits (`lang/*.txt`). `release-notes/vN.md` (anglais) reste la
+   référence et le texte de la release GitHub ; le jeu en coupe la fin à
+   `**How to install**` (ou à une ligne `<!-- in-game notes end here -->`).
+   Une langue sans fichier montre l'anglais.
 3. `dqix-build-check` sur la branche (PC allumé). Demander le feu vert.
 4. Après accord : fusion, tag `vN` sur `main`, branche `stable` déplacée sur
    ce tag (le bouton « Check for updates » la lit), release GitHub `vN` avec

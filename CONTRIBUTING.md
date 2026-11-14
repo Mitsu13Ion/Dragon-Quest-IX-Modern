@@ -27,7 +27,8 @@ the code. Two folders on the play PC use it:
    change needs before/after screenshots shown to Romuald first. Releases
    follow `docs/roles/integration.md` and are published only when Romuald
    says "release".
-4. Update the play folder from `main`:
+4. The play folder `J:\DQIX-Enhanced` is updated by the game's built-in
+   updater. Only if Romuald asks, update it by hand from `main`:
    ```
    cd /d J:\DQIX-Enhanced
    git pull --ff-only

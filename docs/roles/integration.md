@@ -38,7 +38,8 @@ central.
 
 ## À savoir
 - Sauvegarde du dossier de jeu avant une mise à jour risquée : `J:\DQIX-Backups\<date>-<raison>`.
-- Les branches distantes fusionnées ne se suppriment qu'avec l'accord de Romuald.
+- La suppression de branches distantes se demande à Romuald (déjà validées le
+  14/11 : les branches fusionnées et `integ/suivi-2026-10-22`).
 - Vérification : tests cloud (`docs/TESTS-CLOUD.md`), jamais le jeu sur le PC de Romuald.
 
 ## Release (sur demande, autonome depuis le 2026-11-14)

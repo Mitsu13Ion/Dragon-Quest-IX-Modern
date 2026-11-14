@@ -59,7 +59,9 @@ Romuald (`dqix-build-check`) : les tests, eux, sont cloud (section suivante).
   montrées à Romuald avant la fusion. Après la fusion d'une PR de Tsu, le
   prévenir en une ligne.
 - **À demander à Romuald avant** : force-push (jamais par défaut, seulement
-  s'il le demande explicitement), réécriture d'historique, suppression ou
+  s'il le demande explicitement), réécriture d'historique, suppression de
+  branches distantes (déjà validées le 14/11 : les branches fusionnées et
+  `integ/suivi-2026-10-22`), suppression ou
   modification d'un tag ou d'une release publiés (sauf la pré-version de test
   `vX-rcN`), changement de visibilité d'un dépôt, boîtes de combat au-delà du
   style Moderne, tout ce qui contredit un « DÉCIDÉ (Romuald) ».

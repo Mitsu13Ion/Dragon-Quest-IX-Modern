@@ -30,7 +30,7 @@ public, une release ou Discord : ni ROM, ni capture du jeu.
 sh tools/cloud-test.sh <ref> <dossier de sortie> [images supplémentaires]
 ```
 
-- `<ref>` : branche, tag ou commit du dépôt public à tester (ex. `origin/main`).
+- `<ref>` : branche, tag ou commit du dépôt public à tester (ex. `main`).
 - `<dossier de sortie>` : reçoit `report.md` et les captures.
 - `[images supplémentaires]` : numéros d'images à photographier en plus de ceux
   par défaut.
@@ -42,11 +42,15 @@ scriptée sans écran (`DQIX_FAST=1 DQIX_QUIT_NOASK=1 DQIX_INPUT_FILE=...
 DQIX_WINSHOT_AT=...`, avec un `settings.ini` en `language = french` et
 `last_version`), convertit les captures en PNG et écrit `report.md`.
 
-Mode `WHATSNEW=1` : même chose, mais le `settings.ini` n'a pas de
-`last_version` de la version testée, pour voir la fenêtre « Nouveautés » une
-fois et la photographier.
+Images par défaut : 1400, 1800 et 3600 (création du personnage).
 
-Le script vit dans le dépôt privé (il y est écrit en parallèle de ce document).
+Mode `WHATSNEW=1` : même chose, mais le `settings.ini` déclare
+`last_version = v2.0` et le jeu tourne avec `DQIX_WHATSNEW_TEST=90`, pour
+ouvrir la fenêtre « Nouveautés » et la photographier (`whatsnew-f90.png`).
+
+Le script est `tools/cloud-test.sh` du dépôt privé (branche
+`tests/cloud-test-script`, prouvé le 15/11/2026 sur `main` d1f9335 : les deux
+modes donnent `result: PASS`).
 
 ## Résultats
 

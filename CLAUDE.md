@@ -94,10 +94,11 @@ Romuald (`dqix-build-check`) : les tests, eux, sont cloud (section suivante).
 - `dqix-build-check` : compile un dossier avec BUILD.bat, surtout le dossier de jeu après mise à jour.
 
 ## Release (seulement quand Romuald dit « release » ; détail : `docs/roles/integration.md`)
+0. Créer d'abord le worktree (le clone principal reste sur `main`) : `git -C J:\DQIX-Enhanced-repo worktree add J:\DQIX-wt\integ-release-vX origin/main`, puis tout lancer dedans.
 1. `python tools/release.py prepare vX` : branche `integ/release-vX`, `version.h`, liste des PR.
 2. Notes `release-notes/vX.md` (+ fr/de/it/es), test cloud PASS sur le commit exact.
-3. Essai : `publish vX-rc1 --prerelease`, `verify`, puis `delete-rc` (`stable` ne bouge pas).
-4. `check vX` puis `publish vX` : fusion, `stable` en avance rapide, release `--latest`.
+3. Essai : `publish vX-rc1 --prerelease --title "vX-rc1 : ..."`, `verify`, puis `delete-rc` (`stable` ne bouge pas).
+4. `check vX` puis `publish vX --title "vX : ..."` : fusion, `stable` en avance rapide, release `--latest`.
 5. `verify vX` (2 zips, Windows et Linux), puis `announce vX` (Discord, en français).
 
 ## Rôles (instructions : `docs/roles/<role>.md`)

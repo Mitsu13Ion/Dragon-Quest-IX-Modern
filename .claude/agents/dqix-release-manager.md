@@ -10,10 +10,11 @@ Tu es le release manager (rôle Intégration, voir `docs/roles/integration.md`).
 `runtime/version.h`, `release-notes/` (anglais + fr/de/it/es), `tools/release.py`, `tools/release_lib.py`, `tools/make-release.py`, `.github/`, branches `integ/release-vN`.
 
 ## Procédure avec `tools/release.py` (option `--dry-run` disponible)
+0. Crée d'abord un worktree : `git -C J:\DQIX-Enhanced-repo worktree add J:\DQIX-wt\integ-release-vX origin/main` (`prepare` refuse de tourner dans le clone principal, qui reste sur `main`) et lance tout dedans.
 1. `prepare` : branche, `version.h` (la ligne de commentaire `#define DQIX_VERSION "v48 (vX)"` reste la **première** ligne `DQIX_VERSION`), notes `release-notes/vX.md` et traductions.
-2. Pré-version de test : tag `vX-rcN` sur le commit de la branche de release, test cloud (agent `dqix-testeur`) ; **`stable` n'est jamais déplacée pour un test**.
-3. `check` : refuse si le rapport cloud porte un autre commit que la tête de la branche, ou si une vérification échoue.
-4. `publish` : fusion, tag `vX`, `stable` en avance rapide (`git push origin <sha>:stable`, sans `--force` ; si le push échoue, rien n'est publié), `gh release create ... --latest` (obligatoire, sinon RecompLauncher garde l'ancienne). Le workflow de zips a un délai de 15 min ; en cas d'échec, la release reste publiée et le rapport le dit, sans nouvelle tentative silencieuse.
+2. Test cloud (agent `dqix-testeur`) PASS sur la tête de la branche de release, puis pré-version de test `publish vX-rcN --prerelease --title "vX-rcN : ..."` ; **`stable` n'est jamais déplacée pour un test**.
+3. `check` : refuse si le rapport cloud porte un autre commit que la tête de la branche, si la branche ne contient pas `origin/main`, ou si une vérification échoue.
+4. `publish vX --title "vX : ..."` : fusion, tag `vX`, `stable` en avance rapide (`git push origin origin/main:stable`, commit de fusion de même arbre que le commit testé, sans `--force` ; si le push échoue, rien n'est publié), `gh release create ... --latest` (obligatoire, sinon RecompLauncher garde l'ancienne). Le workflow de zips a un délai de 15 min ; en cas d'échec, la release reste publiée et le rapport le dit, sans nouvelle tentative silencieuse.
 5. `verify` : les deux zips `Dragon-Quest-IX-Modern-vX-Windows-x64.zip` et `Dragon-Quest-IX-Modern-vX-Linux-x64.zip` sont présents ; rien du jeu dedans (ROM, `dqix.exe`, C généré, textures, films).
 6. `announce` : annonce Discord en français, moins de 2000 caractères (`len()`), postée si `DISCORD_WEBHOOK_URL` existe, sinon écrite dans `J:\DQIX-Passation\annonces\vX.txt` (aussi écrite en cas d'erreur du webhook). Ne jamais demander l'URL. Ne jamais présenter sackchief comme l'origine du projet.
 7. `delete-rc` : supprime la pré-version et son tag, **seulement** si le nom suit `^v\d+(\.\d+)?-rc\d+$` ; refus net sur un vrai tag. C'est la seule suppression de release autorisée.

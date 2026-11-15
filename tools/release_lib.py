@@ -96,12 +96,15 @@ def is_rc_tag(tag):
 
 
 def parse_cloud_report(text):
-    """(commit sha, passed) from the lines `commit: <sha40>` and
-    `result: PASS|FAIL`. ValueError when a line is missing or malformed."""
-    commit = re.search(r"^commit: ([0-9a-f]{40})\s*$", text, re.M)
-    result = re.search(r"^result: (\S+)\s*$", text, re.M)
+    """(commit sha, passed). The contract: line 1 is `commit: <sha40>`, line 2
+    is `result: PASS|FAIL`. ValueError otherwise."""
+    lines = text.lstrip("﻿").splitlines()
+    first = lines[0].strip() if lines else ""
+    second = lines[1].strip() if len(lines) > 1 else ""
+    commit = re.fullmatch(r"commit: ([0-9a-f]{40})", first)
+    result = re.fullmatch(r"result: (PASS|FAIL)", second)
     if not commit:
-        raise ValueError("cloud report: no valid 'commit: <40 hex>' line")
-    if not result or result.group(1) not in ("PASS", "FAIL"):
-        raise ValueError("cloud report: no 'result: PASS|FAIL' line")
+        raise ValueError("cloud report: line 1 must be 'commit: <40 hex>'")
+    if not result:
+        raise ValueError("cloud report: line 2 must be 'result: PASS|FAIL'")
     return commit.group(1), result.group(1) == "PASS"

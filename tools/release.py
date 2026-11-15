@@ -110,6 +110,12 @@ def cmd_prepare(args):
     version = args.version
     if is_rc_tag(version):
         raise Fail("prepare prend la version (v3), pas une pré-version.")
+    git_dir = out_of(["git", "rev-parse", "--git-dir"])
+    common_dir = out_of(["git", "rev-parse", "--git-common-dir"])
+    if os.path.realpath(os.path.join(ROOT, git_dir)) == os.path.realpath(os.path.join(ROOT, common_dir)):
+        raise Fail("prepare ne s'exécute pas dans le clone principal (il doit rester sur main). "
+                   "Créer un worktree : git -C J:\\DQIX-Enhanced-repo worktree add "
+                   "J:\\DQIX-wt\\integ-release-%s origin/main, puis relancer prepare dedans." % version)
     if run(["gh", "auth", "status"], check=False).returncode:
         raise Fail("gh n'est pas connecté : lancer `gh auth login`.")
     if out_of(["git", "status", "--porcelain"]):
@@ -156,6 +162,10 @@ def cmd_check(args):
     if current != branch:
         raise Fail("La branche courante est %s, pas %s." % (current, branch))
     head = out_of(["git", "rev-parse", "HEAD"])
+    run(["git", "fetch", "origin"])
+    if run(["git", "merge-base", "--is-ancestor", "origin/main", "HEAD"], check=False).returncode:
+        raise Fail("La branche ne contient pas origin/main : rebaser la branche sur origin/main "
+                   "et relancer le test cloud.")
     if out_of(["git", "status", "--porcelain"]):
         raise Fail("L'arbre de travail n'est pas propre : commiter ou ranger les changements "
                    "(le rapport cloud doit couvrir exactement ce qui est publié).")
@@ -295,7 +305,7 @@ def cmd_announce(args):
     # The URL is a secret: never put it, or an exception that quotes it, in a message.
     try:
         req = urllib.request.Request(
-            url, data=json.dumps({"content": text}).encode("utf-8"), method="POST",
+            url, data=json.dumps({"content": text, "allowed_mentions": {"parse": []}}).encode("utf-8"), method="POST",
             headers={"Content-Type": "application/json", "User-Agent": "DQIX-Modern-release"})
         with urllib.request.urlopen(req, timeout=30):
             pass
@@ -352,7 +362,7 @@ def main(argv=None):
             stream.reconfigure(encoding="utf-8", errors="replace")
     args = build_parser().parse_args(argv)
     DRY = args.dry_run
-    if not (re.match(r"^v\d+(\.\d+)?$", args.version) or is_rc_tag(args.version)):
+    if not (re.fullmatch(r"v\d+(\.\d+)?", args.version) or is_rc_tag(args.version)):
         print("ERREUR : version invalide « %s » (attendu vX, vX.Y ou vX-rcN)." % args.version,
               file=sys.stderr)
         return 1

@@ -116,6 +116,21 @@ class Check(unittest.TestCase):
 
 
 class CheckHardening(unittest.TestCase):
+    def test_branch_behind_origin_main_stops_before_any_push(self):
+        fake = Fake(good_rules(base=(["git", "merge-base", "--is-ancestor", "origin/main", "HEAD"], 1, "")))
+        code, out = run_main(fake, ["publish", "v3", "--title", "t"])
+        self.assertEqual(code, 1)
+        self.assertIn("rebaser la branche sur origin/main", out)
+        self.assertTrue(fake.has("git", "fetch", "origin"))
+        for c in (("git", "push"), ("gh", "pr"), ("gh", "release")):
+            self.assertFalse(fake.has(*c), c)
+
+    def test_dry_run_check_still_fetches(self):
+        fake = Fake(good_rules())
+        self.assertEqual(run_main(fake, ["check", "v3", "--dry-run"])[0], 0)
+        self.assertTrue(fake.has("git", "fetch", "origin"))
+        self.assertTrue(fake.has("git", "merge-base", "--is-ancestor", "origin/main", "HEAD"))
+
     def test_dirty_tree_stops_check_and_publish_before_any_push(self):
         fake = Fake(good_rules(status=(["git", "status", "--porcelain"], 0, " M runtime/cpu.c\n")))
         code, out = run_main(fake, ["publish", "v3", "--title", "t"])
@@ -153,7 +168,7 @@ class CheckHardening(unittest.TestCase):
             self.assertIn(release.PUBLIC_REPO, c)
 
     def test_bad_version_is_refused_without_any_command(self):
-        for bad in ("3", "v3; rm", "main", "v3-rc", "v3.x"):
+        for bad in ("3", "v3; rm", "main", "v3-rc", "v3.x", "v3\n"):
             fake = Fake()
             self.assertEqual(run_main(fake, ["check", bad])[0], 1, bad)
             self.assertEqual(fake.cmds, [], bad)
@@ -200,7 +215,10 @@ class Publish(unittest.TestCase):
         keys = ["git push -u origin integ/release-v3", "gh pr create", "gh pr merge",
                 "git fetch origin", "git diff --quiet " + SHA + " origin/main",
                 "git push origin origin/main:stable", "gh release create v3"]
-        pos = [next(i for i, c in enumerate(seq) if c.startswith(k)) for k in keys]
+        pos, start = [], 0
+        for k in keys:  # in order; check's own fetch comes before the PR
+            start = next(i for i, c in enumerate(seq) if i >= start and c.startswith(k))
+            pos.append(start)
         self.assertEqual(pos, sorted(pos))
         create = fake.cmds[pos[-1]]
         for word in ("--target", "stable", "--latest", "--notes-file", "release-notes/v3.md"):
@@ -220,8 +238,10 @@ class Publish(unittest.TestCase):
         fake = Fake(good_rules())
         code, out = run_main(fake, ["publish", "v3", "--title", "t", "--dry-run"])
         self.assertEqual(code, 0, out)
-        for c in (("git", "push"), ("gh", "pr"), ("gh", "release"), ("git", "fetch")):
+        for c in (("git", "push"), ("gh", "pr"), ("gh", "release")):
             self.assertFalse(fake.has(*c), c)
+        self.assertEqual(fake.cmds.count(["git", "fetch", "origin"]), 1)  # check's, read-only
+        self.assertIn("[dry-run] git fetch origin", out)
         self.assertIn("[dry-run] gh release create v3", out)
         self.assertIn("[dry-run] git push origin origin/main:stable", out)
 
@@ -235,8 +255,8 @@ class Publish(unittest.TestCase):
         self.assertEqual(create[create.index("--target") + 1], "integ/release-v3")
         self.assertNotIn("--latest", create)
         self.assertIn("release-notes/v3.md", create)
-        for c in (("gh", "pr"), ("git", "fetch")):
-            self.assertFalse(fake.has(*c))
+        self.assertFalse(fake.has("gh", "pr"))
+        self.assertEqual(fake.cmds.count(["git", "fetch", "origin"]), 1)  # check's only
         self.assertFalse(any(c[:2] == ["git", "push"] and "stable" in " ".join(c) for c in fake.cmds))
 
     def test_prerelease_flag_rules(self):
@@ -352,7 +372,8 @@ class Announce(unittest.TestCase):
         code, out = self.announce({"DISCORD_WEBHOOK_URL": "https://example.invalid/secret-token"}, opener)
         self.assertEqual(code, 0, out)
         req = opener.call_args[0][0]
-        self.assertEqual(json.loads(req.data), {"content": "Salut"})
+        self.assertEqual(json.loads(req.data),
+                         {"content": "Salut", "allowed_mentions": {"parse": []}})
         self.assertEqual(req.get_header("User-agent"), "DQIX-Modern-release")
         self.assertNotIn("secret-token", out)
 
@@ -392,7 +413,7 @@ class Announce(unittest.TestCase):
         opener = mock.MagicMock()
         code, out = self.announce({"DISCORD_WEBHOOK_URL": "https://example.invalid/t"}, opener)
         self.assertEqual(code, 0, out)
-        self.assertEqual(json.loads(opener.call_args[0][0].data), {"content": "Salut"})
+        self.assertEqual(json.loads(opener.call_args[0][0].data), {"content": "Salut", "allowed_mentions": {"parse": []}})
 
     def test_no_webhook_leaves_file(self):
         self.write("Salut")
@@ -422,10 +443,24 @@ class DeleteRc(unittest.TestCase):
                        "--repo", release.PUBLIC_REPO], fake.cmds)
 
 
+WORKTREE = [(["git", "rev-parse", "--git-dir"], 0, "/r/.git/worktrees/w\n"),
+            (["git", "rev-parse", "--git-common-dir"], 0, "/r/.git\n")]
+
+
 class Prepare(unittest.TestCase):
+    def test_main_checkout_is_refused(self):
+        fake = Fake([(["git", "rev-parse", "--git-dir"], 0, ".git\n"),
+                     (["git", "rev-parse", "--git-common-dir"], 0, ".git\n")])
+        code, out = run_main(fake, ["prepare", "v3"])
+        self.assertEqual(code, 1)
+        self.assertIn("worktree add", out)
+        self.assertIn("integ-release-v3", out)
+        self.assertFalse(fake.has("git", "switch"))
+        self.assertFalse(fake.has("git", "fetch"))
+
     def test_prepare_dry_run(self):
         log = "Merge pull request #12 from x/y\nMerge pull request #11 from x/z\n"
-        fake = Fake([
+        fake = Fake(WORKTREE + [
             (["git", "status", "--porcelain"], 0, ""),
             (["git", "tag"], 0, "v2.1\nv3-rc1\nv2.0\n"),
             (["git", "log"], 0, log),

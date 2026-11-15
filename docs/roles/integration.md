@@ -57,6 +57,10 @@ majeur < 26 après v47. Les jeux en v47 ou avant lisent la première ligne
 ligne `DQIX_VERSION`. Nos numéros ne suivent plus ceux de l'upstream : un port
 devient la release suivante.
 
+0. Créer d'abord un worktree (le clone `J:\DQIX-Enhanced-repo` reste sur `main`,
+   `prepare` refuse de tourner dans le clone principal) :
+   `git -C J:\DQIX-Enhanced-repo worktree add J:\DQIX-wt\integ-release-vX origin/main`,
+   puis lancer toutes les commandes ci-dessous dedans.
 1. `python tools/release.py prepare vX` : vérifie `gh auth status`, arbre propre,
    `origin/main` à jour ; crée `integ/release-vX` depuis `origin/main` ; met à
    jour `runtime/version.h` (`DQIX_VERSION` et date) ; affiche les PR fusionnées
@@ -74,7 +78,7 @@ devient la release suivante.
    (`captures/release-vX/report.md`), première ligne `commit: <sha40>`, seconde
    `result: PASS|FAIL`. Rien du dépôt privé ne sort vers le dépôt public.
 4. **Pré-version d'essai** (recommandée) :
-   `python tools/release.py publish vX-rc1 --prerelease` crée la pré-version
+   `python tools/release.py publish vX-rc1 --prerelease --title "vX-rc1 : ..."` crée la pré-version
    `vX-rc1` sur la branche de release, sans fusion, sans `--latest` et **sans
    jamais déplacer `stable`** ; `verify vX-rc1` contrôle le workflow et les zips ;
    puis `python tools/release.py delete-rc vX-rc1` supprime pré-version et tag.
@@ -83,11 +87,15 @@ devient la release suivante.
 5. `python tools/release.py check vX` : aucun fichier interdit suivi par git,
    notes valides, `tools/lang_check.py` et `python -m unittest discover -s
    tests/release` à 0, rapport cloud = `HEAD` et PASS. Rapport d'un autre
-   commit : refus, « relancer le test cloud sur <sha> ».
-6. `python tools/release.py publish vX` : relance `check`, pousse la branche,
-   ouvre la PR, `gh pr merge --merge`, puis `git push origin <sha>:stable`
-   **sans `--force`** (si `stable` n'est pas en avance rapide, le script
-   s'arrête avant de publier), puis `gh release create vX --target stable
+   commit : refus, « relancer le test cloud sur <sha> ». Le script fait
+   `git fetch origin` et refuse si la branche ne contient pas `origin/main`
+   (rebaser la branche, puis relancer le test cloud).
+6. `python tools/release.py publish vX --title "vX : ..."` : relance `check`,
+   pousse la branche, ouvre la PR, `gh pr merge --merge`, vérifie que
+   `origin/main` a le même contenu que le commit testé, puis
+   `git push origin origin/main:stable` (commit de fusion, même arbre que le
+   commit testé) **sans `--force`** (si `stable` n'est pas en avance rapide, le
+   script s'arrête avant de publier), puis `gh release create vX --target stable
    --notes-file release-notes/vX.md --latest`. **`--latest` est obligatoire**,
    sinon RecompLauncher garde l'ancienne version.
 7. `python tools/release.py verify vX` : attend le workflow `release-zip.yml` du
@@ -100,6 +108,18 @@ devient la release suivante.
    (jamais dans git). Si `DISCORD_WEBHOOK_URL` existe, le script la poste ;
    sinon le fichier reste là et le script le dit. Ne jamais demander l'URL à
    Romuald. Texte trop long ou webhook en erreur : erreur visible, fichier conservé.
+
+**Reprise après un arrêt** (relancer `publish vX` ne reprend pas : la PR est
+déjà fusionnée, `gh pr create` échoue) :
+- Arrêt après la fusion, avant `stable` : vérifier `git diff --quiet <sha testé>
+  origin/main`, puis `git push origin origin/main:stable` à la main (sans
+  `--force`), puis `gh release create vX --target stable --title "vX : ..."
+  --notes-file release-notes/vX.md --latest --repo romusan495/Dragon-Quest-IX-Modern`.
+- Arrêt après le push de `stable`, avant la release : lancer seulement ce
+  `gh release create`.
+- `verify` en échec ou en délai : la release reste publiée, corriger puis
+  relancer `verify`.
+
 - **Jamais dans une release** : ROM, `dqix.exe`, C généré, `build/`, `game/`,
   textures ou films upscalés, `wfc/` et les extras (données du jeu).
 - Aucune étape n'attend un clic de Romuald.

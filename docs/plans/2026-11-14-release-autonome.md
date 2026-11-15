@@ -29,7 +29,7 @@
 - Réponses à Romuald en français, résultat d'abord ; commits, branches, PR en anglais ; fin de commit `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, fin de PR `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 - Interdit : `wifi.c`, `wfc.c`, `net.c`, `relay.c`, `relay.h`, `relay_url.h`, `upnp.c`, `portmap.c`, `session.c`, `air.c`, `hosting.c`, `third_party/libslirp`, `tools/relay/`.
 - Jamais suivi par git dans le dépôt public : `*.nds`, `*.3ds`, `*.cia`, `*.cci`, `*.cxi`, `build/`, `game/`, `gen/`, C généré, textures/films upscalés, images RetroAchievements, `title-back.png`, sauvegardes (`*.sav`). Jamais d'identifiant C nommé `far` ou `near`.
-- Jamais de force-push ; `stable` n'avance qu'en avance rapide (`git push origin <sha>:stable` sans `--force`).
+- Jamais de force-push ; `stable` n'avance qu'en avance rapide (`git push origin origin/main:stable` sans `--force`).
 - `gh release create … --latest` obligatoire pour une vraie release (sinon RecompLauncher garde l'ancienne).
 - Zips attendus après publication : `Dragon-Quest-IX-Modern-vX-Windows-x64.zip` **et** `Dragon-Quest-IX-Modern-vX-Linux-x64.zip`.
 - `runtime/version.h` : la ligne de commentaire `#define DQIX_VERSION "v48 (vX)"` reste **la première** ligne `DQIX_VERSION` du fichier.
@@ -143,8 +143,8 @@ def test_cloud_report(self):
 |---|---|
 | `prepare vX` | vérifie `gh auth status`, arbre propre, `origin/main` à jour ; crée la branche `integ/release-vX` depuis `origin/main` ; applique `bump_version_h` (date du jour) ; affiche la liste `merged_prs` depuis le dernier tag `v*` (pour que l'agent écrive les notes) |
 | `check vX` | `forbidden_tracked(git ls-files)` vide ; `check_notes` vide ; `python tools/lang_check.py` exit 0 ; `python -m unittest discover -s tests/release` exit 0 ; rapport cloud (`gh api repos/romusan495/dqix-test-prive/contents/captures/release-vX/report.md?ref=tests/release-vX`, branche du dépôt privé poussée par la session cloud) : `parse_cloud_report` → même sha que `HEAD` et `PASS`. Tout échec = arrêt, code 1 |
-| `publish vX` | relance `check` ; pousse la branche, ouvre la PR, `gh pr merge --merge` ; `git push origin <sha>:stable` (sans force) ; `gh release create vX --target stable --title "<titre>" --notes-file release-notes/vX.md --latest` |
-| `publish vX-rcN --prerelease` | comme `publish` **sans** fusion ni `stable` : `gh release create vX-rcN --target integ/release-vX --prerelease` (pas de `--latest`) |
+| `publish vX --title "..."` | relance `check` ; pousse la branche, ouvre la PR, `gh pr merge --merge` ; `git push origin origin/main:stable` (sans force ; même arbre que le commit testé, vérifié) ; `gh release create vX --target stable --title "<titre>" --notes-file release-notes/vX.md --latest` |
+| `publish vX-rcN --prerelease --title "..."` | comme `publish` **sans** fusion ni `stable` : `gh release create vX-rcN --target integ/release-vX --prerelease` (pas de `--latest`) |
 | `verify vX` | attend le run `release-zip.yml` du tag (`gh run list --workflow release-zip.yml`, puis `gh run watch <id> --exit-status`, délai 15 min) ; `gh release view vX --json assets,isLatest,isPrerelease` : les 2 zips présents, `isLatest` vrai pour une vraie release |
 | `announce vX` | lit le fichier `--file` (par défaut `J:\DQIX-Passation\annonces\vX.txt`, écrit par l'agent, jamais dans git) ; `check_announce` ; si `DISCORD_WEBHOOK_URL` existe : POST JSON `{"content": …}` (urllib), sinon laisse le fichier et le dit |
 | `delete-rc vX-rcN` | refuse si `not is_rc_tag` ou si la release n'est pas `isPrerelease` ; `gh release delete vX-rcN --cleanup-tag --yes` |
@@ -204,13 +204,13 @@ Elle compare à l'état gardé dans `J:\DQIX-Passation\veille-etat.json` : tags 
 
 - [ ] **Étape 1 :** `release.py prepare v3` ; l'agent langues écrit `release-notes/v3.md` (anglais, une ligne par point) et `release-notes/{fr,de,it,es}/v3.md` ; titre « v3: Linux and Steam Deck, What's new window ».
 - [ ] **Étape 2 :** test cloud sur la branche `integ/release-v3` → `captures/release-v3/report.md` `PASS` sur la branche `tests/release-v3` du dépôt privé, avec une capture de la fenêtre Nouveautés en français (lancement avec `last_version = v2.1`).
-- [ ] **Étape 3 :** `release.py publish v3-rc1 --prerelease`, puis `release.py verify v3-rc1` → 2 zips, `isPrerelease` vrai, `isLatest` faux, `stable` inchangée (`git rev-parse origin/stable` = `1c4f393`).
+- [ ] **Étape 3 :** `release.py publish v3-rc1 --prerelease --title "v3-rc1"`, puis `release.py verify v3-rc1` → 2 zips, `isPrerelease` vrai, `isLatest` faux, `stable` inchangée (`git rev-parse origin/stable` = `1c4f393`).
 - [ ] **Étape 4 :** `release.py delete-rc v3-rc1` → `gh release view v3-rc1` en erreur, tag absent (`git ls-remote --tags origin v3-rc1` vide).
 
 ### Tâche 11 : release v3
 
 - [ ] **Étape 1 :** `release.py check v3` → OK (le rapport cloud doit être celui du commit final ; sinon relancer la tâche 10, étape 2).
-- [ ] **Étape 2 :** `release.py publish v3` puis `release.py verify v3` → 2 zips, `isLatest` vrai, `origin/stable` = commit de la release.
+- [ ] **Étape 2 :** `release.py publish v3 --title "v3: ..."` puis `release.py verify v3` → 2 zips, `isLatest` vrai, `origin/stable` = commit de la release.
 - [ ] **Étape 3 :** l'agent écrit l'annonce FR ; `release.py announce v3` → postée (ou fichier si la variable n'est pas visible).
 - [ ] **Étape 4 :** compte rendu en 7 points ; rappel à Romuald : ajouter le motif `Dragon-Quest-IX-Modern-*-Linux-x64.zip` dans le formulaire RecompLauncher (une seule fois).
 

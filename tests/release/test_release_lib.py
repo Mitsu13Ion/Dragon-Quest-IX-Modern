@@ -161,7 +161,19 @@ class CloudReport(unittest.TestCase):
         self.assertEqual(parse_cloud_report("commit: " + self.SHA + "\nresult: PASS\n"), (self.SHA, True))
 
     def test_fail(self):
-        self.assertEqual(parse_cloud_report("noise\nresult: FAIL\ncommit: " + self.SHA), (self.SHA, False))
+        self.assertEqual(parse_cloud_report("commit: " + self.SHA + "\n" + "result: FAIL" + "\n"), (self.SHA, False))
+
+    def test_crlf_and_bom(self):
+        text = "\ufeffcommit: " + self.SHA + "\r\n" + "result: PASS" + "\r\n"
+        self.assertEqual(parse_cloud_report(text), (self.SHA, True))
+
+    def test_lines_further_down_are_refused(self):
+        for text in ("noise" + "\n" + "result: FAIL" + "\n" + "commit: " + self.SHA,
+                     "result: PASS" + "\n" + "commit: " + self.SHA + "\n",
+                     "commit: " + self.SHA + "\n" + "\n" + "result: PASS" + "\n",
+                     "# Report" + "\n" + "commit: " + self.SHA + "\n" + "result: PASS" + "\n"):
+            with self.assertRaises(ValueError, msg=text):
+                parse_cloud_report(text)
 
     def test_errors(self):
         for text in ("result: PASS\n", "commit: " + self.SHA + "\n", "commit: " + self.SHA + "\nresult: MAYBE\n",

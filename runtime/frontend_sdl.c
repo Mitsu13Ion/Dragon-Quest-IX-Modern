@@ -31,6 +31,7 @@
 #include "frontend.h"
 #include "hdtext.h"
 #include "hdmovie.h"
+#include "hdpack.h"
 #include "bootskip.h"
 #include "gamemenu.h"
 #include "gl_render.h"
@@ -95,6 +96,7 @@ static int g_smooth2d = 1, g_texup = 1, g_outline = 1;                          
 static int g_softshadow, g_ink;                                                       /* Enhanced: soft shadows in corners and under things, thin dark lines round things */
 static int g_texpack = 1, g_texdump = 0;                          /* Enhanced: HD textures from textures/, dumping them */
 static int g_hdtext = 1;                                          /* Enhanced: the game's text drawn at full resolution (hdtext.h) */
+static int g_hdpack = 1;                                          /* the HD pack downloaded in the background by hd-pack.exe (hdpack.h) */
 static int g_hdmovie = 1;                                         /* Enhanced: the movies from movies/ in HD (hdmovie.h) */
 static char g_hdfont[256] = "SourceSans3.ttf";                    /* ...with this font ("original": the game's letters, smoothed) */
 static const char* const g_fonts[N_FONTS] = { "original", "georgia.ttf", "pala.ttf", "constan.ttf", "times.ttf", "segoeui.ttf",   /* MI_FONT0 + i: Windows' */
@@ -3312,6 +3314,7 @@ static void settings_load(void) {
         else if (!strcmp(key, "dump_textures")) g_texdump = atoi(val) != 0;
         else if (!strcmp(key, "hd_text")) g_hdtext = atoi(val) != 0;
         else if (!strcmp(key, "hd_movies")) g_hdmovie = atoi(val) != 0;
+        else if (!strcmp(key, "hd_pack_download")) g_hdpack = atoi(val) != 0;
         else if (!strcmp(key, "hd_text_font")) snprintf(g_hdfont, sizeof g_hdfont, "%s", val);
         else if (!strcmp(key, "farm_gold_target")) { long v = atol(val); if (v > 0 && v <= 9999999) g_farm_target = (int)v; }
         else if (!strcmp(key, "farm_fast_forward")) g_farm_fast = atoi(val) != 0;
@@ -3407,6 +3410,8 @@ static void settings_save(void) {
     fprintf(f, "hd_text_font = %s\n", g_hdfont);
     fprintf(f, "# enhanced: the movies (opening, dragon...) from the movies folder, upscaled: 0 or 1\n");
     fprintf(f, "hd_movies = %d\n", g_hdmovie);
+    fprintf(f, "# enhanced: download the HD pack (textures and movies) in the background, once: 0 never, 1 yes (0 counts from the next launch)\n");
+    fprintf(f, "hd_pack_download = %d\n", g_hdpack);
     fprintf(f, "# the map in the top right corner (gone during battles): 0 or 1; its size 0 small, 1 medium, 2 large\n");
     fprintf(f, "minimap = %d\n", g_map_shown);
     fprintf(f, "round_minimap = %d\n", g_round_map);
@@ -3617,6 +3622,9 @@ static int try_gl(void) {
     if (getenv("DQIX_DUMP_TEXTURES")) g_texdump = atoi(getenv("DQIX_DUMP_TEXTURES")) != 0;
     gl_set_texture_pack(g_texpack); gl_set_texture_dump(g_texdump);
     gl_textures_hd_start();                                       /* HD textures still to make (a PC turned off before the end): on with them */
+    if (getenv("DQIX_INPUT_FILE")) g_hdpack = 0;                  /* a scripted run (tests) never downloads it */
+    if (getenv("DQIX_HD_PACK")) g_hdpack = atoi(getenv("DQIX_HD_PACK")) != 0;   /* tests */
+    hdpack_start(g_hdpack);                                       /* the HD pack: hd-pack.exe in the background, it does nothing once it is there */
     if (getenv("DQIX_HD_TEXT")) g_hdtext = atoi(getenv("DQIX_HD_TEXT")) != 0;
     if (getenv("DQIX_HD_MOVIES")) g_hdmovie = atoi(getenv("DQIX_HD_MOVIES")) != 0;   /* tests */
     if (getenv("DQIX_HD_FONT")) snprintf(g_hdfont, sizeof g_hdfont, "%s", getenv("DQIX_HD_FONT"));
@@ -5429,9 +5437,10 @@ static void hint_update(GlPresent* v) {
     q[2] = 2 * r * kx; q[3] = 2 * r * ky;
 }
 
-/* textures-hd at work (textures-hd-progress.txt, next to the game): a bar at
- * the big screen's bottom left; when it's done, "HD textures ready" for a few
- * seconds and the new ones are loaded. */
+/* hd-pack.exe (hd-pack-progress.txt) or textures-hd (textures-hd-progress.txt)
+ * at work, next to the game: a bar at the big screen's bottom left; when it's
+ * done, "HD pack ready" / "HD textures ready" for a few seconds and the new
+ * textures are loaded (the pack's movies at the next launch). */
 #define HDBAR_W 76.0f                                            /* (DS pixels) */
 #define HDBAR_H 12.0f
 static void hdbar_draw(int W, int H, const char* text, float part) {
@@ -5471,18 +5480,37 @@ static void hdbar_draw(int W, int H, const char* text, float part) {
         }
     gl_set_layer(GL_LAYER_HDBAR, img, W, H);
 }
+static int hdbar_read(const char* file, char* st, int* a, int* b) {   /* "<state> <a> <b>" */
+    FILE* f = fopen(file, "rb");
+    if (!f) return 0;
+    int ok = fscanf(f, "%15s %d %d", st, a, b) == 3;
+    fclose(f);
+    return ok;
+}
 static void hdbar_update(GlPresent* v) {
-    static int state, done, total, made; static uint64_t until; static char shown[128];
+    static int state, done, total, made, pack, pack_msg; static uint64_t until; static char shown[128];
     if (g_frame % 30 == 0) {                                     /* (twice a second) */
-        FILE* f = fopen("textures-hd-progress.txt", "rb");
         char st[16] = ""; int a = 0, b = 0;
         state = 0;
-        if (f) { if (fscanf(f, "%15s %d %d", st, &a, &b) != 3) st[0] = 0; fclose(f); }
-        if (!strcmp(st, "working") && b > 0 && a < b) { state = 1; done = a; total = b; }
-        else if (!strcmp(st, "done")) {                          /* once: the message, the new textures */
-            remove("textures-hd-progress.txt");
-            made = a; until = SDL_GetPerformanceCounter() + g_perf_freq * 8;
-            if (g_texpack) gl_reload_texture_pack();
+        if (hdbar_read("hd-pack-progress.txt", st, &a, &b)) {     /* the HD pack first */
+            if (!strcmp(st, "working") && b > 0 && a < b) {
+                if (hdpack_running()) { state = 1; pack = 1; done = a; total = b; }
+                else remove("hd-pack-progress.txt");             /* left by a run that was stopped: no bar */
+            } else if (!strcmp(st, "done")) {                    /* once: the message, the pack's textures (its
+                                                                  * movies next launch: reading them now would stall the game) */
+                remove("hd-pack-progress.txt");
+                pack_msg = 1; made = 0; until = SDL_GetPerformanceCounter() + g_perf_freq * 8;
+                if (g_texpack) gl_reload_texture_pack();
+            } else if (!strcmp(st, "failed")) remove("hd-pack-progress.txt");   /* (it tries again next time) */
+        }
+        st[0] = 0; a = b = 0;
+        if (!state && hdbar_read("textures-hd-progress.txt", st, &a, &b)) {
+            if (!strcmp(st, "working") && b > 0 && a < b) { state = 1; pack = 0; done = a; total = b; }
+            else if (!strcmp(st, "done")) {                      /* once: the message, the new textures */
+                remove("textures-hd-progress.txt");
+                pack_msg = 0; made = a; until = SDL_GetPerformanceCounter() + g_perf_freq * 8;
+                if (g_texpack) gl_reload_texture_pack();
+            }
         }
     }
     int msg = until && SDL_GetPerformanceCounter() < until;
@@ -5492,7 +5520,8 @@ static void hdbar_update(GlPresent* v) {
     int W = (int)(w * v->sc + 0.5f), H = (int)(h * v->sc + 0.5f);
     if (W < 8 || H < 4) return;
     char text[96], key[128];
-    if (state) snprintf(text, sizeof text, T("HD textures: %d%%"), (int)(100.0 * done / total));
+    if (state) snprintf(text, sizeof text, pack ? T("HD pack: %d%%") : T("HD textures: %d%%"), (int)(100.0 * done / total));
+    else if (pack_msg) snprintf(text, sizeof text, "%s", T("HD pack ready"));
     else snprintf(text, sizeof text, made > 0 ? T("HD textures ready (%d new)") : T("HD textures ready"), made);
     snprintf(key, sizeof key, "%s %d %d %d", text, W, H, state ? done : -1);
     if (strcmp(key, shown)) { snprintf(shown, sizeof shown, "%s", key); hdbar_draw(W, H, text, state ? (float)done / total : -1); }
@@ -5744,6 +5773,7 @@ static void menu_sync(void) {
     menu_check(MI_TEXDUMP, g_texdump); menu_enable(MI_TEXDUMP, g_gl && !g_classic);
     menu_check(MI_HDTEXT, g_hdtext); menu_enable(MI_HDTEXT, g_gl && !g_classic);
     menu_check(MI_HDMOVIE, g_hdmovie); menu_enable(MI_HDMOVIE, g_gl && !g_classic);
+    menu_check(MI_HDPACK, g_hdpack);
     for (int i = 0; i < N_FONTS; i++) { menu_check(MI_FONT0 + i, !strcmp(g_hdfont, g_fonts[i])); menu_enable(MI_FONT0 + i, g_gl && !g_classic && g_hdtext); }
     menu_check(MI_LCD, g_opt.lcd); menu_enable(MI_LCD, g_gl);
     int lcd = g_gl && g_opt.lcd;
@@ -6379,6 +6409,7 @@ static void do_action(int id) {
     case MI_NPC3D: g_npc3d = !g_npc3d; break;
     case MI_TEXPACK: if (g_gl) { g_texpack = !g_texpack; gl_set_texture_pack(g_texpack); } break;
     case MI_TEXRELOAD: if (g_gl && g_texpack) gl_reload_texture_pack(); break;
+    case MI_HDPACK: g_hdpack = !g_hdpack; hdpack_start(g_hdpack); break;   /* on: hd-pack.exe goes and gets it now */
     case MI_TEXDUMP: if (g_gl) { g_texdump = !g_texdump; gl_set_texture_dump(g_texdump); } break;
     case MI_HDTEXT: if (g_gl) { g_hdtext = !g_hdtext; apply_mode(); } break;
     case MI_HDMOVIE: if (g_gl) { g_hdmovie = !g_hdmovie; if (g_hdmovie) hdmovie_init(); apply_mode(); } break;   /* on: look in movies/ again */

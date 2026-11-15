@@ -116,6 +116,9 @@ de = &HD-Texturen aus dem Ordner textures (Verbessert)
 en = &Reload the HD textures
 de = HD-Texturen neu &laden
 
+en = Download the HD &pack (textures and movies)
+de = HD-&Paket herunterladen (Texturen und Filme)
+
 en = &Dump textures to textures\\dump (for making a pack)
 de = Texturen nach textures\\dump &exportieren (für ein Paket)
 
@@ -1225,6 +1228,10 @@ en = HD textures ready (%d new)
 de = HD-Texturen fertig (%d neue)
 en = HD textures ready
 de = HD-Texturen fertig
+en = HD pack: %d%%
+de = HD-Paket: %d%%
+en = HD pack ready
+de = HD-Paket fertig
 
 # ---- hints.c (the name on a keyboard key, under the X Menu sign: short)
 

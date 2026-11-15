@@ -178,6 +178,12 @@ case "$(uname -s)" in MINGW*|MSYS*)
     done
     if [ -d game/textures-hd-outil ] && [ -f game/textures-rom.exe ]; then
         ./game/textures-rom.exe --auto || echo "   HD textures from the ROM: not made (optional)"
+    fi
+    # the HD pack (FatalPixels textures, SeedVR2 movies): hd-pack.exe, which the
+    # game starts in the background to download and install it (tools/hd-pack.c;
+    # Graphics > Download the HD pack). Built every time, for everyone.
+    if [ ! -f game/hd-pack.exe ] || [ tools/hd-pack.c -nt game/hd-pack.exe ] || [ tools/hdpack_core.h -nt game/hd-pack.exe ] || [ runtime/hdpack.h -nt game/hd-pack.exe ]; then
+        gcc -O2 -municode -I tools -o game/hd-pack.exe tools/hd-pack.c -lbcrypt -lwinhttp || echo "   hd-pack.exe: not rebuilt (optional: no HD pack download)"
     fi ;;
 esac
 # optional files: the built-in Wi-Fi server's downloads and DQVC schedule

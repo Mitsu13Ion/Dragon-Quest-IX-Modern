@@ -25,6 +25,7 @@
 #include "hdtext.h"
 #include "farm.h"
 #include "hdmovie.h"
+#include "hdpack.h"
 #include "hdsprite.h"
 
 /* ---------------------------------------------------------------- GL functions */
@@ -1143,7 +1144,12 @@ static void pack_add_file(const char* dir, const char* name) {  /* <16 hex digit
     t->path = malloc(len); snprintf(t->path, len, "%s/%s", dir, name);
 }
 
-static void pack_scan(const char* dir, int depth) {             /* every folder under textures/ except dump/, dump-2d/ and hd-auto-tmp/ */
+/* every folder under textures/ except dump/, dump-2d/ and hd-auto-tmp/. In
+ * textures/ itself (depth 0) only the top folders of this rank
+ * (hdpack_dir_rank: the player's own, then hd-pack, then hd) and, at rank 0,
+ * its loose files: the first texture found wins, so the ranks are looked in
+ * one after the other (pack_load_list) */
+static void pack_scan(const char* dir, int depth, int rank) {
     if (depth > 8) return;
 #ifdef _WIN32
     char pat[1024]; snprintf(pat, sizeof pat, "%s/*", dir);
@@ -1152,9 +1158,9 @@ static void pack_scan(const char* dir, int depth) {             /* every folder 
     do {
         if (fd.name[0] == '.') continue;
         if (fd.attrib & _A_SUBDIR) {
-            if (depth == 0 && (!strcmp(fd.name, "dump") || !strcmp(fd.name, "dump-2d") || !strcmp(fd.name, "hd-auto-tmp"))) continue;
-            char sub[1024]; snprintf(sub, sizeof sub, "%s/%s", dir, fd.name); pack_scan(sub, depth + 1);
-        } else pack_add_file(dir, fd.name);
+            if (depth == 0 && (!strcmp(fd.name, "dump") || !strcmp(fd.name, "dump-2d") || !strcmp(fd.name, "hd-auto-tmp") || hdpack_dir_rank(fd.name) != rank)) continue;
+            char sub[1024]; snprintf(sub, sizeof sub, "%s/%s", dir, fd.name); pack_scan(sub, depth + 1, rank);
+        } else if (depth > 0 || rank == 0) pack_add_file(dir, fd.name);
     } while (_findnext(h, &fd) == 0);
     _findclose(h);
 #else
@@ -1165,8 +1171,8 @@ static void pack_scan(const char* dir, int depth) {             /* every folder 
         if (e->d_name[0] == '.') continue;
         char sub[1024]; snprintf(sub, sizeof sub, "%s/%s", dir, e->d_name);
         struct stat st;
-        if (stat(sub, &st) == 0 && S_ISDIR(st.st_mode)) { if (!(depth == 0 && (!strcmp(e->d_name, "dump") || !strcmp(e->d_name, "dump-2d") || !strcmp(e->d_name, "hd-auto-tmp")))) pack_scan(sub, depth + 1); }
-        else pack_add_file(dir, e->d_name);
+        if (stat(sub, &st) == 0 && S_ISDIR(st.st_mode)) { if (!(depth == 0 && (!strcmp(e->d_name, "dump") || !strcmp(e->d_name, "dump-2d") || !strcmp(e->d_name, "hd-auto-tmp") || hdpack_dir_rank(e->d_name) != rank))) pack_scan(sub, depth + 1, rank); }
+        else if (depth > 0 || rank == 0) pack_add_file(dir, e->d_name);
     }
     closedir(d);
 #endif
@@ -1183,7 +1189,7 @@ static void pack_unload(void) {
 static void pack_load_list(void) {
     if (g_pack_loaded) return;
     g_pack_loaded = 1;
-    pack_scan(PACK_DIR, 0);
+    for (int rank = 0; rank <= 2; rank++) pack_scan(PACK_DIR, 0, rank);   /* the player's own, the HD pack, textures-hd's */
     if (g_pack_n) fprintf(stderr, "HD textures: %d in %s/\n", g_pack_n, PACK_DIR);
     hdsprite_update();
 }

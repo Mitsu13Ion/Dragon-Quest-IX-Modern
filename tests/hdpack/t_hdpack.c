@@ -420,7 +420,7 @@ static void t_exe(void) {
     puts_(P(L"%ls\\hd-pack-progress.txt", g), "working 95 100");
     mk(P(L"%ls\\textures\\hd", g)); puts_(P(L"%ls\\textures\\hd\\000000000000000a.png", g), "again");
     rc = run_exe(P(L"%ls\\hd-pack.exe", g), pack);
-    CHECK("installed + unfinished run: bar says done, set-aside done now", rc == 0 && is(P(L"%ls\\hd-pack-progress.txt", g), "done 0 100")
+    CHECK("installed + unfinished run: the stale bar is gone, set-aside done now", rc == 0 && !exists(P(L"%ls\\hd-pack-progress.txt", g))
           && is(P(L"%ls\\hd-pack-ancien\\textures-hd-2\\000000000000000a.png", g), "again") && !exists(P(L"%ls\\textures\\hd", g)));
 
     /* hd-pack.lock is a link to a sentinel file (made by run.sh): refused, sentinel

@@ -45,6 +45,8 @@ class Server:
         self.requests = []          # (path, Range header or None)
         self.cut_once = set()       # names: the first GET sends CUT bytes then closes
         self.ignore_range = False   # answer 200 with the whole file even with Range
+        self.redirect = {}          # name -> URL: answer 302 there
+        self.override = {}          # name -> (status, headers, body), every time
         outer = self
 
         class H(http.server.BaseHTTPRequestHandler):
@@ -57,6 +59,21 @@ class Server:
                 name = self.path.lstrip("/")
                 rng = self.headers.get("Range")
                 outer.requests.append((self.path, rng))
+                if name in outer.redirect:
+                    self.send_response(302)
+                    self.send_header("Location", outer.redirect[name])
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                if name in outer.override:
+                    st, hdrs, body = outer.override[name]
+                    self.send_response(st)
+                    for k, v in hdrs.items():
+                        self.send_header(k, v)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
                 data = outer.files.get(name)
                 if data is None:
                     self.send_response(404)
@@ -214,8 +231,11 @@ def main():
         srv2.ignore_range = True
         g = new_game(tmp, "g-norange", exe)
         run(g, srv2.url())
+        srv2.requests.clear()
         rc = run(g, srv2.url())
-        check("Range ignored by the server: starts over, installed right", rc == 0 and installed(g, textures))
+        zr = [r for r in srv2.zip_requests() if texzip in r[0]]
+        check("Range ignored by the server: asked with Range, got it all, started over, installed right",
+              rc == 0 and installed(g, textures) and len(zr) == 1 and zr[0][1] is not None)
 
         # bytes that don't match the SHA-256: nothing kept, nothing installed
         srv3 = Server()
@@ -264,10 +284,100 @@ def main():
         check("bad manifest: nothing done, no bar", no_bar(g) and not os.path.exists(os.path.join(g, "hd-pack-tmp"))
               and not os.path.exists(os.path.join(g, "textures", "hd-pack")))
 
+        def part_of(g):
+            return os.path.join(g, "hd-pack-tmp", texzip + ".part")
+
+        def put_part(g, data):
+            os.makedirs(os.path.join(g, "hd-pack-tmp"), exist_ok=True)
+            with open(part_of(g), "wb") as f:
+                f.write(data)
+
+        # a run killed while downloading left the bar at "working"; now offline
+        g = new_game(tmp, "g-stalebar", exe)
+        with open(os.path.join(g, "hd-pack-progress.txt"), "wb") as f:
+            f.write(b"working 37 100")
+        rc = run(g, "http://127.0.0.1:9/")
+        check("stale 'working' bar + offline: the bar is gone", rc == 0 and no_bar(g))
+
+        # GitHub sends release files from another host (302): Range must follow
+        srv7, srv8 = Server(), Server()
+        srv7.files = dict(pack)
+        srv8.files = dict(pack)
+        srv7.redirect = {texzip: srv8.url() + texzip}
+        srv8.cut_once = {texzip}
+        g = new_game(tmp, "g-redirect", exe)
+        run(g, srv7.url())
+        have = len(read(part_of(g)) or b"")
+        srv8.requests.clear()
+        rc = run(g, srv7.url())
+        check("redirect to another host: the rest asked there with Range, installed",
+              0 < have and rc == 0 and installed(g, textures) and srv8.requests == [("/" + texzip, "bytes=%d-" % have)])
+
+        # 416: the .part is dropped, the next run starts from 0
+        srv9 = Server()
+        srv9.files = dict(pack)
+        srv9.override = {texzip: (416, {"Content-Range": "bytes */1"}, b"")}
+        g = new_game(tmp, "g-416", exe)
+        put_part(g, pack[texzip][:1000])
+        rc = run(g, srv9.url())
+        ok416 = rc != 0 and not os.path.exists(part_of(g)) and no_bar(g)
+        srv9.override = {}
+        srv9.requests.clear()
+        rc = run(g, srv9.url())
+        zr = [r for r in srv9.zip_requests() if texzip in r[0]]
+        check("416: .part dropped, next run from 0, installed", ok416 and rc == 0 and installed(g, textures) and zr == [("/" + texzip, None)])
+
+        # a captive portal's page (200, other size) must not wipe the .part
+        srv10 = Server()
+        srv10.files = dict(pack)
+        srv10.override = {texzip: (200, {"Content-Type": "text/html"}, b"<html>log in to the Wi-Fi</html>")}
+        g = new_game(tmp, "g-portal", exe)
+        put_part(g, pack[texzip][:CUT])
+        rc = run(g, srv10.url())
+        check("captive portal (200, other size): .part kept as it was, no bar",
+              rc != 0 and read(part_of(g)) == pack[texzip][:CUT] and no_bar(g))
+
+        # 206 with a Content-Range that is not the rest asked for
+        srv11 = Server()
+        srv11.files = dict(pack)
+        n = len(pack[texzip])
+        srv11.override = {texzip: (206, {"Content-Range": "bytes 0-%d/%d" % (n - 1, n)}, pack[texzip])}
+        g = new_game(tmp, "g-badrange", exe)
+        put_part(g, pack[texzip][:CUT])
+        rc = run(g, srv11.url())
+        check("206 with another Content-Range: .part kept, nothing installed",
+              rc != 0 and read(part_of(g)) == pack[texzip][:CUT] and not os.path.exists(os.path.join(g, "textures", "hd-pack")))
+
+        # more bytes than the manifest says (200, bigger)
+        srv12 = Server()
+        srv12.files = dict(pack)
+        srv12.override = {texzip: (200, {}, pack[texzip] + b"extra")}
+        g = new_game(tmp, "g-toolong", exe)
+        rc = run(g, srv12.url())
+        check("more bytes than the manifest: refused, nothing kept or installed",
+              rc != 0 and not os.path.exists(part_of(g)) and not os.path.exists(os.path.join(g, "hd-pack-tmp", texzip))
+              and not os.path.exists(os.path.join(g, "textures", "hd-pack")) and no_bar(g))
+
+        # a whole .part (killed before the rename): renamed, not asked again
+        srv13 = Server()
+        srv13.files = dict(pack)
+        g = new_game(tmp, "g-wholepart", exe)
+        put_part(g, pack[texzip])
+        rc = run(g, srv13.url())
+        check("whole .part: renamed, not downloaded again", rc == 0 and installed(g, textures)
+              and not [r for r in srv13.zip_requests() if texzip in r[0]])
+
+        # an empty stage left by a killed run: removed, not set aside
+        g = new_game(tmp, "g-emptystage", exe)
+        os.makedirs(os.path.join(g, "hd-pack-tmp", "stage"))
+        rc = run(g, srv13.url())
+        check("empty stage of a killed run: removed, not set aside", rc == 0 and installed(g, textures)
+              and not os.path.exists(os.path.join(g, "hd-pack-ancien", "stage-interrompu")))
+
         # every file outside the game folders is as it was
         check("source pack untouched", all(hashlib.sha256(read(os.path.join(tmp, "pack", n))).digest()
                                            == hashlib.sha256(d).digest() for n, d in pack.items()))
-        for s in (srv, srv2, srv3, srv4, srv5, srv6):
+        for s in (srv, srv2, srv3, srv4, srv5, srv6, srv7, srv8, srv9, srv10, srv11, srv12, srv13):
             s.httpd.shutdown()
     print("t_download: %d passed, %d failed" % (passed, failed))
     return 1 if failed else 0

@@ -69,6 +69,8 @@ one("dotdot2.zip", "textures/../../evil.txt")
 one("backslash.zip", "..\\evil.txt")
 one("absolute.zip", "/evil.txt")
 one("drive.zip", "C:/evil.txt")
+one("device.zip", "textures/con.png")
+one("trailingdot.zip", "textures/x.")
 one("deflate.zip", "textures/0000000000000001.png", zipfile.ZIP_DEFLATED)
 EOF
 
@@ -89,10 +91,19 @@ mkdir -p "$T/fx/tl/game/textures" "$T/fx/tl/sentinel"
 echo "sentinel" > "$T/fx/tl/sentinel/old.png"
 ln -s ../../sentinel "$T/fx/tl/game/textures/hd-pack"
 
+# hd-pack.lock as a link, hd-pack-progress.txt hard-linked: both to a sentinel in $T
+mkdir -p "$T/fx/lk/game" "$T/fx/lk/sentinel" "$T/fx/hl/game" "$T/fx/hl/sentinel"
+echo "sentinel" > "$T/fx/lk/sentinel/lock.txt"
+ln -s ../sentinel/lock.txt "$T/fx/lk/game/hd-pack.lock"
+echo "sentinel" > "$T/fx/hl/sentinel/hl.txt"
+ln "$T/fx/hl/sentinel/hl.txt" "$T/fx/hl/game/hd-pack-progress.txt"
+
 echo "== t_hdpack.exe"
 mkdir -p "$T/w"
 status=0
 wine "$T/t_hdpack.exe" "$(wine_path "$T")" "$(wine_path "$T/hd-pack.exe")" || status=1
+if [ -L "$T/fx/lk/game/hd-pack.lock" ] && [ "$(cat "$T/fx/lk/sentinel/lock.txt")" = sentinel ]; then echo "PASS lock link and its target kept"; else echo "FAIL lock link and its target kept"; status=1; fi
+if [ "$(stat -c %h "$T/fx/hl/sentinel/hl.txt")" = 2 ] && [ "$(cat "$T/fx/hl/sentinel/hl.txt")" = sentinel ]; then echo "PASS hard-linked progress file: both names kept, content kept"; else echo "FAIL hard-linked progress file kept"; status=1; fi
 
 echo "== end to end: hd-pack.exe on a game folder with a non-ASCII name, nothing outside it changes"
 E="$T/e2e"
@@ -131,7 +142,7 @@ check "link folder left where it was" '[ -L "$G/textures-avant-lien" ] && [ "$(r
 check "player textures untouched" '[ "$(cat "$G/textures/perso/0000000000000003.png")" = mine ] && [ -L "$G/textures/perso/lien" ]'
 check "work folder removed" '[ ! -e "$G/hd-pack-tmp" ]'
 check "progress done" '[ "$(cat "$G/hd-pack-progress.txt")" = "done 0 100" ]'
-check "lock gone" '[ ! -e "$G/hd-pack.lock" ]'
+check "lock left as an empty plain file" '[ -f "$G/hd-pack.lock" ] && [ ! -L "$G/hd-pack.lock" ] && [ ! -s "$G/hd-pack.lock" ]'
 check "log written" 'grep -q "installed" "$G/hd-pack.log"'
 check "sentinel byte-identical" '[ "$(snapshot)" = "$before" ]'
 check "nothing changed next to the game folder" '[ "$(around)" = "$before_up" ]'

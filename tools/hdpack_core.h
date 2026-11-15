@@ -13,7 +13,13 @@
  *    strictly under the game folder, no "..", no reparse point (junction,
  *    symlink, mount point) on it or on any parent up to the game folder;
  *  - wide-char (W) Windows calls only; char* paths are UTF-8.
- * Any doubt: skip, log, go on (or fail the install, which changes nothing). */
+ * Any doubt: skip, log, go on (or fail the install, which changes nothing).
+ * Limits: paths are checked, then used by name, so a link made by another
+ * program between the check and the call would be followed (nothing in the
+ * project makes links); the small files written in place (lock, progress,
+ * log) are opened without following a link and refused if hard-linked.
+ * hd-pack-tmp/ and hd-pack-tmp/stage/ are this program's own work folders:
+ * removed when empty even if an earlier run made them. */
 #ifndef HDPACK_CORE_H
 #define HDPACK_CORE_H
 
@@ -118,6 +124,8 @@ static int hp_parse_manifest(const char* text, int* version, HpZip* zips, int ma
         if (size <= 0 || strlen(sha) != 64) return -1;
         for (int i = 0; i < 64; i++) if (!hp_is_hex(sha[i])) return -1;
         if (n >= max) return -1;
+        for (int k = 0; k < n; k++)
+            if (strlen(zips[k].name) == (size_t)(sp1 - nm) && !_strnicmp(zips[k].name, nm, (size_t)(sp1 - nm))) return -1;   /* twice the same zip */
         memcpy(zips[n].name, nm, (size_t)(sp1 - nm)); zips[n].name[sp1 - nm] = 0;
         zips[n].size = size;
         for (int i = 0; i < 64; i++) zips[n].sha[i] = (char)((sha[i] >= 'A' && sha[i] <= 'F') ? sha[i] + 32 : sha[i]);
@@ -255,7 +263,7 @@ static int hp_mkdir(const wchar_t* root, const wchar_t* dir) {
     if (!hp_safe_path(root, dir)) { hp_log("  refused (unsafe path): make folder %s\n", hp_u8(dir)); return -1; }
     if (hp_isdir(dir)) return 0;
     if (!CreateDirectoryW(dir, NULL)) { hp_log("  can't make folder %s (error %lu)\n", hp_u8(dir), GetLastError()); return -1; }
-    if (hp_list_add(&hp_made_dirs, dir)) return -1;
+    if (hp_list_add(&hp_made_dirs, dir)) { RemoveDirectoryW(dir); hp_log("  out of memory\n"); return -1; }   /* just made, empty */
     return 0;
 }
 /* rename, same volume, never replacing anything */
@@ -264,6 +272,8 @@ static int hp_move(const wchar_t* game, const wchar_t* from, const wchar_t* to) 
     if (!MoveFileExW(from, to, MOVEFILE_WRITE_THROUGH)) { hp_log("  can't move %s -> %s (error %lu)\n", hp_u8(from), hp_u8(to), GetLastError()); return -1; }
     return 0;
 }
+/* the game may be reading a small file of ours this very moment: try again a few times */
+static int hp_busy(void) { DWORD e = GetLastError(); return e == ERROR_SHARING_VIOLATION || e == ERROR_LOCK_VIOLATION || e == ERROR_ACCESS_DENIED; }
 /* delete one file this program wrote, by exact name; a missing file is fine */
 static int hp_delete_own(const wchar_t* root, const wchar_t* file) {
     DWORD a;
@@ -271,7 +281,10 @@ static int hp_delete_own(const wchar_t* root, const wchar_t* file) {
     if (r == 1) return 0;
     if (!hp_safe_path(root, file)) { hp_log("  refused (unsafe path): delete %s\n", hp_u8(file)); return -1; }
     if (r != 0 || (a & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT))) { hp_log("  refused (not a plain file): delete %s\n", hp_u8(file)); return -1; }
-    if (!DeleteFileW(file)) { hp_log("  can't delete %s (error %lu)\n", hp_u8(file), GetLastError()); return -1; }
+    for (int t = 0; !DeleteFileW(file); t++) {
+        if (t >= 20 || !hp_busy()) { hp_log("  can't delete %s (error %lu)\n", hp_u8(file), GetLastError()); return -1; }
+        Sleep(100);
+    }
     return 0;
 }
 /* remove one empty folder this program made; a folder with anything in it stays */
@@ -293,15 +306,50 @@ static void hp_rmdirs_since(const wchar_t* root, int mark) {
         free(d);
     }
 }
+/* the handle is the file at exactly this path (no link followed on the way:
+ * its final path, as the system resolved it, is the path asked for) */
+static int hp_handle_is(HANDLE h, const wchar_t* file) {
+    wchar_t want[HP_WMAX], lng[HP_WMAX], got[HP_WMAX];
+    DWORD n = GetFullPathNameW(file, HP_WMAX, want, NULL);
+    if (!n || n >= HP_WMAX) return 0;
+    n = GetLongPathNameW(want, lng, HP_WMAX);
+    if (n && n < HP_WMAX) wcscpy(want, lng);
+    n = GetFinalPathNameByHandleW(h, got, HP_WMAX, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    if (!n || n >= HP_WMAX) return 0;
+    const wchar_t* g = got;
+    if (!wcsncmp(g, L"\\\\?\\UNC\\", 8)) return 0;
+    if (!wcsncmp(g, L"\\\\?\\", 4)) g += 4;
+    return CompareStringOrdinal(g, -1, want, -1, TRUE) == CSTR_EQUAL;
+}
+/* open a small file of ours for writing, without following a link and
+ * without truncating anything first: refused (closed, nothing deleted) if it
+ * is a link (also one Wine shows as a plain file: the final path is checked),
+ * a folder, or has another hard link. INVALID_HANDLE_VALUE if not. */
+static HANDLE hp_open_own(const wchar_t* root, const wchar_t* file, int retry_if_busy) {
+    if (!hp_safe_path(root, file)) { hp_log("  refused (unsafe path): open %s\n", hp_u8(file)); return INVALID_HANDLE_VALUE; }
+    HANDLE h;
+    for (int t = 0; (h = CreateFileW(file, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, NULL)) == INVALID_HANDLE_VALUE
+                    && retry_if_busy && t < 20 && hp_busy(); t++) Sleep(100);
+    if (h == INVALID_HANDLE_VALUE) return h;
+    BY_HANDLE_FILE_INFORMATION bi;
+    if (!GetFileInformationByHandle(h, &bi) || bi.nNumberOfLinks != 1
+        || (bi.dwFileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY)) || !hp_handle_is(h, file)) {
+        hp_log("  refused (a link, or hard-linked): %s\n", hp_u8(file));
+        CloseHandle(h);
+        SetLastError(ERROR_ACCESS_DENIED);
+        return INVALID_HANDLE_VALUE;
+    }
+    return h;
+}
 /* write a whole small file (progress, marker): only where nothing but a plain
  * file of ours can be */
 static int hp_write_own(const wchar_t* root, const wchar_t* file, const char* data, size_t n, int must_be_new) {
     if (!hp_safe_path(root, file)) { hp_log("  refused (unsafe path): write %s\n", hp_u8(file)); return -1; }
     if (!must_be_new && hp_exists(file) && !hp_isfile(file)) { hp_log("  refused (not a plain file): write %s\n", hp_u8(file)); return -1; }
-    HANDLE h = CreateFileW(file, GENERIC_WRITE, 0, NULL, must_be_new ? CREATE_NEW : CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE h = must_be_new ? CreateFileW(file, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL) : hp_open_own(root, file, 1);
     if (h == INVALID_HANDLE_VALUE) { hp_log("  can't write %s (error %lu)\n", hp_u8(file), GetLastError()); return -1; }
     DWORD w = 0;
-    BOOL ok = WriteFile(h, data, (DWORD)n, &w, NULL) && w == n;
+    BOOL ok = WriteFile(h, data, (DWORD)n, &w, NULL) && w == n && SetEndOfFile(h);
     ok = CloseHandle(h) && ok;
     if (!ok) { hp_log("  can't write %s (error %lu)\n", hp_u8(file), GetLastError()); return -1; }
     return 0;
@@ -311,7 +359,10 @@ static int hp_free_name(const wchar_t* dir, const wchar_t* base, wchar_t* out) {
     for (int i = 1; i < 1000; i++) {
         wchar_t nm[300];
         if (wcslen(base) > 250) return -1;
-        if (i == 1) wcscpy(nm, base); else _snwprintf(nm, 300, L"%ls-%d", base, i);
+        const wchar_t* dot = wcschr(base, L'.');               /* a.1.mpg -> a-2.1.mpg: the extension stays */
+        if (i == 1) wcscpy(nm, base);
+        else if (dot) _snwprintf(nm, 300, L"%.*ls-%d%ls", (int)(dot - base), base, i, dot);
+        else _snwprintf(nm, 300, L"%ls-%d", base, i);
         nm[299] = 0;
         if (hp_join(out, dir, nm)) return -1;
         if (!hp_exists(out)) return 0;
@@ -347,6 +398,15 @@ static int hp_entry_name_ok(const char* s) {
             for (const char* d = seg; d < c; d++) if (*d != '.') dots = 0;
             if (len == 0 && *c) return 0;                     /* "a//b" */
             if (len && dots) return 0;                         /* ".", "..", "..." */
+            if (len && seg[len - 1] == '.') return 0;          /* Windows drops it: "x." is "x" */
+            {   /* device names (con, nul.png, com1...) */
+                static const char* dev[] = { "con", "prn", "aux", "nul", "com", "lpt", "conin$", "conout$" };
+                size_t base = 0; while (seg + base < c && seg[base] != '.') base++;
+                for (int k = 0; k < 8; k++) {
+                    size_t dl = strlen(dev[k]);
+                    if (!_strnicmp(seg, dev[k], dl) && (base == dl || (k >= 4 && k <= 5 && base == dl + 1 && seg[dl] >= '0' && seg[dl] <= '9'))) return 0;
+                }
+            }
             if (!*c) return 1;
             seg = c + 1;
             continue;
@@ -412,7 +472,7 @@ static int hp_unzip_storedW(const wchar_t* zip, const wchar_t* dest) {
         } else {
             HANDLE o = CreateFileW(full, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
             if (o == INVALID_HANDLE_VALUE) { hp_log("  unzip: can't make %s (error %lu)\n", hp_u8(full), GetLastError()); goto done; }
-            if (hp_list_add(&hp_written, full)) { CloseHandle(o); goto done; }
+            if (hp_list_add(&hp_written, full)) { CloseHandle(o); DeleteFileW(full); hp_log("  out of memory\n"); goto done; }   /* just made by CREATE_NEW */
             LARGE_INTEGER li; li.QuadPart = data;
             unsigned c = 0; long long left = csize; int ok = SetFilePointerEx(f, li, NULL, FILE_BEGIN) != 0;
             while (ok && left > 0) {
@@ -447,16 +507,19 @@ static int hp_unzip_stored(const char* zip, const char* dest) {
 static int hp_realesrgan_packW(const wchar_t* game) {
     wchar_t p[HP_WMAX];
     if (hp_join(p, game, L"textures\\hd-style.txt")) return 0;
-    HANDLE f = CreateFileW(p, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    /* any doubt (can't open or read it, empty: textures-hd.exe rewriting it) = keep everything */
+    HANDLE f = CreateFileW(p, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     if (f != INVALID_HANDLE_VALUE) {
-        char b[4097]; DWORD got = 0;
+        static char b[65536 + 1]; DWORD got = 0;
         BOOL ok = ReadFile(f, b, sizeof b - 1, &got, NULL);
         CloseHandle(f);
-        if (!ok) return 0;                                     /* can't read it: keep everything */
+        if (!ok || got == 0 || got == sizeof b - 1) return 0;
         b[got] = 0;
         for (DWORD i = 0; i < got; i++) if (!b[i]) b[i] = ' ';
         return strstr(b, "service-") == NULL;
     }
+    DWORD e = GetLastError();
+    if (e != ERROR_FILE_NOT_FOUND) return 0;
     if (hp_join(p, game, L"textures-hd-outil")) return 0;
     return hp_isdir(p);
 }
@@ -470,8 +533,10 @@ static int hp_realesrgan_pack(const char* game) {
  * textures-avant-*) into game/hd-pack-ancien/ (-2, -3... if the name is
  * taken). One rename per folder, nothing deleted; a folder that is a link or
  * fails the guard is left where it is. Returns how many could not be moved. */
+static int hp_set_aside_moved;     /* how many folders the last hp_set_aside moved */
 static int hp_set_asideW(const wchar_t* game) {
     int failed = 0;
+    hp_set_aside_moved = 0;
     wchar_t src[HP_WMAX], to[HP_WMAX];
     static const wchar_t* fixed[][2] = { { L"textures\\hd", L"textures-hd" }, { L"textures-methode5", L"textures-methode5" } };
     for (int i = 0; i < 2; i++) {
@@ -483,7 +548,7 @@ static int hp_set_asideW(const wchar_t* game) {
             hp_log("  left in place (not a plain folder): %s\n", hp_u8(src)); failed++; continue;
         }
         if (hp_aside(game, src, fixed[i][1], to)) failed++;
-        else hp_log("  set aside: %s -> %s\n", hp_u8(src), hp_u8(to));
+        else { hp_set_aside_moved++; hp_log("  set aside: %s -> %s\n", hp_u8(src), hp_u8(to)); }
     }
     /* textures-avant-*: the names first, then the moves (the folder changes) */
     wchar_t pat[HP_WMAX];
@@ -499,11 +564,12 @@ static int hp_set_asideW(const wchar_t* game) {
             }
             if (hp_list_add(&names, fd.cFileName)) failed++;
         } while (FindNextFileW(h, &fd));
+        if (GetLastError() != ERROR_NO_MORE_FILES) failed++;
         FindClose(h);
-    }
+    } else if (GetLastError() != ERROR_FILE_NOT_FOUND) failed++;
     for (int i = 0; i < names.n; i++) {
         if (hp_join(src, game, names.v[i]) || hp_aside(game, src, names.v[i], to)) failed++;
-        else hp_log("  set aside: %s -> %s\n", hp_u8(src), hp_u8(to));
+        else { hp_set_aside_moved++; hp_log("  set aside: %s -> %s\n", hp_u8(src), hp_u8(to)); }
     }
     hp_list_clear(&names); free(names.v);
     return failed;
@@ -535,11 +601,14 @@ static int hp_list_files(const wchar_t* dir, HpList* out) {
         if (fd.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) { rc = -1; continue; }
         if (hp_list_add(out, fd.cFileName)) rc = -1;
     } while (FindNextFileW(h, &fd));
+    if (GetLastError() != ERROR_NO_MORE_FILES) rc = -1;
     FindClose(h);
     return rc;
 }
 
-/* Put stage/textures in place as game/textures/hd-pack (the old one, if any,
+/* Returns 0 ok, -1 failed with everything put back, -2 failed and some move
+ * could not be undone (the log says where each file is).
+ * Put stage/textures in place as game/textures/hd-pack (the old one, if any,
  * set aside), the stage movies into game/movies (older files of the same
  * movies kept in game/movies-avant-hd-pack/), and stage/hd-pack.txt last as
  * game/textures/hd-pack/hd-pack.txt. All renames, all checked first; on any
@@ -557,6 +626,21 @@ static int hp_installW(const wchar_t* game, const wchar_t* stage) {
     if (!hp_safe_path(game, stage) || !hp_isdir(stage)) { hp_log("  install: stage refused: %s\n", hp_u8(stage)); goto out; }
     if (!hp_safe_path(game, stex) || !hp_isdir(stex)) { hp_log("  install: no stage textures folder\n"); goto out; }
     if (!hp_safe_path(game, smark) || !hp_isfile(smark)) { hp_log("  install: no stage hd-pack.txt\n"); goto out; }
+    {   /* the stage holds textures/, movies/, hd-pack.txt and nothing else (nothing left behind) */
+        wchar_t pat[HP_WMAX]; WIN32_FIND_DATAW fd; int bad = 0;
+        if (hp_join(pat, stage, L"*")) goto out;
+        HANDLE h = FindFirstFileW(pat, &fd);
+        if (h == INVALID_HANDLE_VALUE) goto out;
+        do {
+            const wchar_t* nm = fd.cFileName;
+            if (wcscmp(nm, L".") && wcscmp(nm, L"..") && _wcsicmp(nm, L"textures") && _wcsicmp(nm, L"movies") && _wcsicmp(nm, L"hd-pack.txt")) {
+                hp_log("  install: unexpected %s in the stage\n", hp_u8(nm)); bad = 1;
+            }
+        } while (FindNextFileW(h, &fd));
+        if (GetLastError() != ERROR_NO_MORE_FILES) bad = 1;
+        FindClose(h);
+        if (bad) goto out;
+    }
     if (!hp_safe_path(game, dtex) || (hp_exists(dtex) && !hp_isdir(dtex))) { hp_log("  install: textures\\hd-pack refused (a link or not a folder)\n"); goto out; }
     if (hp_exists(tex) && (!hp_safe_path(game, tex) || !hp_isdir(tex))) { hp_log("  install: textures refused\n"); goto out; }
     if (hp_exists(smov)) {
@@ -570,11 +654,13 @@ static int hp_installW(const wchar_t* game, const wchar_t* stage) {
             wchar_t pat[HP_WMAX]; WIN32_FIND_DATAW fd;
             if (hp_join(pat, dmov, L"*")) goto out;
             HANDLE h = FindFirstFileW(pat, &fd);
-            if (h != INVALID_HANDLE_VALUE) {
-                do { if (wcscmp(fd.cFileName, L".") && wcscmp(fd.cFileName, L"..")) hp_list_add(&all, fd.cFileName); } while (FindNextFileW(h, &fd));
-                FindClose(h);
-            }
             int bad = 0;
+            if (h != INVALID_HANDLE_VALUE) {
+                do { if (wcscmp(fd.cFileName, L".") && wcscmp(fd.cFileName, L"..") && hp_list_add(&all, fd.cFileName)) bad = 1; } while (FindNextFileW(h, &fd));
+                if (GetLastError() != ERROR_NO_MORE_FILES) bad = 1;
+                FindClose(h);
+            } else if (GetLastError() != ERROR_FILE_NOT_FOUND) bad = 1;
+            if (bad) hp_log("  install: can't list the movies folder\n");
             for (int i = 0; i < all.n && !bad; i++) {            /* old files of a movie the pack brings */
                 wchar_t s1[260], s2[260], p[HP_WMAX];
                 hp_stem(all.v[i], s1, 260);
@@ -582,7 +668,7 @@ static int hp_installW(const wchar_t* game, const wchar_t* stage) {
                 for (int k = 0; k < newmov.n && !match; k++) { hp_stem(newmov.v[k], s2, 260); match = s1[0] && !_wcsicmp(s1, s2); }
                 if (!match) continue;
                 if (hp_join(p, dmov, all.v[i]) || !hp_safe_path(game, p) || !hp_isfile(p)) { hp_log("  install: can't set aside %s (not a plain file)\n", hp_u8(all.v[i])); bad = 1; }
-                else hp_list_add(&oldmov, all.v[i]);
+                else if (hp_list_add(&oldmov, all.v[i])) bad = 1;
             }
             hp_list_clear(&all); free(all.v);
             if (bad) goto out;
@@ -627,8 +713,10 @@ undo:
     hp_log("  install failed: undoing %d move(s)\n", ndone);
     while (ndone > 0) {
         ndone--;
-        if (hp_move(game, done[ndone].to, done[ndone].from))
+        if (hp_move(game, done[ndone].to, done[ndone].from)) {
             hp_log("  UNDO FAILED: %s is at %s\n", hp_u8(done[ndone].from), hp_u8(done[ndone].to));
+            rc = -2;
+        }
     }
     hp_rmdirs_since(game, mark);                               /* only empty folders made here */
 out:

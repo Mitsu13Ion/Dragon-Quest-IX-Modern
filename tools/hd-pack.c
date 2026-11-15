@@ -18,6 +18,9 @@
  *   x86_64-w64-mingw32-gcc -O2 -municode -I tools -o hd-pack.exe tools/hd-pack.c -lbcrypt
  * Tests: tests/hdpack/run.sh, in a Linux cloud session under Wine only. */
 #include "hdpack_core.h"
+#include <fcntl.h>
+#include <io.h>
+#include <stdint.h>
 
 #define MAX_ZIPS 64
 #define MANIFEST_MAX (64 * 1024)
@@ -25,10 +28,10 @@
 static wchar_t G[HP_WMAX];          /* the game folder */
 static wchar_t PROGRESS[HP_WMAX];
 
-static void progress(const char* state, int pct) {
+static int progress(const char* state, int pct) {
     char b[64];
     int n = snprintf(b, sizeof b, "%s %d 100", state, pct);
-    hp_write_own(G, PROGRESS, b, (size_t)n, 0);
+    return hp_write_own(G, PROGRESS, b, (size_t)n, 0);
 }
 /* a small text file, at most max-1 bytes; -1 if missing or bigger */
 static int read_small(const wchar_t* path, char* out, DWORD max) {
@@ -58,6 +61,38 @@ static int zip_ok(const wchar_t* path, const HpZip* z) {
     return !strcmp(sha, z->sha);
 }
 
+static void open_log(void) {
+    if (hp_logfile) return;
+    wchar_t logp[HP_WMAX];
+    if (!hp_join(logp, G, L"hd-pack.log")) {
+        HANDLE h = hp_open_own(G, logp, 1);                    /* not through a link, not hard-linked */
+        if (h != INVALID_HANDLE_VALUE) {
+            int fd = _open_osfhandle((intptr_t)h, _O_APPEND | _O_BINARY);
+            if (fd < 0) CloseHandle(h);
+            else if (!(hp_logfile = _fdopen(fd, "ab"))) _close(fd);
+        }
+    }
+    SYSTEMTIME now; GetLocalTime(&now);
+    hp_log("\n%04d-%02d-%02d %02d:%02d:%02d\n", now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond);
+}
+/* a Real-ESRGAN folder still to set aside (a plain folder, links don't count) */
+static int aside_pending(void) {
+    wchar_t p[HP_WMAX];
+    if (!hp_join(p, G, L"textures\\hd") && hp_isdir(p)) return 1;
+    if (!hp_join(p, G, L"textures-methode5") && hp_isdir(p)) return 1;
+    if (hp_join(p, G, L"textures-avant-*")) return 0;
+    WIN32_FIND_DATAW fd; HANDLE h = FindFirstFileW(p, &fd); int found = 0;
+    if (h == INVALID_HANDLE_VALUE) return 0;
+    do { if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && !(fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) found = 1; } while (!found && FindNextFileW(h, &fd));
+    FindClose(h);
+    return found;
+}
+static void set_aside(void) {
+    int left = hp_set_asideW(G);
+    if (hp_set_aside_moved) hp_log("  %d Real-ESRGAN folder(s) set aside in hd-pack-ancien (empty that folder to free the space)\n", hp_set_aside_moved);
+    if (left) hp_log("  %d folder(s) could not be set aside (see above), tried again next time\n", left);
+}
+
 int wmain(void) {
     /* the game folder: where this exe is */
     DWORD n = GetModuleFileNameW(NULL, G, HP_WMAX);
@@ -68,11 +103,18 @@ int wmain(void) {
     if (!SetCurrentDirectoryW(G)) return 1;
     if (hp_join(PROGRESS, G, L"hd-pack-progress.txt")) return 1;
 
-    /* one at a time: a file held open, gone when this ends even if killed */
+    /* one at a time: a file held open (no sharing), let go when this ends even if killed */
     wchar_t lock[HP_WMAX];
-    if (hp_join(lock, G, L"hd-pack.lock") || !hp_safe_path(G, lock)) return 0;
-    HANDLE lh = CreateFileW(lock, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, NULL);
-    if (lh == INVALID_HANDLE_VALUE) return 0;                   /* another one is at work */
+    if (hp_join(lock, G, L"hd-pack.lock") || !hp_safe_path(G, lock)) {
+        open_log(); hp_log("  game folder refused (a link, or an odd path): %s; nothing done\n", hp_u8(G)); return 1;
+    }
+    /* (not through a link, nothing truncated; the file itself is never
+     * deleted, even on close: an empty hd-pack.lock stays, held only while open) */
+    HANDLE lh = hp_open_own(G, lock, 0);
+    if (lh == INVALID_HANDLE_VALUE) {
+        if (GetLastError() == ERROR_SHARING_VIOLATION) { open_log(); hp_log("  another hd-pack.exe is at work: this one stops\n"); return 0; }
+        open_log(); hp_log("  can't make the lock %s (error %lu); nothing done\n", hp_u8(lock), GetLastError()); return 1;
+    }
     SetPriorityClass(GetCurrentProcess(), IDLE_PRIORITY_CLASS);  /* the game comes first */
 
     /* the manifest */
@@ -84,21 +126,28 @@ int wmain(void) {
     int version = -1, nz;
     if (hp_join(path, src, L"hd-pack.txt") || read_small(path, manifest, sizeof manifest) < 0
         || (nz = hp_parse_manifest(manifest, &version, zips, MAX_ZIPS)) <= 0) {
-        CloseHandle(lh); return 1;                             /* nothing changed, nothing to log to yet */
+        open_log(); hp_log("  no valid manifest at %s; nothing done\n", hp_u8(path));
+        CloseHandle(lh); return 1;
     }
 
-    /* installed already? (no log, no progress file: nothing touched) */
+    /* installed already? Then nothing is touched, except what an earlier run
+     * could not finish: a bar left saying "working", folders not yet set aside */
     {
         static char have[MANIFEST_MAX]; static HpZip hz[MAX_ZIPS]; int hv = -1;
         if (!hp_join(path, G, L"textures\\hd-pack\\hd-pack.txt") && read_small(path, have, sizeof have) >= 0
-            && hp_parse_manifest(have, &hv, hz, MAX_ZIPS) >= 0 && hv == version) { CloseHandle(lh); return 0; }
+            && hp_parse_manifest(have, &hv, hz, MAX_ZIPS) >= 0 && hv == version) {
+            char pr[64];
+            if (read_small(PROGRESS, pr, sizeof pr) >= 0 && !strncmp(pr, "working", 7)) {
+                open_log(); hp_log("  installed; the bar of an unfinished run says done now\n");
+                progress("done", 0);
+            }
+            if (hp_realesrgan_packW(G) && aside_pending()) { open_log(); set_aside(); }
+            CloseHandle(lh); return 0;
+        }
     }
 
-    wchar_t logp[HP_WMAX];
-    if (!hp_join(logp, G, L"hd-pack.log") && hp_safe_path(G, logp) && (!hp_exists(logp) || hp_isfile(logp)))
-        hp_logfile = _wfopen(logp, L"ab");
-    SYSTEMTIME now; GetLocalTime(&now);
-    hp_log("\n%04d-%02d-%02d %02d:%02d hd-pack %d: %d zip(s) from %s\n", now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, version, nz, hp_u8(src));
+    open_log();
+    hp_log("hd-pack %d: %d zip(s) from %s\n", version, nz, hp_u8(src));
     progress("working", 0);
 
     int ok = 0;
@@ -133,15 +182,13 @@ int wmain(void) {
     wchar_t smark[HP_WMAX];
     if (hp_join(smark, stage, L"hd-pack.txt") || hp_write_own(G, smark, manifest, strlen(manifest), 1)) goto fail;
     if (hp_list_add(&hp_written, smark)) goto fail;
-    if (hp_installW(G, stage)) goto fail;
+    int inst = hp_installW(G, stage);
+    if (inst == -2) { hp_log("  install failed and could not all be undone: see UNDO FAILED above\n"); ok = -1; goto fail; }
+    if (inst) goto fail;
     ok = 1;
     progress("working", 95);
 
-    if (hp_realesrgan_packW(G)) {
-        int left = hp_set_asideW(G);
-        hp_log("  Real-ESRGAN textures set aside in hd-pack-ancien (empty that folder to free the space)%s\n",
-               left ? ", some left in place (see above)" : "");
-    }
+    if (hp_realesrgan_packW(G)) set_aside();
 
     /* tidy up: the verified zips by their names, then the empty folders made */
     for (int i = 0; i < nz; i++) {
@@ -151,19 +198,21 @@ int wmain(void) {
     hp_rmdirs_since(G, 0);
     hp_rmdir_own(G, stage);                                    /* ours from an earlier run, if empty */
     hp_rmdir_own(G, tmp);
-    progress("done", 0);
+    if (hp_exists(tmp)) hp_log("  %s is not empty: left in place\n", hp_u8(tmp));
+    if (progress("done", 0)) hp_log("  the progress file could not say done\n");
     hp_log("  done\n");
     CloseHandle(lh);
     return 0;
 
 fail:
     /* the files this run unpacked, by exact name; verified zips stay for next time */
-    if (!ok) {
-        for (int i = hp_written.n - 1; i >= 0; i--) hp_delete_own(G, hp_written.v[i]);
-        hp_rmdirs_since(G, 0);
-        hp_log("  failed: nothing installed, nothing set aside\n");
-    }
-    hp_delete_own(G, PROGRESS);                                /* no bar left saying "working" */
+    /* (after a failed undo, only the files still in the stage are deleted:
+     * the ones left in place are where the log says) */
+    for (int i = hp_written.n - 1; i >= 0; i--) hp_delete_own(G, hp_written.v[i]);
+    hp_rmdirs_since(G, 0);
+    if (!ok) hp_log("  failed: nothing installed, nothing set aside\n");
+    if (hp_delete_own(G, PROGRESS) && progress("failed", 0) == 0)   /* no bar left saying "working" */
+        hp_log("  the progress file could not be removed: it says failed\n");
     CloseHandle(lh);
     return 1;
 }

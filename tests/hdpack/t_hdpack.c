@@ -98,6 +98,8 @@ static void t_manifest(void) {
     CHECK("manifest: short sha", hp_parse_manifest("hd-pack 1\nzip a.zip 5 ba7816bf\n", &v, z, 4) == -1);
     CHECK("manifest: bad size", hp_parse_manifest("hd-pack 1\nzip a.zip -5 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n", &v, z, 4) == -1);
     CHECK("manifest: unknown line", hp_parse_manifest("hd-pack 1\nrm -rf a\n", &v, z, 4) == -1);
+    CHECK("manifest: the same zip twice", hp_parse_manifest("hd-pack 1\nzip a.zip 5 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n"
+          "zip A.zip 5 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n", &v, z, 4) == -1);
     CHECK("manifest: too many zips", hp_parse_manifest(good, &v, z, 1) == -1);
 }
 
@@ -121,8 +123,8 @@ static void t_unzip(void) {
     CHECK("unzip: texture zips made by Task 3", ok);
     CHECK("unzip: refuses to overwrite a file already there", hp_unzip_stored(U(P(L"%ls\\pack\\hd-pack-movies.zip", T)), U(d)) != 0
           && fill(P(L"%ls\\movies\\a.1.mpg", d), 'M', 300));
-    static const wchar_t* evil[] = { L"dotdot", L"dotdot2", L"backslash", L"absolute", L"drive", L"deflate" };
-    for (int i = 0; i < 6; i++) {
+    static const wchar_t* evil[] = { L"dotdot", L"dotdot2", L"backslash", L"absolute", L"drive", L"deflate", L"device", L"trailingdot" };
+    for (int i = 0; i < 8; i++) {
         wchar_t e[HP_WMAX]; wcscpy(e, P(L"%ls\\evil-%ls\\in", W, evil[i])); mk(e);
         r = hp_unzip_stored(U(P(L"%ls\\evil\\%ls.zip", T, evil[i])), U(e));
         char name[80]; snprintf(name, sizeof name, "unzip: refuses %s", U(evil[i]));
@@ -199,6 +201,12 @@ static void t_rule(void) {
     CHECK("rule: no file, no tool: not", hp_realesrgan_pack(U(g)) == 0);
     mk(P(L"%ls\\textures-hd-outil", g));
     CHECK("rule: no file + textures-hd-outil: Real-ESRGAN", hp_realesrgan_pack(U(g)) == 1);
+    puts_(P(L"%ls\\textures\\hd-style.txt", g), "");
+    CHECK("rule: an empty file (being rewritten) is a doubt: not", hp_realesrgan_pack(U(g)) == 0);
+    puts_(P(L"%ls\\textures\\hd-style.txt", g), "service-auto 1\n");
+    HANDLE busy = CreateFileW(P(L"%ls\\textures\\hd-style.txt", g), GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
+    CHECK("rule: a file that can't be opened is a doubt: not", hp_realesrgan_pack(U(g)) == 0);
+    CloseHandle(busy);
 }
 
 static void t_set_aside(void) {
@@ -295,6 +303,23 @@ static void t_install(void) {
         CHECK("install_fails_cleanly: the empty folders made on the way are removed", count(P(L"%ls\\hd-pack-ancien", g)) <= 0);
     } else { CloseHandle(h); skip("install_fails_cleanly: busy movie", "Wine lets an open file without FILE_SHARE_DELETE be renamed"); }
 
+    /* install_fails_cleanly at the very last move (the marker's place is taken):
+     * every move undone, old pack and old movie back */
+    wcscpy(g, P(L"%ls\\in-late\\game", W)); wcscpy(st, P(L"%ls\\hd-pack-tmp\\stage", g));
+    make_install_case(g, st);
+    puts_(P(L"%ls\\textures\\hd-pack.txt", st), "in the way");
+    r = hp_install(U(g), U(st));
+    CHECK("install_fails_cleanly: last move fails, all undone", r == -1 && unchanged(g, st)
+          && is(P(L"%ls\\textures\\hd-pack.txt", st), "in the way") && is(P(L"%ls\\movies\\a.sig", st), "new a sig")
+          && !exists(P(L"%ls\\hd-pack-ancien", g)) && !exists(P(L"%ls\\movies-avant-hd-pack", g)));
+
+    /* something unexpected in the stage is refused */
+    wcscpy(g, P(L"%ls\\in-odd\\game", W)); wcscpy(st, P(L"%ls\\hd-pack-tmp\\stage", g));
+    make_install_case(g, st);
+    puts_(P(L"%ls\\stray.txt", st), "stray");
+    r = hp_install(U(g), U(st));
+    CHECK("install: a stray stage entry is refused", r != 0 && unchanged(g, st));
+
     /* game/movies is a link to a sentinel folder (made by run.sh) */
     wchar_t fg[HP_WMAX]; wcscpy(fg, P(L"%ls\\fx\\ml\\game", T)); wcscpy(st, P(L"%ls\\stage", W));
     mk(P(L"%ls\\textures", st)); mk(P(L"%ls\\movies", st));
@@ -334,8 +359,10 @@ static void t_exe(void) {
     { char a[4096], b[4096]; CHECK("exe: marker is the manifest", get(P(L"%ls\\textures\\hd-pack\\hd-pack.txt", g), a, sizeof a) > 0
           && get(P(L"%ls\\hd-pack.txt", pack), b, sizeof b) > 0 && !strcmp(a, b)); }
     CHECK("exe: Real-ESRGAN textures set aside after install", is(P(L"%ls\\hd-pack-ancien\\textures-hd\\0000000000000009.png", g), "real-esrgan"));
-    CHECK("exe: progress 'done 0 100', work folder and lock gone", is(P(L"%ls\\hd-pack-progress.txt", g), "done 0 100")
-          && !exists(P(L"%ls\\hd-pack-tmp", g)) && !exists(P(L"%ls\\hd-pack.lock", g)));
+    { HANDLE l2 = CreateFileW(P(L"%ls\\hd-pack.lock", g), GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    CHECK("exe: progress 'done 0 100', work folder gone, lock let go", is(P(L"%ls\\hd-pack-progress.txt", g), "done 0 100")
+          && !exists(P(L"%ls\\hd-pack-tmp", g)) && l2 != INVALID_HANDLE_VALUE);
+    if (l2 != INVALID_HANDLE_VALUE) CloseHandle(l2); }
 
     DeleteFileW(P(L"%ls\\hd-pack-progress.txt", g));
     char log1[65536]; int l1 = get(P(L"%ls\\hd-pack.log", g), log1, sizeof log1);
@@ -355,8 +382,10 @@ static void t_exe(void) {
     rc = run_exe(P(L"%ls\\hd-pack.exe", g), pack);
     DWORD dt = GetTickCount() - t0;
     CloseHandle(lk);
+    { char lg[4096];
     CHECK("second_instance_exits: exits 0 at once, does nothing", lk != INVALID_HANDLE_VALUE && rc == 0 && dt < 20000
-          && !exists(P(L"%ls\\textures\\hd-pack", g)) && !exists(P(L"%ls\\hd-pack-progress.txt", g)) && !exists(P(L"%ls\\hd-pack-tmp", g)));
+          && !exists(P(L"%ls\\textures\\hd-pack", g)) && !exists(P(L"%ls\\hd-pack-progress.txt", g)) && !exists(P(L"%ls\\hd-pack-tmp", g))
+          && get(P(L"%ls\\hd-pack.log", g), lg, sizeof lg) > 0 && strstr(lg, "another hd-pack.exe is at work")); }
 
     /* a zip that does not match its SHA-256 */
     wcscpy(g, P(L"%ls\\exe-bad\\game", W)); new_game(g);
@@ -371,6 +400,42 @@ static void t_exe(void) {
           && !exists(P(L"%ls\\hd-pack-tmp\\stage", g)));
     CHECK("bad zip: then the good pack installs (verified zips reused)", run_exe(P(L"%ls\\hd-pack.exe", g), pack) == 0
           && count(P(L"%ls\\textures\\hd-pack", g)) == 6 && !exists(P(L"%ls\\hd-pack-tmp", g)));
+
+    /* hp_install fails inside hd-pack.exe (the game plays the old movie): nothing
+     * installed, Real-ESRGAN kept, no bar, the unpacked files gone */
+    wcscpy(g, P(L"%ls\\exe-busy\\game", W)); new_game(g);
+    mk(P(L"%ls\\textures\\hd", g)); mk(P(L"%ls\\textures-hd-outil", g)); mk(P(L"%ls\\movies", g));
+    puts_(P(L"%ls\\textures\\hd\\0000000000000009.png", g), "real-esrgan");
+    puts_(P(L"%ls\\movies\\a.mpg", g), "old a");
+    HANDLE mv = CreateFileW(P(L"%ls\\movies\\a.mpg", g), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    rc = run_exe(P(L"%ls\\hd-pack.exe", g), pack);
+    CloseHandle(mv);
+    CHECK("exe install fails: nothing installed, Real-ESRGAN kept, no bar", rc != 0 && !exists(P(L"%ls\\textures\\hd-pack", g))
+          && is(P(L"%ls\\textures\\hd\\0000000000000009.png", g), "real-esrgan") && is(P(L"%ls\\movies\\a.mpg", g), "old a")
+          && !exists(P(L"%ls\\movies\\a.1.mpg", g)) && !exists(P(L"%ls\\hd-pack-progress.txt", g))
+          && !exists(P(L"%ls\\hd-pack-tmp\\stage", g)) && count(P(L"%ls\\hd-pack-ancien", g)) <= 0);
+
+    /* installed, but a killed run left the bar at "working" and textures/hd in place */
+    wcscpy(g, P(L"%ls\\exe\\game", W));
+    puts_(P(L"%ls\\hd-pack-progress.txt", g), "working 95 100");
+    mk(P(L"%ls\\textures\\hd", g)); puts_(P(L"%ls\\textures\\hd\\000000000000000a.png", g), "again");
+    rc = run_exe(P(L"%ls\\hd-pack.exe", g), pack);
+    CHECK("installed + unfinished run: bar says done, set-aside done now", rc == 0 && is(P(L"%ls\\hd-pack-progress.txt", g), "done 0 100")
+          && is(P(L"%ls\\hd-pack-ancien\\textures-hd-2\\000000000000000a.png", g), "again") && !exists(P(L"%ls\\textures\\hd", g)));
+
+    /* hd-pack.lock is a link to a sentinel file (made by run.sh): refused, sentinel
+     * kept (run.sh checks the link is still there: Wine shows a link to a file
+     * as a plain file) */
+    wcscpy(g, P(L"%ls\\fx\\lk\\game", T)); new_game(g);
+    rc = run_exe(P(L"%ls\\hd-pack.exe", g), pack);
+    CHECK("lock that is a link: nothing done, the file behind it kept", rc != 0
+          && is(P(L"%ls\\fx\\lk\\sentinel\\lock.txt", T), "sentinel\n") && !exists(P(L"%ls\\textures\\hd-pack", g)));
+
+    /* hd-pack-progress.txt hard-linked to a sentinel (made by run.sh): never written through */
+    wcscpy(g, P(L"%ls\\fx\\hl\\game", T)); new_game(g);
+    rc = run_exe(P(L"%ls\\hd-pack.exe", g), pack);
+    CHECK("hard-linked progress file: the other file is not written", rc == 0 && is(P(L"%ls\\fx\\hl\\sentinel\\hl.txt", T), "sentinel\n")
+          && count(P(L"%ls\\textures\\hd-pack", g)) == 6);
 
     /* no source: nothing to do yet (the download is Task 5) */
     wcscpy(g, P(L"%ls\\exe-nosrc\\game", W)); new_game(g);

@@ -3,11 +3,16 @@
  * Started by the game in the background (like textures-hd.exe). Works on the
  * folder it sits in (the game folder):
  *   - one at a time (hd-pack.lock held open), IDLE priority;
- *   - reads the manifest hd-pack.txt (HDPACK_SOURCE=<folder>: manifest and zips
- *     from that local folder; the download comes later, plan Task 5);
+ *   - reads the manifest hd-pack.txt from the release (HD_PACK_URL below;
+ *     HDPACK_URL=<base URL> overrides it, HDPACK_SOURCE=<folder> takes the
+ *     manifest and zips from a local folder, for tests); offline: stops
+ *     quietly, no bar;
  *   - nothing to do if textures/hd-pack/hd-pack.txt has the same version;
- *   - each zip into hd-pack-tmp/, size and SHA-256 checked, unpacked into
- *     hd-pack-tmp/stage/; then hp_install (all or nothing);
+ *   - each zip downloaded into hd-pack-tmp/<zip>.part (WinHTTP; a cut
+ *     download goes on from where it stopped next time, with Range), renamed
+ *     <zip> when whole, size and SHA-256 checked (a bad one is deleted);
+ *   - once all are there, unpacked into hd-pack-tmp/stage/; then hp_install
+ *     (all or nothing);
  *   - then the Real-ESRGAN textures are set aside in hd-pack-ancien/ (never
  *     deleted: the player empties that folder if they want);
  *   - then the verified zips are deleted by their manifest names and the
@@ -15,12 +20,17 @@
  *   - hd-pack-progress.txt says "working <percent> 100" then "done 0 100"
  *     (removed again if it fails, so the game shows no bar); log hd-pack.log.
  * Deletion safety: see hdpack_core.h. Build (MSYS2 or the cloud's mingw):
- *   x86_64-w64-mingw32-gcc -O2 -municode -I tools -o hd-pack.exe tools/hd-pack.c -lbcrypt
- * Tests: tests/hdpack/run.sh, in a Linux cloud session under Wine only. */
+ *   x86_64-w64-mingw32-gcc -O2 -municode -I tools -o hd-pack.exe tools/hd-pack.c -lbcrypt -lwinhttp
+ * Tests: tests/hdpack/run.sh (and t_download.py), in a Linux cloud session
+ * under Wine only. */
 #include "hdpack_core.h"
 #include <fcntl.h>
 #include <io.h>
 #include <stdint.h>
+#include <winhttp.h>
+
+/* a new pack = a new release and a new address in a new version of the game */
+#define HD_PACK_URL L"https://github.com/romusan495/Dragon-Quest-IX-Modern/releases/download/hd-pack-1/"
 
 #define MAX_ZIPS 64
 #define MANIFEST_MAX (64 * 1024)
@@ -53,6 +63,145 @@ static int size_of(const wchar_t* path, long long* size) {
     *size = (long long)d.nFileSizeHigh << 32 | d.nFileSizeLow;
     return 0;
 }
+/* ---------------------------------------------------------- download */
+static HINTERNET g_http;
+static wchar_t g_host[256], g_base[HP_WMAX];   /* g_base: URL path, ends with '/' */
+static int g_port, g_secure;
+static long long g_total, g_before;            /* all zip bytes; bytes of the zips already done */
+static ULONGLONG g_last_bar;
+static int g_last_pct = -1;
+
+static void bar(long long have) {                /* at most twice a second */
+    ULONGLONG now = GetTickCount64();
+    int pct = g_total > 0 ? (int)((g_before + have) * 85 / g_total) : 0;
+    if (pct == g_last_pct || now - g_last_bar < 500) return;
+    g_last_bar = now; g_last_pct = pct;
+    progress("working", pct);
+}
+/* the base URL of the manifest and zips: scheme, host, port, path */
+static int set_base(const wchar_t* url) {
+    URL_COMPONENTS u; memset(&u, 0, sizeof u); u.dwStructSize = sizeof u;
+    wchar_t host[256], path[HP_WMAX];
+    u.lpszHostName = host; u.dwHostNameLength = 256;
+    u.lpszUrlPath = path; u.dwUrlPathLength = HP_WMAX - 2;
+    if (!WinHttpCrackUrl(url, 0, 0, &u)) return -1;
+    if (u.nScheme != INTERNET_SCHEME_HTTPS && u.nScheme != INTERNET_SCHEME_HTTP) return -1;
+    if (!host[0]) return -1;
+    wcscpy(g_host, host);
+    g_port = u.nPort; g_secure = u.nScheme == INTERNET_SCHEME_HTTPS;
+    if (!path[0]) wcscpy(path, L"/");
+    size_t n = wcslen(path);
+    if (path[n - 1] != L'/') { path[n] = L'/'; path[n + 1] = 0; }
+    wcscpy(g_base, path);
+    return 0;
+}
+/* one GET; *req open with the status in *status, 0 ok */
+static int http_get(const wchar_t* host, int port, int secure, const wchar_t* path, long long from,
+                    HINTERNET* conn, HINTERNET* req, DWORD* status) {
+    *conn = *req = NULL;
+    if (!g_http) {
+        g_http = WinHttpOpen(L"dqix-enhanced-hd-pack", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        if (!g_http) return -1;
+        WinHttpSetTimeouts(g_http, 8000, 8000, 15000, 30000);
+    }
+    *conn = WinHttpConnect(g_http, host, (INTERNET_PORT)port, 0);
+    if (!*conn) return -1;
+    *req = WinHttpOpenRequest(*conn, L"GET", path, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, secure ? WINHTTP_FLAG_SECURE : 0);
+    if (!*req) return -1;
+    wchar_t range[64] = L"";
+    if (from > 0) _snwprintf(range, 64, L"Range: bytes=%lld-", from);
+    if (!WinHttpSendRequest(*req, from > 0 ? range : WINHTTP_NO_ADDITIONAL_HEADERS, from > 0 ? (DWORD)-1L : 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0)
+        || !WinHttpReceiveResponse(*req, NULL)) return -1;
+    DWORD sz = sizeof *status;
+    if (!WinHttpQueryHeaders(*req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, status, &sz, WINHTTP_NO_HEADER_INDEX)) return -1;
+    return 0;
+}
+static void http_close(HINTERNET conn, HINTERNET req) {
+    if (req) WinHttpCloseHandle(req);
+    if (conn) WinHttpCloseHandle(conn);
+}
+/* the manifest (small) into out; 0 ok */
+static int fetch_small(const wchar_t* path, char* out, DWORD max) {
+    HINTERNET c, r; DWORD st = 0, n = 0;
+    int rc = -1;
+    if (http_get(g_host, g_port, g_secure, path, 0, &c, &r, &st) || st != 200) goto done;
+    for (;;) {
+        DWORD got = 0;
+        if (n >= max - 1) goto done;                           /* too big for a manifest */
+        if (!WinHttpReadData(r, out + n, max - 1 - n, &got)) goto done;
+        if (!got) break;
+        n += got;
+    }
+    out[n] = 0;
+    rc = strlen(out) == n ? 0 : -1;
+done:
+    if (rc && st) hp_log("  %s: HTTP %lu\n", hp_u8(path), st);
+    http_close(c, r);
+    return rc;
+}
+
+/* Download path into <dest>.part (resuming at `have` bytes with Range), then
+ * rename it <dest> once it holds `size` bytes. The .part is opened only after
+ * the server answered, never through a link (hp_open_own). 0 ok; on a cut the
+ * .part keeps what came, for next time. */
+static int hp_fetch(const wchar_t* host, int port, int secure, const wchar_t* path, const char* dest, long long have, long long size) {
+    wchar_t d[HP_WMAX], part[HP_WMAX];
+    if (hp_wide(dest, d) || wcslen(d) + 6 > HP_WMAX) return -1;
+    _snwprintf(part, HP_WMAX, L"%ls.part", d);
+    if (!hp_safe_path(G, d) || !hp_safe_path(G, part)) { hp_log("  refused (unsafe path): %s\n", hp_u8(part)); return -1; }
+    if (have < 0 || have > size) {                             /* longer than the zip: not something to go on from */
+        hp_log("  %s: .part longer than the zip, starting over\n", dest);
+        if (hp_delete_own(G, part)) return -1;
+        have = 0;
+    }
+    HINTERNET c = NULL, r = NULL; HANDLE f = INVALID_HANDLE_VALUE;
+    static char buf[1 << 16];
+    int rc = -1;
+    DWORD st = 0;
+    if (have < size) {
+        if (http_get(host, port, secure, path, have, &c, &r, &st)) { hp_log("  %s: no answer (error %lu)\n", hp_u8(path), GetLastError()); goto done; }
+        if (st == 206) {
+            wchar_t cr[128]; DWORD sz = sizeof cr; wchar_t want[64];
+            _snwprintf(want, 64, L"bytes %lld-", have);
+            if (!WinHttpQueryHeaders(r, WINHTTP_QUERY_CONTENT_RANGE, WINHTTP_HEADER_NAME_BY_INDEX, cr, &sz, WINHTTP_NO_HEADER_INDEX)
+                || wcsncmp(cr, want, wcslen(want))) { hp_log("  %s: the server sent another part\n", hp_u8(path)); goto done; }
+        } else if (st == 200) {
+            if (have) hp_log("  %s: the server sent it all again, starting over\n", hp_u8(path));
+            have = -1;                                         /* truncate the .part once open */
+        } else if (st == 416) {
+            hp_log("  %s: HTTP 416, the .part is dropped\n", hp_u8(path));
+            hp_delete_own(G, part);
+            goto done;
+        } else { hp_log("  %s: HTTP %lu\n", hp_u8(path), st); goto done; }
+    }
+    f = hp_open_own(G, part, 1);
+    if (f == INVALID_HANDLE_VALUE) { hp_log("  can't open %s (error %lu)\n", hp_u8(part), GetLastError()); goto done; }
+    LARGE_INTEGER cur, zero; zero.QuadPart = 0;
+    if (have == -1) {
+        if (!SetFilePointerEx(f, zero, NULL, FILE_BEGIN) || !SetEndOfFile(f)) goto done;
+        have = 0;
+    }
+    if (!GetFileSizeEx(f, &cur) || cur.QuadPart != have) { hp_log("  %s changed size meanwhile\n", hp_u8(part)); goto done; }
+    if (!SetFilePointerEx(f, zero, NULL, FILE_END)) goto done;
+    while (r && have < size) {
+        DWORD got = 0, put = 0;
+        if (!WinHttpReadData(r, buf, sizeof buf, &got)) { hp_log("  %s: cut at %lld of %lld bytes (error %lu), goes on next time\n", hp_u8(path), have, size, GetLastError()); goto done; }
+        if (!got) break;
+        if (have + got > size) { hp_log("  %s: more bytes than the manifest says\n", hp_u8(path)); SetFilePointerEx(f, zero, NULL, FILE_BEGIN); SetEndOfFile(f); goto done; }
+        if (!WriteFile(f, buf, got, &put, NULL) || put != got) { hp_log("  can't write %s (error %lu)\n", hp_u8(part), GetLastError()); goto done; }
+        have += got;
+        bar(have);
+    }
+    if (have != size) { hp_log("  %s: cut at %lld of %lld bytes, goes on next time\n", hp_u8(path), have, size); goto done; }
+    CloseHandle(f); f = INVALID_HANDLE_VALUE;
+    if (hp_move(G, part, d)) goto done;
+    rc = 0;
+done:
+    if (f != INVALID_HANDLE_VALUE) CloseHandle(f);
+    http_close(c, r);
+    return rc;
+}
+
 /* the zip in tmp is the manifest's one (size and SHA-256) */
 static int zip_ok(const wchar_t* path, const HpZip* z) {
     long long size; char sha[65];
@@ -117,16 +266,30 @@ int wmain(void) {
     }
     SetPriorityClass(GetCurrentProcess(), IDLE_PRIORITY_CLASS);  /* the game comes first */
 
-    /* the manifest */
-    wchar_t src[HP_WMAX], path[HP_WMAX];
+    /* the manifest: a local folder (tests), or the release */
+    wchar_t src[HP_WMAX] = L"", url[HP_WMAX] = HD_PACK_URL, path[HP_WMAX];
     DWORD sl = GetEnvironmentVariableW(L"HDPACK_SOURCE", src, HP_WMAX);
-    if (!sl || sl >= HP_WMAX) { CloseHandle(lh); return 0; }   /* no local pack: the download is Task 5 */
+    int local = sl > 0 && sl < HP_WMAX;
+    if (!local) src[0] = 0;
+    DWORD ul = GetEnvironmentVariableW(L"HDPACK_URL", url, HP_WMAX);
+    if (!ul || ul >= HP_WMAX) wcscpy(url, HD_PACK_URL);
     static char manifest[MANIFEST_MAX];
     static HpZip zips[MAX_ZIPS];
     int version = -1, nz;
-    if (hp_join(path, src, L"hd-pack.txt") || read_small(path, manifest, sizeof manifest) < 0
-        || (nz = hp_parse_manifest(manifest, &version, zips, MAX_ZIPS)) <= 0) {
-        open_log(); hp_log("  no valid manifest at %s; nothing done\n", hp_u8(path));
+    if (local) {
+        if (hp_join(path, src, L"hd-pack.txt") || read_small(path, manifest, sizeof manifest) < 0) {
+            open_log(); hp_log("  no manifest at %s; nothing done\n", hp_u8(path)); CloseHandle(lh); return 1;
+        }
+    } else {
+        if (set_base(url)) { open_log(); hp_log("  bad pack address %s; nothing done\n", hp_u8(url)); CloseHandle(lh); return 1; }
+        if (wcslen(g_base) + 12 >= HP_WMAX) { CloseHandle(lh); return 1; }
+        _snwprintf(path, HP_WMAX, L"%lshd-pack.txt", g_base);
+        if (fetch_small(path, manifest, sizeof manifest)) {      /* offline, or the server can't: next time */
+            CloseHandle(lh); return 0;
+        }
+    }
+    if ((nz = hp_parse_manifest(manifest, &version, zips, MAX_ZIPS)) <= 0) {
+        open_log(); hp_log("  the manifest from %s is not one; nothing done\n", hp_u8(local ? src : url));
         CloseHandle(lh); return 1;
     }
 
@@ -147,7 +310,7 @@ int wmain(void) {
     }
 
     open_log();
-    hp_log("hd-pack %d: %d zip(s) from %s\n", version, nz, hp_u8(src));
+    hp_log("hd-pack %d: %d zip(s) from %s\n", version, nz, hp_u8(local ? src : url));
     progress("working", 0);
 
     int ok = 0;
@@ -160,23 +323,47 @@ int wmain(void) {
     }
     if (hp_mkdir(G, stage)) goto fail;
 
+    /* 1. every zip here and checked (downloads first: nothing is unpacked
+     *    before all of them are whole) */
+    g_total = 0;
+    for (int i = 0; i < nz; i++) g_total += zips[i].size;
+    g_before = 0;
     for (int i = 0; i < nz; i++) {
         wchar_t zname[128], from[HP_WMAX], zpath[HP_WMAX];
-        if (hp_wide(zips[i].name, zname) || hp_join(from, src, zname) || hp_join(zpath, tmp, zname)) goto fail;
+        if (hp_wide(zips[i].name, zname) || hp_join(zpath, tmp, zname)) goto fail;
         if (!hp_safe_path(G, zpath)) { hp_log("  refused (unsafe path): %s\n", hp_u8(zpath)); goto fail; }
         if (hp_exists(zpath) && !zip_ok(zpath, &zips[i])) {   /* ours from an earlier run, not the right one */
             if (hp_delete_own(G, zpath)) goto fail;
         }
         if (!hp_exists(zpath)) {
-            if (!CopyFileW(from, zpath, TRUE)) { hp_log("  can't copy %s (error %lu)\n", hp_u8(from), GetLastError()); goto fail; }
+            if (local) {
+                if (hp_join(from, src, zname)) goto fail;
+                if (!CopyFileW(from, zpath, TRUE)) { hp_log("  can't copy %s (error %lu)\n", hp_u8(from), GetLastError()); goto fail; }
+            } else {
+                wchar_t part[HP_WMAX]; long long have = 0;
+                _snwprintf(part, HP_WMAX, L"%ls.part", zpath);
+                if (hp_isfile(part) && size_of(part, &have)) goto fail;
+                if (have) hp_log("  %s: going on from %lld of %lld bytes\n", zips[i].name, have, zips[i].size);
+                if (wcslen(g_base) + wcslen(zname) >= HP_WMAX) goto fail;
+                _snwprintf(from, HP_WMAX, L"%ls%ls", g_base, zname);
+                if (hp_fetch(g_host, g_port, g_secure, from, hp_u8(zpath), have, zips[i].size)) goto fail;
+            }
             if (!zip_ok(zpath, &zips[i])) {
-                hp_log("  %s: size or SHA-256 differs from the manifest\n", zips[i].name);
+                hp_log("  %s: size or SHA-256 differs from the manifest, deleted\n", zips[i].name);
                 hp_delete_own(G, zpath);
                 goto fail;
             }
+            hp_log("  %s: here and checked\n", zips[i].name);
         } else hp_log("  %s: already here and checked\n", zips[i].name);
+        g_before += zips[i].size;
+        bar(0);
+    }
+    /* 2. unpacked */
+    for (int i = 0; i < nz; i++) {
+        wchar_t zname[128], zpath[HP_WMAX];
+        if (hp_wide(zips[i].name, zname) || hp_join(zpath, tmp, zname)) goto fail;
         if (hp_unzip_storedW(zpath, stage)) { hp_log("  %s: can't unpack\n", zips[i].name); goto fail; }
-        progress("working", (i + 1) * 90 / nz);
+        progress("working", 85 + (i + 1) * 10 / nz);
     }
 
     wchar_t smark[HP_WMAX];

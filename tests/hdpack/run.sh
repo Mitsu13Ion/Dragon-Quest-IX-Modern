@@ -1,5 +1,6 @@
 #!/bin/sh
-# Tests of hd-pack.exe (tools/hd-pack.c, tools/hdpack_core.h).
+# Tests of hd-pack.exe (tools/hd-pack.c, tools/hdpack_core.h), download
+# tests included (tests/hdpack/t_download.py).
 #
 #   sh tests/hdpack/run.sh
 #
@@ -27,7 +28,7 @@ export WINEDEBUG=-all
 wine_path() { winepath -w "$1" 2>/dev/null; }
 
 echo "== build"
-x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -municode -I "$ROOT/tools" -o "$T/hd-pack.exe" "$ROOT/tools/hd-pack.c" -lbcrypt
+x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -municode -I "$ROOT/tools" -o "$T/hd-pack.exe" "$ROOT/tools/hd-pack.c" -lbcrypt -lwinhttp
 x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -I "$ROOT/tools" -o "$T/t_hdpack.exe" "$ROOT/tests/hdpack/t_hdpack.c" -lbcrypt
 
 echo "== pack made by tools/make_hd_pack.py (Task 3)"
@@ -148,6 +149,9 @@ check "sentinel byte-identical" '[ "$(snapshot)" = "$before" ]'
 check "nothing changed next to the game folder" '[ "$(around)" = "$before_up" ]'
 check "source pack unchanged" '(cd "$T/pack" && grep "^zip" hd-pack.txt | while read -r k n s h; do echo "$h  $n"; done | sha256sum -c --quiet)'
 [ $e2e_ok -eq 1 ] || status=1
+
+echo "== t_download.py: download with resume, local HTTP server"
+python3 "$ROOT/tests/hdpack/t_download.py" "$T/hd-pack.exe" || status=1
 
 wineserver -w 2>/dev/null || true
 if [ $status -eq 0 ]; then echo "== run.sh: all passed"; else echo "== run.sh: FAILED"; fi

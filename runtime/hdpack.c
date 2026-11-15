@@ -45,3 +45,21 @@ void hdpack_start(int enabled) {
     (void)enabled;                 /* Linux / Steam Deck: later (design, "Reste au builder") */
 #endif
 }
+
+int hdpack_running(void) {
+#ifdef _WIN32
+    wchar_t dir[MAX_PATH + 16], name[128];
+    DWORD n = GetModuleFileNameW(NULL, dir, MAX_PATH);
+    if (!n || n >= MAX_PATH) return 0;
+    wchar_t* s = wcsrchr(dir, L'\\');
+    if (!s) return 0;
+    *s = 0;
+    hdpack_mutex_name(dir, name, 128);
+    HANDLE m = OpenMutexW(SYNCHRONIZE, FALSE, name);         /* only looks: never in hd-pack.exe's way */
+    if (!m) return 0;
+    CloseHandle(m);
+    return 1;
+#else
+    return 0;
+#endif
+}

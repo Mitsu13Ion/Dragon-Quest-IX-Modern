@@ -30,6 +30,7 @@ wine_path() { winepath -w "$1" 2>/dev/null; }
 status=0
 echo "== build"
 x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -municode -I "$ROOT/tools" -o "$T/hd-pack.exe" "$ROOT/tools/hd-pack.c" -lbcrypt -lwinhttp
+x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -I "$ROOT/runtime" -o "$T/t_running.exe" "$ROOT/tests/hdpack/t_running.c" "$ROOT/runtime/hdpack.c"
 x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -I "$ROOT/tools" -o "$T/t_hdpack.exe" "$ROOT/tests/hdpack/t_hdpack.c" -lbcrypt
 
 echo "== pack made by tools/make_hd_pack.py (Task 3)"
@@ -155,7 +156,7 @@ check "source pack unchanged" '(cd "$T/pack" && grep "^zip" hd-pack.txt | while 
 [ $e2e_ok -eq 1 ] || status=1
 
 echo "== t_download.py: download with resume, local HTTP server"
-python3 "$ROOT/tests/hdpack/t_download.py" "$T/hd-pack.exe" || status=1
+python3 "$ROOT/tests/hdpack/t_download.py" "$T/hd-pack.exe" "$T/t_running.exe" || status=1
 
 wineserver -w 2>/dev/null || true
 if [ $status -eq 0 ]; then echo "== run.sh: all passed"; else echo "== run.sh: FAILED"; fi

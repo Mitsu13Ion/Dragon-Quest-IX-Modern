@@ -1,6 +1,6 @@
 """Download tests of hd-pack.exe (plan Task 5), with a local HTTP server.
 
-  python3 tests/hdpack/t_download.py [hd-pack.exe]
+  python3 tests/hdpack/t_download.py [hd-pack.exe [t_running.exe]]
 
 Linux cloud session only (run under Wine), like tests/hdpack/run.sh: this
 program moves and deletes files. Everything happens in a tempfile folder.
@@ -47,6 +47,7 @@ class Server:
         self.ignore_range = False   # answer 200 with the whole file even with Range
         self.redirect = {}          # name -> URL: answer 302 there
         self.override = {}          # name -> (status, headers, body), every time
+        self.stall = {}             # name -> seconds to wait before answering
         outer = self
 
         class H(http.server.BaseHTTPRequestHandler):
@@ -59,6 +60,9 @@ class Server:
                 name = self.path.lstrip("/")
                 rng = self.headers.get("Range")
                 outer.requests.append((self.path, rng))
+                if name in outer.stall:
+                    import time
+                    time.sleep(outer.stall[name])
                 if name in outer.redirect:
                     self.send_response(302)
                     self.send_header("Location", outer.redirect[name])
@@ -373,6 +377,34 @@ def main():
         rc = run(g, srv13.url())
         check("empty stage of a killed run: removed, not set aside", rc == 0 and installed(g, textures)
               and not os.path.exists(os.path.join(g, "hd-pack-ancien", "stage-interrompu")))
+
+        # the game sees hd-pack.exe at work (its mutex), and not once it has ended
+        probe = sys.argv[2] if len(sys.argv) > 2 else None
+        if probe:
+            srv14 = Server()
+            srv14.files = dict(pack)
+            srv14.stall = {texzip: 15}
+            g = new_game(tmp, "g-running", exe)
+            shutil.copy(probe, os.path.join(g, "t_running.exe"))
+            env = wine_env(srv14.url())
+            p = subprocess.Popen(["wine", os.path.join(g, "hd-pack.exe")], env=env,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            import time
+            seen = 0
+            for _ in range(20):
+                time.sleep(1)
+                if subprocess.run(["wine", os.path.join(g, "t_running.exe")], env=env,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 1:
+                    seen = 1
+                    break
+            rc = p.wait(timeout=300)
+            after = subprocess.run(["wine", os.path.join(g, "t_running.exe")], env=env,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+            check("the game sees hd-pack.exe at work (mutex), then not", seen == 1 and rc == 0 and after == 0
+                  and installed(g, textures))
+            srv14.httpd.shutdown()
+        else:
+            print("SKIP the game sees hd-pack.exe at work: no t_running.exe given")
 
         # every file outside the game folders is as it was
         check("source pack untouched", all(hashlib.sha256(read(os.path.join(tmp, "pack", n))).digest()

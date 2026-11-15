@@ -16,7 +16,6 @@ extern void (*g_card_read_hook)(uint32_t addr, uint32_t len);   /* card.c: every
 
 void hdmovie_init(void);                      /* look in movies/ (again); how many were found */
 int hdmovie_count(void);
-void hdmovie_rescan(void);                    /* movies/ changed: look again once no movie plays */
 int hdmovie_two_screens(void);                /* a movie in two halves is playing now (top + bottom screen), HD copy or not */
 int hdmovie_playing(const char* name);        /* the ROM's movie data/movie/<name>.mods is playing now (read lately), HD copy or not */
 

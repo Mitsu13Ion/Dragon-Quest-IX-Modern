@@ -3410,7 +3410,7 @@ static void settings_save(void) {
     fprintf(f, "hd_text_font = %s\n", g_hdfont);
     fprintf(f, "# enhanced: the movies (opening, dragon...) from the movies folder, upscaled: 0 or 1\n");
     fprintf(f, "hd_movies = %d\n", g_hdmovie);
-    fprintf(f, "# enhanced: download the HD pack (textures and movies) in the background, once: 0 never, 1 yes\n");
+    fprintf(f, "# enhanced: download the HD pack (textures and movies) in the background, once: 0 never, 1 yes (0 counts from the next launch)\n");
     fprintf(f, "hd_pack_download = %d\n", g_hdpack);
     fprintf(f, "# the map in the top right corner (gone during battles): 0 or 1; its size 0 small, 1 medium, 2 large\n");
     fprintf(f, "minimap = %d\n", g_map_shown);
@@ -5439,7 +5439,7 @@ static void hint_update(GlPresent* v) {
 /* hd-pack.exe (hd-pack-progress.txt) or textures-hd (textures-hd-progress.txt)
  * at work, next to the game: a bar at the big screen's bottom left; when it's
  * done, "HD pack ready" / "HD textures ready" for a few seconds and the new
- * textures (and the pack's movies) are loaded. */
+ * textures are loaded (the pack's movies at the next launch). */
 #define HDBAR_W 76.0f                                            /* (DS pixels) */
 #define HDBAR_H 12.0f
 static void hdbar_draw(int W, int H, const char* text, float part) {
@@ -5492,12 +5492,14 @@ static void hdbar_update(GlPresent* v) {
         char st[16] = ""; int a = 0, b = 0;
         state = 0;
         if (hdbar_read("hd-pack-progress.txt", st, &a, &b)) {     /* the HD pack first */
-            if (!strcmp(st, "working") && b > 0 && a < b) { state = 1; pack = 1; done = a; total = b; }
-            else if (!strcmp(st, "done")) {                      /* once: the message, the pack's textures and movies */
+            if (!strcmp(st, "working") && b > 0 && a < b) {
+                if (hdpack_running()) { state = 1; pack = 1; done = a; total = b; }
+                else remove("hd-pack-progress.txt");             /* left by a run that was stopped: no bar */
+            } else if (!strcmp(st, "done")) {                    /* once: the message, the pack's textures (its
+                                                                  * movies next launch: reading them now would stall the game) */
                 remove("hd-pack-progress.txt");
                 pack_msg = 1; made = 0; until = SDL_GetPerformanceCounter() + g_perf_freq * 8;
                 if (g_texpack) gl_reload_texture_pack();
-                hdmovie_rescan();
             } else if (!strcmp(st, "failed")) remove("hd-pack-progress.txt");   /* (it tries again next time) */
         }
         st[0] = 0; a = b = 0;

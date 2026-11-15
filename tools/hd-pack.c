@@ -24,6 +24,7 @@
  * Tests: tests/hdpack/run.sh (and t_download.py), in a Linux cloud session
  * under Wine only. */
 #include "hdpack_core.h"
+#include "../runtime/hdpack.h"     /* hdpack_mutex_name: the game sees this one is at work */
 #include <fcntl.h>
 #include <io.h>
 #include <stdint.h>
@@ -285,6 +286,11 @@ int wmain(void) {
     /* the game comes first: idle CPU, and low disk and memory priority too */
     SetPriorityClass(GetCurrentProcess(), IDLE_PRIORITY_CLASS);
     SetPriorityClass(GetCurrentProcess(), PROCESS_MODE_BACKGROUND_BEGIN);
+    {   /* the game shows the bar only while this mutex is there (gone when this ends, even killed) */
+        wchar_t mname[128];
+        hdpack_mutex_name(G, mname, 128);
+        if (!CreateMutexW(NULL, FALSE, mname)) { open_log(); hp_log("  no mutex %s (error %lu): the game shows no bar\n", hp_u8(mname), GetLastError()); }
+    }
 
     /* a run killed while it worked left the bar at "working": not any more */
     {

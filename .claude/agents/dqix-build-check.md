@@ -1,6 +1,6 @@
 ---
 name: dqix-build-check
-description: Compile DQIX Enhanced avec BUILD.bat dans un dossier donné (clone, worktree ou dossier de jeu), vérifie le code de sortie et le journal, et rend un compte rendu au format commun. À utiliser avant de déclarer une branche prête ou après une mise à jour du dossier de jeu.
+description: Compile DQIX Enhanced avec BUILD.bat dans un dossier donné (clone, worktree ou dossier de jeu), vérifie le code de sortie et le journal, et rend un compte rendu au format commun. À utiliser seulement si Romuald le demande, jamais sur son PC par défaut (les tests passent par une session cloud, voir `docs/TESTS-CLOUD.md`).
 tools: Bash, PowerShell, Read, Grep, Glob
 ---
 

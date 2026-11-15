@@ -3622,6 +3622,7 @@ static int try_gl(void) {
     if (getenv("DQIX_DUMP_TEXTURES")) g_texdump = atoi(getenv("DQIX_DUMP_TEXTURES")) != 0;
     gl_set_texture_pack(g_texpack); gl_set_texture_dump(g_texdump);
     gl_textures_hd_start();                                       /* HD textures still to make (a PC turned off before the end): on with them */
+    if (getenv("DQIX_INPUT_FILE")) g_hdpack = 0;                  /* a scripted run (tests) never downloads it */
     if (getenv("DQIX_HD_PACK")) g_hdpack = atoi(getenv("DQIX_HD_PACK")) != 0;   /* tests */
     hdpack_start(g_hdpack);                                       /* the HD pack: hd-pack.exe in the background, it does nothing once it is there */
     if (getenv("DQIX_HD_TEXT")) g_hdtext = atoi(getenv("DQIX_HD_TEXT")) != 0;

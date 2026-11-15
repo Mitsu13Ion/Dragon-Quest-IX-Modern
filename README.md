@@ -75,6 +75,12 @@ et **TitanFr199**, avec l'aide de Claude.
   barre de progression et reprise. Packs de textures HD personnels possibles,
   et un outil pour les vérifier.
 - **Films HD** (les 6 cinématiques agrandies x4).
+- **Pack HD téléchargé par le jeu** : les textures FatalPixels et les 6
+  cinématiques refaites avec SeedVR2 arrivent toutes seules, en arrière-plan,
+  avec une petite barre en bas à gauche ; le jeu ne ralentit pas et reprend un
+  téléchargement coupé. Graphismes > *Download the HD pack* pour le couper.
+  Les anciennes textures Real-ESRGAN sont mises de côté dans
+  `hd-pack-ancien` (jamais supprimées) : videz ce dossier pour gagner de la place.
 - Textures xBR, 2D lissée, ombres douces, fins traits de contour, PNJ lointains
   plus nets, contours des personnages au choix.
 - **HDR** : luminosité normale en plein écran avec le HDR de Windows.
@@ -197,7 +203,10 @@ Claude.
   options menu (Esc / PS button), PC-style boot, real controller buttons or
   your own keyboard key in the hints.
 - **AI HD textures** (every 3D texture from your ROM upscaled x4 with
-  Real-ESRGAN, automatically at build time), **HD movies**, 3D up to 12x the DS
+  Real-ESRGAN, automatically at build time), **HD movies**, the **HD pack**
+  (FatalPixels textures and SeedVR2 movies, downloaded by the game in the
+  background; older textures set aside in `hd-pack-ancien`, which you may
+  empty), 3D up to 12x the DS
   resolution, xBR, soft shadows, **Windows HDR** brightness fix.
 - **Journal** (quests, party, vocations, alchemy, items), **faster battles**
   (up to x4), **autosave**, **Action Replay cheats** menu (all off by default),
@@ -228,6 +237,11 @@ terminal. Step by step: **[docs/LINUX-STEAMDECK.md](docs/LINUX-STEAMDECK.md)**.
   melonDS. / Function names and boundaries from the public-domain DQIX
   decompilation project; wireless chip, 3D renderer and sound follow melonDS's
   research.
+- Pack HD / HD pack : textures agrandies avec **FatalPixels** (twittman,
+  CC-BY-NC-SA-4.0) et **UltraSharp** (Kim2091), cinématiques refaites avec
+  **SeedVR2** (ByteDance). Usage non commercial uniquement. / Textures upscaled
+  with FatalPixels (twittman, CC-BY-NC-SA-4.0) and UltraSharp (Kim2091), movies
+  remade with SeedVR2 (ByteDance). Non-commercial use only.
 
 Dragon Quest IX est © Square Enix / Level-5 / Armor Project / Bird Studio /
 Koichi Sugiyama. Ce projet n'est ni affilié à Square Enix ou Nintendo, ni

@@ -9,6 +9,9 @@ Lite, restyle visuel des fenêtres et des boîtes de dialogue, maquettes.
 ## Possède (seul à écrire)
 - `tools/textures-hd.c`, `tools/textures-rom.c`, `tools/upscale_movies.py`, `tools/split_movies.py`,
   `tools/movie_frames.py`, `runtime/hdmovie.c` / `.h`, `skins/`.
+- Le pack HD : `tools/hd-pack.c`, `tools/hdpack_core.h`, `tools/make_hd_pack.py`,
+  `tools/rom_files.py`, `tools/seedvr2_movies.py`, `runtime/hdpack.c` / `.h`,
+  `tests/hdpack/`.
 - Hors git, dans le dossier de jeu : `game\textures`, `game\movies`,
   `game\textures-hd-outil`. Ils ne sont jamais versionnés ; sauvegarde dans
   `J:\DQIX-Backups\` avant de les remplacer, et seulement avec l'accord de Romuald.
@@ -43,4 +46,12 @@ l'un après l'autre, pas en parallèle.
   `textures-hd.exe` en arrière-plan. `textures-hd` saute les textures déjà présentes
   dans n'importe quel dossier du pack (`hd\`, `rom\`...) et ne tourne qu'une fois
   à la fois (`textures\hd-auto.lock`).
+- Pack HD (`hd-pack.exe`, construit à chaque build sous Windows) : le jeu le
+  lance en arrière-plan ; il télécharge la release `hd-pack-1`, vérifie,
+  installe dans `textures\hd-pack\` et `movies\`, puis met les dossiers
+  Real-ESRGAN de côté dans `game\hd-pack-ancien\`. Il ne supprime jamais un
+  dossier (incident du 2026-11-14). Tout changement de `tools/hd-pack.c` ou
+  `tools/hdpack_core.h` se teste seulement en session cloud :
+  `sh tests/hdpack/run.sh` (Linux, mingw + Wine), jamais sur le PC de Romuald.
+  Priorité des textures : dossiers personnels > `hd-pack` > `hd`.
 - Vérifier le rendu en jeu (Graphics > Enhanced) et joindre une capture au compte rendu.

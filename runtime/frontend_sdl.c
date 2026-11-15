@@ -30,6 +30,7 @@
 #include "nds.h"
 #include "frontend.h"
 #include "hdtext.h"
+#include "multiuse.h"
 #include "hdmovie.h"
 #include "bootskip.h"
 #include "gamemenu.h"
@@ -1086,6 +1087,7 @@ static int g_card_item;
 static void list_keys(uint16_t* keys, int* touch, int* tx, int* ty) {
     enum { K_UP = 1 << 6, K_DOWN = 1 << 7 };
     static uint16_t was, held; static int tap, ttx, tty, after;
+    if (multiuse_keys(keys, in_adventure() && !g_hud_n)) { *touch = 0; return; }             /* (Use several at once: its windows take the keys, or it presses them) */
     uint16_t now = *keys, pressed = now & ~was;
     was = now;
     if (tap) { tap--; *touch = 1; *tx = ttx; *ty = tty; *keys &= (uint16_t)~(K_UP | K_DOWN); if (!tap) after = 3; return; }
@@ -5633,6 +5635,7 @@ static void present_gl(void) {
         if (gamemenu_is_open()) { int ch; const uint8_t* p = gamemenu_picture(w, h, &ch); if (ch || shown != 1) { gl_set_menu(p, w, h); gl_set_menu_box(gamemenu_box()); } shown = 1; }
         else if (journal_open()) { int ch; const uint8_t* p = journal_picture(w, h, &ch); if (ch || shown != 2) { gl_set_menu(p, w, h); gl_set_menu_box(NULL); } shown = 2; }
         else if (g_gl && (tp = patty_picture(w, h, &tch))) { if (tch || shown != 5) { gl_set_menu(tp, w, h); gl_set_menu_box(NULL); } shown = 5; }
+        else if (g_gl && (tp = multiuse_picture(w, h, &tch))) { if (tch || shown != 4) { gl_set_menu(tp, w, h); gl_set_menu_box(NULL); } shown = 4; }
         else if (g_gl && (tp = trophies_picture(w, h, &tch))) { if (tch || shown != 3) { gl_set_menu(tp, w, h); gl_set_menu_box(NULL); } shown = 3; }
         else if (shown) { gl_set_menu(NULL, 0, 0); gl_set_menu_box(NULL); shown = 0; }
     }

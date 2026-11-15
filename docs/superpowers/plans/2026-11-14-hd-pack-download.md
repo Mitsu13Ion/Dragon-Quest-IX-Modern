@@ -4,7 +4,7 @@
 
 **Goal:** Every player gets Romuald's HD pack (FatalPixels textures + 6 SeedVR2 movies), downloaded by the game in the background, with no stutter.
 
-**Architecture:** On Romuald's PC, dev tools extract the movies from the ROM, remake them with SeedVR2, and bundle textures + movies into stored zips plus a manifest, attached to a GitHub release `hd-pack-1`. At the player's, the game starts a separate low-priority program `hd-pack.exe` (like `textures-hd.exe` today): it downloads, checks, installs into `textures/hd-pack/` and `movies/`, removes Real-ESRGAN textures, and writes `hd-pack-progress.txt`, which the game's existing bottom-left bar reads. The game process itself only spawns, reads a small text file twice a second, and reloads at the end, so it never stutters.
+**Architecture:** On Romuald's PC, dev tools extract the movies from the ROM, remake them with SeedVR2, and bundle textures + movies into stored zips plus a manifest, attached to a GitHub release `hd-pack-1`. At the player's, the game starts a separate low-priority program `hd-pack.exe` (like `textures-hd.exe` today): it downloads, checks, installs into `textures/hd-pack/` and `movies/`, sets the Real-ESRGAN textures aside in `hd-pack-ancien/` (it never deletes a folder), and writes `hd-pack-progress.txt`, which the game's existing bottom-left bar reads. The game process itself only spawns, reads a small text file twice a second, and reloads at the end, so it never stutters.
 
 **Tech Stack:** C (MSYS2 UCRT64 gcc, WinHTTP, BCrypt SHA-256), Python 3 (numpy, Pillow, ffmpeg) for dev tools, the local SeedVR2 service (`claude-service\upscale-video.bat`).
 
@@ -19,7 +19,13 @@
 - Every zip attached to the release is under 2 GB (use 1.9 GB as the cut).
 - Pack folders: textures go to `game/textures/hd-pack/`, movies to `game/movies/` (existing movies copied to `game/movies-avant-hd-pack/` first).
 - Texture priority: personal folders under `textures/` > `textures/hd-pack/` > `textures/hd/`.
-- Real-ESRGAN cleanup: delete `textures/hd/`, `textures-methode5/`, `textures-avant-*/` contents only when `textures/hd-style.txt` does not contain `service-` (missing file counts as Real-ESRGAN only if `textures-hd-outil/` exists); never before the pack is installed and checked.
+- Real-ESRGAN set-aside (was "cleanup"; changed after the 2026-11-14 incident): **`hd-pack.exe` never deletes a folder.** It moves (one same-volume `MoveFileExW` rename each, no recursion) `textures/hd/`, `textures-methode5/` and `textures-avant-*/` into `game/hd-pack-ancien/`, only when `textures/hd-style.txt` does not contain `service-` (missing file counts as Real-ESRGAN only if `textures-hd-outil/` exists); never before the pack is installed and checked. The player empties `hd-pack-ancien/` if they want; the log and README say so.
+- Deletion safety (all C code of this plan, hard rules):
+  - No recursive delete anywhere: no `SHFileOperation`, `IFileOperation`, `rmdir /s`, `RemoveDirectory` on a non-empty folder, no tree walk that deletes.
+  - The only `DeleteFileW` calls are on files the program itself wrote, named exactly (the zips from the manifest, the progress file, the lock). The only `RemoveDirectoryW` calls are on folders it created, emptied first, from the deepest up (`RemoveDirectoryW` fails on a non-empty folder: that failure is logged and left alone).
+  - Before any move or delete, the path is resolved with `GetFullPathNameW`, must lie strictly under the game folder, contain no `..`, and neither it nor any parent up to the game folder may carry `FILE_ATTRIBUTE_REPARSE_POINT` (junction, symlink, mount point). Any doubt: skip, log, go on.
+  - Wide-char (`W`) Windows APIs only, so a non-ASCII game path can't be misread.
+- Tests of any code that moves, overwrites or deletes files never run on Romuald's PC, not even in a temp folder: they run in a Claude Code cloud session (Linux, `x86_64-w64-mingw32-gcc` + Wine). No test ever creates a junction or symlink pointing outside its own temp folder, and no test disables a safety check ("mutation test") outside the cloud.
 - Setting `hd_pack_download = 1` in `settings.ini` (0 = never), menu item in Graphics.
 - Credits in README and release notes: FatalPixels (twittman, CC-BY-NC-SA-4.0), UltraSharp (Kim2091), SeedVR2 (ByteDance); non-commercial use only.
 - GPU jobs on Romuald's PC go through `claude-service\guard.bat` (16 GB RAM, 13 GB VRAM, one GPU job at a time). Never launch the game on his PC: he checks in game himself.
@@ -29,7 +35,7 @@
 ## Review Focus
 
 1. Download cut off mid-zip (game closed, Wi-Fi drop): the next launch resumes with `Range`, never restarts from 0, never installs a partial zip. (Task 5 test `resume_after_cut`.)
-2. Disk full or a write failing during extraction: nothing is moved into `textures/hd-pack/`, old files stay, Real-ESRGAN textures are not deleted. (Task 4 test `install_fails_cleanly`.)
+2. Disk full or a write failing during extraction: nothing is moved into `textures/hd-pack/`, old files stay, Real-ESRGAN textures are not set aside. (Task 4 test `install_fails_cleanly`.)
 3. Game started twice, or started while `hd-pack.exe` already runs: a second `hd-pack.exe` exits at once (lock file). (Task 4 test `second_instance_exits`.)
 4. Offline at first launch: `hd-pack.exe` exits quietly, no progress file left in `working`, the bar never shows. (Task 5 test `offline_leaves_no_bar`.)
 5. Pack already installed, same manifest version: no download at all on later launches. (Task 4 test `installed_is_noop`.)
@@ -90,7 +96,9 @@
 - [ ] **Step 4: Run** the test: passes.
 - [ ] **Step 5: Commit** `tools: make the HD pack's zips and manifest`.
 
-### Task 4: hd-pack.exe: check, install, clean up (local source)
+### Task 4: hd-pack.exe: check, install, set aside (local source)
+
+> Redone after the 2026-11-14 incident (a first version's test followed a junction to `C:\` and deleted files across the PC). Its old code is kept, unused, in `.superpowers/sdd/2026-11-14-hd-pack-download/task-4-old-code/`. Follow "Deletion safety" in Global Constraints to the letter. **Built and tested in a cloud session only.**
 
 **Files:**
 - Create: `tools/hd-pack.c`, `tools/hdpack_core.h` (the pure parts, included by `hd-pack.c` and the test)
@@ -103,11 +111,13 @@
   - `int hp_parse_manifest(const char* text, int* version, HpZip* zips, int max)` (count, or -1 if not `hd-pack <n>`)
   - `int hp_sha256_file(const char* path, char out[65])` (BCrypt)
   - `int hp_unzip_stored(const char* zip, const char* dest)` (local headers, method 0 only; creates folders; 0 ok)
-  - `int hp_realesrgan_pack(const char* game)` (1 if the cleanup rule of Global Constraints applies)
+  - `int hp_safe_path(const wchar_t* game, const wchar_t* path)` (1 only if `path` is strictly under `game`, has no `..`, and no reparse point on it or any parent up to `game`)
+  - `int hp_realesrgan_pack(const char* game)` (1 if the set-aside rule of Global Constraints applies)
+  - `int hp_set_aside(const char* game)` (renames each Real-ESRGAN folder into `game/hd-pack-ancien/`, adding `-2`, `-3`... if the name exists; never deletes; 0 ok)
   - `int hp_install(const char* game, const char* stage)` (move `stage/textures/*` to `game/textures/hd-pack/`, copy `game/movies/*` to `game/movies-avant-hd-pack/` then move `stage/movies/*` in, write `game/textures/hd-pack/hd-pack.txt` last; 0 ok, nothing half-moved on error)
-- `hd-pack.exe` flow: lock `game/hd-pack.lock` (like `textures-hd.c`, exit if held); IDLE priority; read manifest (env `HDPACK_SOURCE=<dir>` = take manifest and zips from a local folder, for tests; else Task 5); exit if `textures/hd-pack/hd-pack.txt` has the same version; each zip into `game/hd-pack-tmp/` (outside `textures/`), check size + SHA-256, unzip to `hd-pack-tmp/stage/`; `hp_install`; then Real-ESRGAN cleanup if `hp_realesrgan_pack`; progress file `game/hd-pack-progress.txt`: `working <percent> 100` then `done 0 100`; log `game/hd-pack.log`.
+- `hd-pack.exe` flow: lock `game/hd-pack.lock` (like `textures-hd.c`, exit if held); IDLE priority; read manifest (env `HDPACK_SOURCE=<dir>` = take manifest and zips from a local folder, for tests; else Task 5); exit if `textures/hd-pack/hd-pack.txt` has the same version; each zip into `game/hd-pack-tmp/` (outside `textures/`), check size + SHA-256, unzip to `hd-pack-tmp/stage/`; `hp_install`; then `hp_set_aside` if `hp_realesrgan_pack`; then delete the verified zips by their manifest names and remove the now-empty `hd-pack-tmp/stage/...` folders bottom-up (non-recursive); progress file `game/hd-pack-progress.txt`: `working <percent> 100` then `done 0 100`; log `game/hd-pack.log`.
 
-- [ ] **Step 1: Write the tests** in `t_hdpack.c`: manifest parse (good, bad header, CRLF); SHA-256 of `"abc"` = `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`; unzip of a zip made by Task 3; `install_fails_cleanly` (a stage file that can't be moved: `textures/hd-pack/` unchanged, `textures/hd/` kept); `installed_is_noop` (second run with same version touches nothing, no progress file); `second_instance_exits`; cleanup rule cases (`ia-seule 1` → 1; `ia-seule 1 service-auto 1` → 0; no file + `textures-hd-outil/` → 1; no file, no tool → 0). `run.sh` builds with `gcc -O2 -I tools -o t_hdpack.exe tests/hdpack/t_hdpack.c -lbcrypt` and runs it, plus an end-to-end run of `hd-pack.exe` with `HDPACK_SOURCE` on a temp game folder.
+- [ ] **Step 1: Write the tests** in `t_hdpack.c`: manifest parse (good, bad header, CRLF); SHA-256 of `"abc"` = `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`; unzip of a zip made by Task 3; `install_fails_cleanly` (a stage file that can't be moved: `textures/hd-pack/` unchanged, `textures/hd/` kept); `installed_is_noop` (second run with same version touches nothing, no progress file); `second_instance_exits`; set-aside rule cases (`ia-seule 1` → 1; `ia-seule 1 service-auto 1` → 0; no file + `textures-hd-outil/` → 1; no file, no tool → 0); `set_aside_moves_not_deletes` (files of `textures/hd/` are found intact in `hd-pack-ancien/`); `hp_safe_path` refuses `..`, a path outside the game folder, and a game folder holding a junction to a sibling temp folder (the junction is created inside the test's own temp folder, pointing only to another folder in that same temp folder; in the cloud under Wine, `mklink /J` or `DeviceIoControl(FSCTL_SET_REPARSE_POINT)`; if Wine can't make junctions, that case is skipped and said so); `nothing_outside_game_changes` (a sentinel folder next to the game folder is byte-identical after a full run). `run.sh` cross-builds with `x86_64-w64-mingw32-gcc -O2 -I tools -o t_hdpack.exe tests/hdpack/t_hdpack.c -lbcrypt` and runs it with `wine`, refusing to run on Windows (`uname` must say Linux), plus an end-to-end run of `hd-pack.exe` with `HDPACK_SOURCE` on a temp game folder.
 - [ ] **Step 2: Run** `sh tests/hdpack/run.sh`: fails.
 - [ ] **Step 3: Implement** `hdpack_core.h` and `tools/hd-pack.c`.
 - [ ] **Step 4: Run** `sh tests/hdpack/run.sh`: all pass.

@@ -189,6 +189,7 @@ static int g_xm_hand[4];                                          /* ...the hand
 static int g_xm_info[4], g_xm_isep[4], g_xm_nisep;               /* a window right under it, as wide (who: their HP): X0 top X1 bottom; its lines inside */
 static int g_xm_hold;                                             /* ...kept between two windows (xmenu_update()): their lines inside it not drawn */
 static int g_xm_msg[4];                                           /* ...a message under it: its words' box, x, y, w, h (w 0: none) */
+static int g_xm_msg_top;                                          /* ...its window's top line (the kept window's lines and band stop above it) */
 static int g_xm_word[4][4], g_xm_nword;                           /* ...the path: the menus' names before, and its own */
 static int g_xm_free, g_xm_nf, g_xm_fwin[8][5], g_xm_fsep[8][3];  /* windows round it (a spell's cost, its help...): all where the game has them (x0 y0 x1 y1 greyed; its lines inside) */
 static void xm_place(float cw, float* wx, float* wy) {
@@ -4926,6 +4927,17 @@ static void bag_word(const uint32_t* px, int x0, int y0, int x1, int y1, int* bo
     box[2] = 0;
     if (bx1 >= bx0) { box[0] = bx0 - 1; box[1] = by0 - 1; box[2] = bx1 - bx0 + 3; box[3] = by1 - by0 + 3; }
 }
+/* ...the same from the HD text's mask (its letters not in the screen's picture) */
+static void hd_word(const uint8_t* m, int x0, int y0, int x1, int y1, int* box) {
+    int bx0 = 256, by0 = 192, bx1 = -1, by1 = -1;
+    for (int y = y0; y < y1; y++)
+        for (int x = x0; x < x1; x++)
+            if (m[y * 256 + x]) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+    box[2] = 0;
+    if (bx1 < bx0) return;
+    box[0] = bx0 - 1; box[1] = by0 - 1; box[2] = bx1 - bx0 + 5; box[3] = by1 - by0 + 3;   /* (+2: an HD letter a little wider than its box) */
+    if (box[0] + box[2] > 256) box[2] = 256 - box[0];
+}
 
 /* The bag's list on the field's screen (Items: the bag, or the leader's
  * things), modern: laid out again (bag_pieces(), g_bag). Up while its window
@@ -5235,11 +5247,17 @@ static void xmenu_update(int a_on_top) {
             if (y1 - y0 < 16 || !MGREY(128, y1)) continue;          /* (a window's own bottom line over the 3D: no window under it) */
             int box[4];
             bag_word(px, x0 + 2, y0 + 2, x1 - 1, y1, box);         /* (its words) */
+            if (!box[2] && g_hdtext_on) hd_word(g_hdtext_mask[0], x0 + 2, y0 + 2, x1 - 1, y1, box);   /* (the HD text on: its words in its mask) */
             if (!box[2]) { empty = 1; continue; }                  /* (opened, its words not out yet) */
+            g_xm_msg_top = y0;
             g_xm_msg[0] = box[0]; g_xm_msg[1] = box[1]; g_xm_msg[2] = box[2]; g_xm_msg[3] = box[3];
         }
         #undef MGREY
-        if (g_xm_msg[2] || (empty && g_xmenu)) { g_xmenu = 1; g_xm_hand[2] = 0; g_xm_hold = 1; last = g_frame; return; }   /* (an empty one: the layout kept, no popup yet) */
+        if (g_xm_msg[2] || (empty && g_xmenu && g_frame - last <= 12)) {   /* (an empty one: the layout kept a few frames, no popup yet) */
+            g_xmenu = 1; g_xm_hand[2] = 0; g_xm_hold = 1;
+            if (g_xm_msg[2]) last = g_frame;
+            return;
+        }
     }
     int ok = g_xmenu && g_frame - last <= 12 && !a_on_top && !g_bag && !party_in_battle();
     if (ok) {                                                     /* (its top line: grey, the game's or greyed) */
@@ -5316,13 +5334,16 @@ static void xmenu_pieces(GlPresent* v) {
         }
     XM_WIN(wx, wy, w, h);
     int ly0 = (sep ? sep : top) + 1, in = g_xm_hold ? 3 : 1;   /* (kept between two windows: 3 pixels in, the lines of a window greyed not taken) */
+    int lbot = bot - in, band1 = g_xm_band[3];               /* (its lines' last row, the band's bottom: above a message under it, not it again inside) */
+    if (g_xm_hold && g_xm_msg[2]) { if (lbot > g_xm_msg_top - 1) lbot = g_xm_msg_top - 1; if (band1 > g_xm_msg_top) band1 = g_xm_msg_top; }
     if (sep) {
         bestiary_piece(v, 3, X0 + in, top + in, X1 - X0 - 2 * in + 1, sep - top - 2 * in + 1, g_xm_hold ? 29 : 3, X0 + in + ox, top + in + oy, 1);   /* its name */
         set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 4, 0, 0, 1), wx + 4, sep + oy, w - 8, t);
     }
-    for (int i = 0; i < 3 && g_xm_band[2] > g_xm_band[0]; i++)  /* the chosen line lit (three times: seen over a bright field too) */
-        set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 21, 0, 0, 1), g_xm_band[0] + ox, g_xm_band[1] + oy, g_xm_band[2] - g_xm_band[0], g_xm_band[3] - g_xm_band[1]);
-    bestiary_piece(v, 3, X0 + in, ly0 + in - 1, X1 - X0 - 2 * in + 1, bot - ly0 - 2 * in + 2, g_xm_hold ? 29 : 3, X0 + in + ox, ly0 + in - 1 + oy, 1);   /* its lines */
+    for (int i = 0; i < 3 && g_xm_band[2] > g_xm_band[0] && band1 > g_xm_band[1]; i++)  /* the chosen line lit (three times: seen over a bright field too) */
+        set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 21, 0, 0, 1), g_xm_band[0] + ox, g_xm_band[1] + oy, g_xm_band[2] - g_xm_band[0], band1 - g_xm_band[1]);
+    if (lbot >= ly0 + in - 1)
+        bestiary_piece(v, 3, X0 + in, ly0 + in - 1, X1 - X0 - 2 * in + 1, lbot - (ly0 + in - 1) + 1, g_xm_hold ? 29 : 3, X0 + in + ox, ly0 + in - 1 + oy, 1);   /* its lines */
     if (g_xm_hand[2]) {                                          /* the hand: its own colours, whole (over the window's left line too) */
         const int* h = g_xm_hand;
         bestiary_piece(v, 3, h[0], h[1], h[2], h[3], 27, h[0] + ox, h[1] + oy, 1);

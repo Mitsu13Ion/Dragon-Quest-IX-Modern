@@ -5335,7 +5335,7 @@ static void xmenu_pieces(GlPresent* v) {
     XM_WIN(wx, wy, w, h);
     int ly0 = (sep ? sep : top) + 1, in = g_xm_hold ? 3 : 1;   /* (kept between two windows: 3 pixels in, the lines of a window greyed not taken) */
     int lbot = bot - in, band1 = g_xm_band[3];               /* (its lines' last row, the band's bottom: above a message under it, not it again inside) */
-    if (g_xm_hold && g_xm_msg[2]) { if (lbot > g_xm_msg_top - 1) lbot = g_xm_msg_top - 1; if (band1 > g_xm_msg_top) band1 = g_xm_msg_top; }
+    if (g_xm_hold && g_xm_msg[2]) { if (lbot > g_xm_msg_top - 1) lbot = g_xm_msg_top - 1; if (band1 > g_xm_msg_top) band1 = g_xm_band[1]; }   /* (a band the message cuts: none, not a sliver of it) */
     if (sep) {
         bestiary_piece(v, 3, X0 + in, top + in, X1 - X0 - 2 * in + 1, sep - top - 2 * in + 1, g_xm_hold ? 29 : 3, X0 + in + ox, top + in + oy, 1);   /* its name */
         set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 4, 0, 0, 1), wx + 4, sep + oy, w - 8, t);
@@ -5362,6 +5362,7 @@ static void xmenu_pieces(GlPresent* v) {
     if (g_xm_msg[2]) {                                           /* the message: a window of the style under it, as wide as its words */
         const int* m = g_xm_msg;
         float mw = m[2] + 16.0f, mh = m[3] + 10.0f, mx = floorf((v->cw - mw) / 2), my = fmaxf(wy + h + 6, (float)m[1] - 6);
+        if (g_xm_info[2]) my = fmaxf(my, g_xm_info[3] + oy + 1 + 4);   /* (under the window under it too: who, their HP) */
         if (my + mh > 190) my = 190 - mh;
         XM_WIN(mx, my, mw, mh);
         bestiary_piece(v, 3, m[0], m[1], m[2], m[3], 3, mx + 8, my + 5, 1);

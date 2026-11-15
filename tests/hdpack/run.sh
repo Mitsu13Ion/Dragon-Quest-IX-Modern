@@ -27,6 +27,7 @@ trap cleanup EXIT INT TERM
 export WINEDEBUG=-all
 wine_path() { winepath -w "$1" 2>/dev/null; }
 
+status=0
 echo "== build"
 x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -municode -I "$ROOT/tools" -o "$T/hd-pack.exe" "$ROOT/tools/hd-pack.c" -lbcrypt -lwinhttp
 x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -I "$ROOT/tools" -o "$T/t_hdpack.exe" "$ROOT/tests/hdpack/t_hdpack.c" -lbcrypt
@@ -99,9 +100,12 @@ ln -s ../sentinel/lock.txt "$T/fx/lk/game/hd-pack.lock"
 echo "sentinel" > "$T/fx/hl/sentinel/hl.txt"
 ln "$T/fx/hl/sentinel/hl.txt" "$T/fx/hl/game/hd-pack-progress.txt"
 
+echo "== t_rank: which textures/ folder wins (runtime/hdpack.c)"
+gcc -O2 -Wall -Wextra -I "$ROOT/runtime" -o "$T/t_rank" "$ROOT/tests/hdpack/t_rank.c" "$ROOT/runtime/hdpack.c"
+"$T/t_rank" || status=1
+
 echo "== t_hdpack.exe"
 mkdir -p "$T/w"
-status=0
 wine "$T/t_hdpack.exe" "$(wine_path "$T")" "$(wine_path "$T/hd-pack.exe")" || status=1
 if [ -L "$T/fx/lk/game/hd-pack.lock" ] && [ "$(cat "$T/fx/lk/sentinel/lock.txt")" = sentinel ]; then echo "PASS lock link and its target kept"; else echo "FAIL lock link and its target kept"; status=1; fi
 if [ "$(stat -c %h "$T/fx/hl/sentinel/hl.txt")" = 2 ] && [ "$(cat "$T/fx/hl/sentinel/hl.txt")" = sentinel ]; then echo "PASS hard-linked progress file: both names kept, content kept"; else echo "FAIL hard-linked progress file kept"; status=1; fi

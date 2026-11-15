@@ -166,6 +166,15 @@ int hdmovie_playing(const char* name) {
 }
 int hdmovie_count(void) { return g_nmov; }
 
+/* movies/ changed (the HD pack came): look again, once no movie plays (a
+ * movie being shown keeps its file open and its frames in use) */
+static int g_rescan;
+void hdmovie_rescan(void) { g_rescan = 1; }
+static int any_playing(void) {
+    for (int i = 0; i < g_nany; i++) if (g_any[i].read && g_frame - g_any[i].last_read <= PAIR_FRAMES) return 1;
+    return 0;
+}
+
 static int sig_contrast(const int* s);
 
 /* the screen made into a signature, like tools/upscale_movies.py does */
@@ -255,6 +264,7 @@ static int decode_to(Movie* m, int idx) {
 }
 
 int hdmovie_frame(int eng, const uint32_t* px, const uint8_t** rgb, int* w, int* h, const uint8_t** mask, int* fresh) {
+    if (g_rescan && eng == 0 && !any_playing()) { g_rescan = 0; hdmovie_init(); }
     if (!g_inited || (g_hdmovie_on && !g_hd_looked)) hdmovie_init();
     if (!g_hdmovie_on || !g_nmov || eng < 0 || eng > 1) return 0;
     int active = 0;

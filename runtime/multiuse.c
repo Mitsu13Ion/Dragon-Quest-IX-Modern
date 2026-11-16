@@ -105,7 +105,8 @@ const uint8_t* multiuse_picture(int w, int h, int* changed) {
 #define MSG_OBJ    0x11532C      /* -> the message shown (0: none) */
 #define PARTY      0x0F3888      /* the party's four records, 0x964 apart: the name at +0... */
 #define MEMBER_GAP 0x964
-#define CARRIED    0xD18         /* ...what one carries at +0xD18 (12 items, u16, 0xFFFF after the last) */
+#define CARRIED    0x418         /* ...what one carries at +0x418 (u16 each; the leader, the fourth record at 0x0F54B4: 0x0F58CC as in journal_alchemy.c and mapmarks.c) */
+#define CARRIED_N  8             /*   8 of them (mapmarks.c's HERO_SLOTS; the skill points follow at +0x428) */
 #define NAMES      0x0FB258      /* the names in the order shown, 0x34 apart */
 #define BAG_IDS    0x0F5DE8      /* the bag's everyday items (u16, 0xFFFF after the last)... */
 #define BAG_COUNTS 0x0F5F18      /* ...and their counts (u8) */
@@ -142,7 +143,7 @@ static uint32_t record(int slot) {                     /* the record of the one 
 static int carried_count(int slot, uint16_t id) {
     uint32_t r = record(slot); int n = 0;
     if (!r) return 0;
-    for (int i = 0; i < 12; i++) { uint16_t k = r16(r + CARRIED + 2u * i); if (k == 0xFFFF) break; n += k == id; }
+    for (int i = 0; i < CARRIED_N; i++) n += r16(r + CARRIED + 2u * i) == id;   /* (an empty slot: 0 or 0xFFFF, never an everyday item) */
     return n;
 }
 /* how many the source holds: a companion's own (0-3), else the bag (4) */

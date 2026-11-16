@@ -161,11 +161,11 @@ static uint16_t g_key;
 static uint16_t g_was;                /* the player's keys last frame */
 static int g_rep, g_repk;             /* held arrow: repeats */
 
-static void member_name(int slot, char* out, int cap) {
+static void member_name(int slot, char* out, size_t size) {
     char raw[24]; uint32_t r = record(slot);
-    if (!r) { snprintf(out, (size_t)cap, "?"); return; }
+    if (!r) { snprintf(out, size, "?"); return; }
     memcpy(raw, &g_main_ram[r], 16); raw[16] = 0;
-    romdata_clean_name(raw, out, (size_t)cap);
+    romdata_clean_name(raw, out, size);
 }
 
 /* ---------------------------------------------------------------- the keys */
@@ -237,11 +237,10 @@ int multiuse_keys(uint16_t* keys, int field) {
     uint16_t now = *keys, pressed = now & ~g_was;
     g_was = now;
     if (g_state == MU_RUN) {
-        if (pressed & K_B) { stop("B"); *keys = 0; return 1; }  /* the player stops it */
-        run();
-        if (g_state != MU_RUN) { *keys = 0; return 1; }
         *keys = 0;
-        if (g_hold > 0) { g_hold--; *keys = g_key; if (!g_hold) g_tap = g_tap > 4 ? g_tap : 4; }
+        if (pressed & K_B) { stop("B"); return 1; }             /* the player stops it */
+        run();
+        if (g_state == MU_RUN && g_hold > 0) { g_hold--; *keys = g_key; if (!g_hold) g_tap = g_tap > 4 ? g_tap : 4; }
         return 1;
     }
     if (g_state == MU_COUNT || g_state == MU_CONFIRM) {

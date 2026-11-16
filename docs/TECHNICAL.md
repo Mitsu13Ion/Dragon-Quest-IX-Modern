@@ -348,7 +348,13 @@ Install Dragon Quest IX.bat  the setup window (tools/setup-wizard.ps1): ROM vers
                        shortcuts, Apps entry (tools/uninstall.ps1), then BUILD.bat
 BUILD.bat              the one-click build: your ROM -> the game folder
 tools/build-game.sh    what BUILD.bat runs (inside MSYS2; also works on Linux)
+BUILD.sh               BUILD.bat for Linux / Steam Deck (docs/LINUX-STEAMDECK.md)
+tools/linux_tools.py   what BUILD.sh fetches when missing: Zig (C compiler), SDL2 headers, PyYAML
+tools/build_nomake.py  build.mk's Linux build without make (SteamOS): keep the two in step
 tools/extract_rom.py   takes the code out of a DS ROM (same output as dsd rom extract)
+tools/hd-pack.c        hd-pack.exe: downloads, checks and installs the HD pack (hdpack_core.h)
+tools/make_hd_pack.py  makes the HD pack's zips and manifest (on the dev's PC)
+runtime/hdpack.c       the game's side of the HD pack: start hd-pack.exe, folder ranks
 config/usa/arm9        function names and relocations from the dqix-decomp project
 rom/, extras/          where your ROM and the optional extras go
 ```
@@ -400,6 +406,32 @@ Generated C is derived from the game: never share it. The project itself contain
   1 at 4x (2x above 128x128 texels, none above 256x256) on the CPU when a
   texture is decoded. Smooth 2D runs the same xBR rule in the compose
   shader on the 2D layers (not where 3D shows).
+  The top folders of `textures/` are looked in by rank, the first texture
+  found winning (`hdpack_dir_rank`): the player's own folders (and loose
+  files), then `hd-pack/` (the downloaded pack), then `hd/` (textures-hd).
+* HD pack (`tools/hd-pack.c`, `runtime/hdpack.c`): the game starts
+  `hd-pack.exe` (next to it, Windows) with no window at idle priority, when it
+  starts and when Graphics > Download the HD pack is turned on
+  (`hd_pack_download`, default 1; never in a scripted run, `DQIX_INPUT_FILE`;
+  `DQIX_HD_PACK=0/1` for tests). It works alone, one at a time
+  (`hd-pack.lock` held open, a named mutex the game looks for):
+  manifest `hd-pack.txt` from the release `hd-pack-1` (`HDPACK_URL` = another
+  base URL, `HDPACK_SOURCE` = a local folder, for tests); nothing more if
+  `textures/hd-pack/hd-pack.txt` has the same version; each zip into
+  `hd-pack-tmp/<zip>.part` with WinHTTP (`Range` resumes a cut download),
+  size and SHA-256 checked; then the stored zips unpacked into
+  `hd-pack-tmp/stage/` and installed with renames only, all undone on an error:
+  `textures/hd-pack/`, the movies into `movies/` (older files of the same
+  movies into `movies-avant-hd-pack/`), the manifest last. Then, when
+  `textures/hd` is Real-ESRGAN's (`hd-style.txt` without `service-`),
+  `textures/hd`, `textures-methode5` and `textures-avant-*` are renamed into
+  `hd-pack-ancien/`. It never deletes a folder: only files it wrote, by exact
+  name, and empty folders it made; every path is checked first (under the
+  game folder, no `..`, no junction or link). `hd-pack-progress.txt`
+  (`working <percent> 100`, then `done 0 100`) drives the bottom-left bar;
+  on done the game reloads the textures, the movies count from the next
+  launch. Log: `hd-pack.log`. Tests: `sh tests/hdpack/run.sh`, Linux only
+  (mingw + Wine).
 
 ## Later
 

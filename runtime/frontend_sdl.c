@@ -32,6 +32,7 @@
 #include "hdtext.h"
 #include "multiuse.h"
 #include "hdmovie.h"
+#include "hdpack.h"
 #include "bootskip.h"
 #include "gamemenu.h"
 #include "gl_render.h"
@@ -47,6 +48,7 @@
 #include "session.h"
 #include "air.h"
 #include "update.h"
+#include "whatsnew.h"
 #include "text.h"
 #include "controls.h"
 #include "uitext.h"
@@ -96,6 +98,7 @@ static int g_smooth2d = 1, g_texup = 1, g_outline = 1;                          
 static int g_softshadow, g_ink;                                                       /* Enhanced: soft shadows in corners and under things, thin dark lines round things */
 static int g_texpack = 1, g_texdump = 0;                          /* Enhanced: HD textures from textures/, dumping them */
 static int g_hdtext = 1;                                          /* Enhanced: the game's text drawn at full resolution (hdtext.h) */
+static int g_hdpack = 1;                                          /* the HD pack downloaded in the background by hd-pack.exe (hdpack.h) */
 static int g_hdmovie = 1;                                         /* Enhanced: the movies from movies/ in HD (hdmovie.h) */
 static char g_hdfont[256] = "SourceSans3.ttf";                    /* ...with this font ("original": the game's letters, smoothed) */
 static const char* const g_fonts[N_FONTS] = { "original", "georgia.ttf", "pala.ttf", "constan.ttf", "times.ttf", "segoeui.ttf",   /* MI_FONT0 + i: Windows' */
@@ -188,6 +191,7 @@ static int g_xm_hand[4];                                          /* ...the hand
 static int g_xm_info[4], g_xm_isep[4], g_xm_nisep;               /* a window right under it, as wide (who: their HP): X0 top X1 bottom; its lines inside */
 static int g_xm_hold;                                             /* ...kept between two windows (xmenu_update()): their lines inside it not drawn */
 static int g_xm_msg[4];                                           /* ...a message under it: its words' box, x, y, w, h (w 0: none) */
+static int g_xm_msg_top;                                          /* ...its window's top line (the kept window's lines and band stop above it) */
 static int g_xm_word[4][4], g_xm_nword;                           /* ...the path: the menus' names before, and its own */
 static int g_xm_free, g_xm_nf, g_xm_fwin[8][5], g_xm_fsep[8][3];  /* windows round it (a spell's cost, its help...): all where the game has them (x0 y0 x1 y1 greyed; its lines inside) */
 static void xm_place(float cw, float* wx, float* wy) {
@@ -2657,7 +2661,51 @@ static int cc_extent(int screen_top, int x0, int y0, int x1, int y1, int* ex0, i
     *ex0 = a; *ex1 = b + 1;
     return 1;
 }
-enum { CC_ROW0 = 46, CC_RH = 16, CC_LAB_X = 133, CC_LAB_X1 = 202, CC_VAL_X = 203 };   /* the character screen's list: its rows, the steps' names, what was chosen */
+enum { CC_ROW0 = 46, CC_RH = 16 };                                /* the character screen's list: its rows */
+/* ...its columns: where each step's name starts (after its number), the colons' column, what was chosen
+ * after it. They move with the language (Italian's longer names: further left, the colons further
+ * right), so they are read from the screen: the colons are the one column with the same two dots
+ * on every row (cc_columns(), each frame; English's places if not found) */
+static int g_cc_lab_x = 133, g_cc_lab_x1 = 202, g_cc_val_x = 203;
+static void cc_columns(void) {
+    const uint32_t* px = g_engine_out[g_cc_topeng];
+#define CC_LIT(x, y) ((int)((px[(y) * 256 + (x)] >> 16) & 255) + (int)((px[(y) * 256 + (x)] >> 8) & 255) + (int)(px[(y) * 256 + (x)] & 255) > 450)
+    g_cc_lab_x1 = 202; g_cc_val_x = 203;
+    for (int x = 150, found = 0; x < 246 && !found; x++) {
+        uint32_t m[7];
+        for (int i = 0; i < 7; i++) {                             /* (the column's lit pixels on each row, as bits) */
+            m[i] = 0;
+            for (int y = 0; y < 14; y++) if (CC_LIT(x, CC_ROW0 + i * CC_RH + y)) m[i] |= 1u << y;
+        }
+        int runs = 0, same = 0;
+        for (int y = 0; y < 14; y++) runs += ((m[0] >> y) & 1) && !(y && ((m[0] >> (y - 1)) & 1));
+        for (int i = 0; i < 7; i++) same += m[i] == m[0];
+        if (runs != 2 || same < 6) continue;
+        int e = x;                                                /* (its last column: as wide as its dots) */
+        while (e + 1 < 254) {
+            int lit = 0;
+            for (int y = 0; y < 14; y++) lit += CC_LIT(e + 1, CC_ROW0 + y);
+            if (!lit) break;
+            e++;
+        }
+        g_cc_lab_x1 = x; g_cc_val_x = e + 2; found = 1;
+    }
+    {   /* the names: after the numbers' column (lit on most rows), its gap, where most rows are lit again
+         * (the hand left of the chosen row's number: on one row only) */
+        int n[150] = { 0 }, x = 108;
+        for (int c = 108; c < 150; c++)
+            for (int i = 0; i < 8; i++) { int lit = 0; for (int y = 0; y < 14; y++) lit |= CC_LIT(c, CC_ROW0 + i * CC_RH + y); n[c] += lit; }
+        for (int x0 = x; x < 150; x0 = x) {                         /* (the window's edge before them: one column wide) */
+            while (x < 150 && n[x] < 5) x++;
+            x0 = x;
+            while (x < 150 && n[x] > 1) x++;
+            if (x - x0 >= 3) break;
+        }
+        while (x < 150 && n[x] < 3) x++;
+        g_cc_lab_x = x < 150 ? x - 1 : 133;
+    }
+#undef CC_LIT
+}
 static void creation_pieces(GlPresent* v, int ww, int wh) {
     CcLay l = cc_lay(v);
     const float C = l.C;
@@ -2675,25 +2723,28 @@ static void creation_pieces(GlPresent* v, int ww, int wh) {
             set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 16, 0, 0, 1), 0, 0, v->cw, v->ch);
         return;
     }
+    cc_columns();
     /* the game's title, big, at the top left */
     {   int a, b; if (!cc_extent(1, 40, 4, 216, 19, &a, &b)) { a = 74; b = 182; }
         bestiary_piece(v, 0, (float)a - 1, 4, (float)(b - a) + 2, 15, 3, l.lx, 20 * C, 0.85f); }
     int step = g_cc_step;
     for (int i = 0; i < 8; i++) {
         float ry = l.ry0 + i * l.rh, kl = 0.62f, y = ry + (l.rh - 14 * kl) / 2;
-        int a, b, ry_ds = CC_ROW0 + i * CC_RH;
-        if (cc_extent(1, CC_LAB_X, ry_ds, CC_LAB_X1, ry_ds + 14, &a, &b)) {
-            bestiary_piece(v, 0, (float)a - 1, (float)ry_ds, (float)(b - a) + 2, 14, 3, l.lx + 15 * C, y, kl);   /* its name (not its number) */
-            float x = l.gx0 + (l.gx1 - l.gx0) * (float)i / 7, kp = 0.4f;                                       /* ...under its diamond */
+        int a, b, va, vb, ry_ds = CC_ROW0 + i * CC_RH;
+        int val = cc_extent(1, g_cc_val_x, ry_ds, 254, ry_ds + 14, &va, &vb);
+        if (cc_extent(1, g_cc_lab_x, ry_ds, g_cc_lab_x1, ry_ds + 14, &a, &b)) {
+            float room = l.lw - 27 * C - (val ? (float)(vb - va + 2) * kl + 8 * C : 0), kn = fminf(kl, room / (float)(b - a + 2));   /* (a long name and what was chosen: the name smaller, not over it (Italian)) */
+            bestiary_piece(v, 0, (float)a - 1, (float)ry_ds, (float)(b - a) + 2, 14, 3, l.lx + 15 * C, ry + (l.rh - 14 * kn) / 2, kn);   /* its name (not its number) */
+            float x = l.gx0 + (l.gx1 - l.gx0) * (float)i / 7, kp = fminf(0.4f, ((l.gx1 - l.gx0) / 7 - 6 * C) / (float)(b - a + 2));   /* ...under its diamond (smaller when longer than the room between two: Italian, English) */
             bestiary_piece(v, 0, (float)a - 1, (float)ry_ds, (float)(b - a) + 2, 14, i + 1 == step ? 3 : 12, x - (float)(b - a + 2) * kp / 2, l.gy + 9 * C, kp);
         }
-        if (cc_extent(1, CC_VAL_X, ry_ds, 254, ry_ds + 14, &a, &b))   /* what was chosen, at the right */
-            bestiary_piece(v, 0, (float)a - 1, (float)ry_ds, (float)(b - a) + 2, 14, 3, l.lx + l.lw - 12 * C - (float)(b - a + 2) * kl, y, kl);
+        if (val)                                                  /* what was chosen, at the right */
+            bestiary_piece(v, 0, (float)va - 1, (float)ry_ds, (float)(vb - va) + 2, 14, 3, l.lx + l.lw - 12 * C - (float)(vb - va + 2) * kl, y, kl);
     }
     /* right: the step's name, its choices */
     if (step >= 1 && step <= 8) {                                 /* (its name in the list) */
         int a, b, ry_ds = CC_ROW0 + (step - 1) * CC_RH;
-        if (cc_extent(1, CC_LAB_X, ry_ds, CC_LAB_X1, ry_ds + 14, &a, &b)) bestiary_piece(v, 0, (float)a - 1, (float)ry_ds, (float)(b - a) + 2, 14, 3, l.px, l.head_y - 4 * C - 14 * 1.05f, 1.05f);
+        if (cc_extent(1, g_cc_lab_x, ry_ds, g_cc_lab_x1, ry_ds + 14, &a, &b)) bestiary_piece(v, 0, (float)a - 1, (float)ry_ds, (float)(b - a) + 2, 14, 3, l.px, l.head_y - 4 * C - 14 * 1.05f, 1.05f);
     }
     if (g_cc_n && step == 9) {                                    /* the last question: its words big across the right, Yes / No under them */
         const int* yn = g_cc_box[0], *tb = g_cc_box[1];
@@ -2734,7 +2785,7 @@ static void creation_pieces(GlPresent* v, int ww, int wh) {
         }
         if (step >= 2 && step <= 7) {                             /* what is chosen, under them */
             int a, b, ry_ds = CC_ROW0 + (step - 1) * CC_RH;
-            if (cc_extent(1, CC_VAL_X, ry_ds, 254, ry_ds + 14, &a, &b)) {
+            if (cc_extent(1, g_cc_val_x, ry_ds, 254, ry_ds + 14, &a, &b)) {
                 float kv = 0.8f;
                 bestiary_piece(v, 0, (float)a - 1, (float)ry_ds, (float)(b - a) + 2, 14, 3, l.px + l.pw / 2 - (float)(b - a + 2) * kv / 2, y + (float)(uy1 - uy0) * k + 14 * C, kv);
             }
@@ -3260,6 +3311,8 @@ static char g_player_name[32] = "";              /* sessions: what friends see *
 static int g_session_port = SESSION_PORT;
 static int g_update_auto = 1;                    /* look for a new stable version at start */
 static char g_update_skip[32];                   /* ...but not this one (the player said so) */
+static char g_last_version[32];                  /* settings.ini's last_version: the version that ran last (whatsnew.h) */
+static int g_had_settings;                       /* there was a settings.ini (else a new install: no "What's new") */
 static int g_net_want = 1;                     /* the menu's "connect" check: on for a new install (settings.ini keeps each player's choice) */
 static const char* wfc_dns(void) {
     for (unsigned i = 0; i < sizeof WFC / sizeof WFC[0]; i++) if (!strcmp(g_wfc_server, WFC[i].key)) return WFC[i].dns;
@@ -3319,6 +3372,7 @@ static int look_key(const char* key) {
 static void settings_load(void) {
     FILE* f = fopen(SETTINGS, "r");
     if (!f) return;
+    g_had_settings = 1;
     char line[200], color[64] = "";
     int version = 0;
     while (fgets(line, sizeof line, f)) sscanf(line, " settings_version = %d", &version);
@@ -3337,6 +3391,7 @@ static void settings_load(void) {
         }
         if (!strcmp(key, "all_options")) { g_all_options = atoi(val) != 0; continue; }
         if (!strcmp(key, "update_check")) { g_update_auto = atoi(val) != 0; continue; }
+        if (!strcmp(key, "last_version")) { snprintf(g_last_version, sizeof g_last_version, "%s", val); continue; }
         if (!strcmp(key, "update_skip")) { snprintf(g_update_skip, sizeof g_update_skip, "%s", val); continue; }
         if (!strcmp(key, "session_port")) { int v = atoi(val); if (v > 0 && v < 65536) g_session_port = v; continue; }
         if (!strcmp(key, "session_consoles")) { if (!strcmp(val, "processes")) { static char e[] = "DQIX_PROCESSES=1"; putenv(e); } continue; }
@@ -3366,6 +3421,7 @@ static void settings_load(void) {
         else if (!strcmp(key, "dump_textures")) g_texdump = atoi(val) != 0;
         else if (!strcmp(key, "hd_text")) g_hdtext = atoi(val) != 0;
         else if (!strcmp(key, "hd_movies")) g_hdmovie = atoi(val) != 0;
+        else if (!strcmp(key, "hd_pack_download")) g_hdpack = atoi(val) != 0;
         else if (!strcmp(key, "hd_text_font")) snprintf(g_hdfont, sizeof g_hdfont, "%s", val);
         else if (!strcmp(key, "farm_gold_target")) { long v = atol(val); if (v > 0 && v <= 9999999) g_farm_target = (int)v; }
         else if (!strcmp(key, "farm_fast_forward")) g_farm_fast = atoi(val) != 0;
@@ -3461,6 +3517,8 @@ static void settings_save(void) {
     fprintf(f, "hd_text_font = %s\n", g_hdfont);
     fprintf(f, "# enhanced: the movies (opening, dragon...) from the movies folder, upscaled: 0 or 1\n");
     fprintf(f, "hd_movies = %d\n", g_hdmovie);
+    fprintf(f, "# enhanced: download the HD pack (textures and movies) in the background, once: 0 never, 1 yes (0 counts from the next launch)\n");
+    fprintf(f, "hd_pack_download = %d\n", g_hdpack);
     fprintf(f, "# the map in the top right corner (gone during battles): 0 or 1; its size 0 small, 1 medium, 2 large\n");
     fprintf(f, "minimap = %d\n", g_map_shown);
     fprintf(f, "round_minimap = %d\n", g_round_map);
@@ -3553,6 +3611,8 @@ static void settings_save(void) {
     fprintf(f, "# updates: look for a new stable version when the game starts (Help menu); a version not to offer again\n");
     fprintf(f, "update_check = %d\n", g_update_auto);
     fprintf(f, "update_skip = %s\n", g_update_skip[0] ? g_update_skip : "-");
+    fprintf(f, "# the version that ran last: after an update, the game shows what's new once (Help > What's new)\n");
+    fprintf(f, "last_version = %s\n", DQIX_VERSION);
     fprintf(f, "session_port = %d\n", g_session_port);
     fprintf(f, "# how your friends' DSes run on this PC: thread (one thread, the usual) or processes (if thread misbehaves)\n");
     fprintf(f, "session_consoles = %s\n", getenv("DQIX_PROCESSES") ? "processes" : "thread");
@@ -3669,6 +3729,9 @@ static int try_gl(void) {
     if (getenv("DQIX_DUMP_TEXTURES")) g_texdump = atoi(getenv("DQIX_DUMP_TEXTURES")) != 0;
     gl_set_texture_pack(g_texpack); gl_set_texture_dump(g_texdump);
     gl_textures_hd_start();                                       /* HD textures still to make (a PC turned off before the end): on with them */
+    if (getenv("DQIX_INPUT_FILE")) g_hdpack = 0;                  /* a scripted run (tests) never downloads it */
+    if (getenv("DQIX_HD_PACK")) g_hdpack = atoi(getenv("DQIX_HD_PACK")) != 0;   /* tests */
+    hdpack_start(g_hdpack);                                       /* the HD pack: hd-pack.exe in the background, it does nothing once it is there */
     if (getenv("DQIX_HD_TEXT")) g_hdtext = atoi(getenv("DQIX_HD_TEXT")) != 0;
     if (getenv("DQIX_HD_MOVIES")) g_hdmovie = atoi(getenv("DQIX_HD_MOVIES")) != 0;   /* tests */
     if (getenv("DQIX_HD_FONT")) snprintf(g_hdfont, sizeof g_hdfont, "%s", getenv("DQIX_HD_FONT"));
@@ -3836,6 +3899,7 @@ void frontend_init(int argc, char** argv) {
     if (getenv("DQIX_NO_SETTINGS")) controls_defaults(); else controls_load();
     if (!getenv("DQIX_NO_SETTINGS")) {
         settings_load();
+        whatsnew_start(g_last_version, g_had_settings);
         if (!g_wireless.mac_set && !g_headless) { wireless_mac_new(); settings_save(); }
     }
     wireless_apply(1);                                          /* read by firmware_init */
@@ -4581,7 +4645,7 @@ static void creation_update(int a_on_top) {
 #define TP_SUM(x, y) ((int)((tp[(y) * 256 + (x)] >> 16) & 255) + (int)((tp[(y) * 256 + (x)] >> 8) & 255) + (int)(tp[(y) * 256 + (x)] & 255))
         now = 0;
         for (int y = 24; y < 192; y += 8) for (int x = 2; x < 110; x += 8) now += TP_SUM(x, y);
-        if (TP_SUM(128, 1) < 90 || TP_SUM(128, 1) < 3 * TP_SUM(128, 12)) {
+        if (TP_SUM(128, 1) < 90 || TP_SUM(128, 1) < 3 * TP_SUM(128, 3)) {   /* (row 3: the window's dark inside over its words; row 12 crossed a letter in English, "Create your character.") */
             if (asked && g_frame - asked < 180 && lit && now * 100 > lit * 3) g_cc_fade = 100 - (int)(now * 100 / lit) > 1 ? 100 - (int)(now * 100 / lit) : 1;
             else asked = 0;
             return;
@@ -4638,7 +4702,9 @@ static void creation_update(int a_on_top) {
         int w = tx + 10 - 7, h = ty + 9 - 121;
         if (w > 242) w = 242;
         if (h > 65) h = 65;
-        static const int yn[4] = { 216, 76, 34, 36 };             /* Yes / No's inside (its light edge left out) */
+        int yn[4] = { 216, 76, 34, 36 };                          /* Yes / No's inside (its light edge left out): its right side fixed, */
+        for (int x = 240; x > 190; x--)                           /* its left edge further left for longer words (German's "Nein"), */
+            if (CC_SUM(x, 93) > 450) { if (x < 230) { yn[0] = x + 2; yn[2] = 250 - yn[0]; } break; }   /* (row 93: between its two lines, under the hand) */
         int tb[4] = { 7, 121, w, h };                             /* the text box's inside, cut after the text */
         memcpy(g_cc_box[0], yn, sizeof yn); memcpy(g_cc_box[1], tb, sizeof tb);
         g_cc_at[0][0] = w - yn[2]; g_cc_at[0][1] = 0;
@@ -4964,6 +5030,17 @@ static void bag_word(const uint32_t* px, int x0, int y0, int x1, int y1, int* bo
     box[2] = 0;
     if (bx1 >= bx0) { box[0] = bx0 - 1; box[1] = by0 - 1; box[2] = bx1 - bx0 + 3; box[3] = by1 - by0 + 3; }
 }
+/* ...the same from the HD text's mask (its letters not in the screen's picture) */
+static void hd_word(const uint8_t* m, int x0, int y0, int x1, int y1, int* box) {
+    int bx0 = 256, by0 = 192, bx1 = -1, by1 = -1;
+    for (int y = y0; y < y1; y++)
+        for (int x = x0; x < x1; x++)
+            if (m[y * 256 + x]) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+    box[2] = 0;
+    if (bx1 < bx0) return;
+    box[0] = bx0 - 1; box[1] = by0 - 1; box[2] = bx1 - bx0 + 5; box[3] = by1 - by0 + 3;   /* (+2: an HD letter a little wider than its box) */
+    if (box[0] + box[2] > 256) box[2] = 256 - box[0];
+}
 
 /* The bag's list on the field's screen (Items: the bag, or the leader's
  * things), modern: laid out again (bag_pieces(), g_bag). Up while its window
@@ -5273,11 +5350,17 @@ static void xmenu_update(int a_on_top) {
             if (y1 - y0 < 16 || !MGREY(128, y1)) continue;          /* (a window's own bottom line over the 3D: no window under it) */
             int box[4];
             bag_word(px, x0 + 2, y0 + 2, x1 - 1, y1, box);         /* (its words) */
+            if (!box[2] && g_hdtext_on) hd_word(g_hdtext_mask[0], x0 + 2, y0 + 2, x1 - 1, y1, box);   /* (the HD text on: its words in its mask) */
             if (!box[2]) { empty = 1; continue; }                  /* (opened, its words not out yet) */
+            g_xm_msg_top = y0;
             g_xm_msg[0] = box[0]; g_xm_msg[1] = box[1]; g_xm_msg[2] = box[2]; g_xm_msg[3] = box[3];
         }
         #undef MGREY
-        if (g_xm_msg[2] || (empty && g_xmenu)) { g_xmenu = 1; g_xm_hand[2] = 0; g_xm_hold = 1; last = g_frame; return; }   /* (an empty one: the layout kept, no popup yet) */
+        if (g_xm_msg[2] || (empty && g_xmenu && g_frame - last <= 12)) {   /* (an empty one: the layout kept a few frames, no popup yet) */
+            g_xmenu = 1; g_xm_hand[2] = 0; g_xm_hold = 1;
+            if (g_xm_msg[2]) last = g_frame;
+            return;
+        }
     }
     int ok = g_xmenu && g_frame - last <= 12 && !a_on_top && !g_bag && !party_in_battle();
     if (ok) {                                                     /* (its top line: grey, the game's or greyed) */
@@ -5354,13 +5437,16 @@ static void xmenu_pieces(GlPresent* v) {
         }
     XM_WIN(wx, wy, w, h);
     int ly0 = (sep ? sep : top) + 1, in = g_xm_hold ? 3 : 1;   /* (kept between two windows: 3 pixels in, the lines of a window greyed not taken) */
+    int lbot = bot - in, band1 = g_xm_band[3];               /* (its lines' last row, the band's bottom: above a message under it, not it again inside) */
+    if (g_xm_hold && g_xm_msg[2]) { if (lbot > g_xm_msg_top - 1) lbot = g_xm_msg_top - 1; if (band1 > g_xm_msg_top) band1 = g_xm_band[1]; }   /* (a band the message cuts: none, not a sliver of it) */
     if (sep) {
         bestiary_piece(v, 3, X0 + in, top + in, X1 - X0 - 2 * in + 1, sep - top - 2 * in + 1, g_xm_hold ? 29 : 3, X0 + in + ox, top + in + oy, 1);   /* its name */
         set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 4, 0, 0, 1), wx + 4, sep + oy, w - 8, t);
     }
-    for (int i = 0; i < 3 && g_xm_band[2] > g_xm_band[0]; i++)  /* the chosen line lit (three times: seen over a bright field too) */
-        set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 21, 0, 0, 1), g_xm_band[0] + ox, g_xm_band[1] + oy, g_xm_band[2] - g_xm_band[0], g_xm_band[3] - g_xm_band[1]);
-    bestiary_piece(v, 3, X0 + in, ly0 + in - 1, X1 - X0 - 2 * in + 1, bot - ly0 - 2 * in + 2, g_xm_hold ? 29 : 3, X0 + in + ox, ly0 + in - 1 + oy, 1);   /* its lines */
+    for (int i = 0; i < 3 && g_xm_band[2] > g_xm_band[0] && band1 > g_xm_band[1]; i++)  /* the chosen line lit (three times: seen over a bright field too) */
+        set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 21, 0, 0, 1), g_xm_band[0] + ox, g_xm_band[1] + oy, g_xm_band[2] - g_xm_band[0], band1 - g_xm_band[1]);
+    if (lbot >= ly0 + in - 1)
+        bestiary_piece(v, 3, X0 + in, ly0 + in - 1, X1 - X0 - 2 * in + 1, lbot - (ly0 + in - 1) + 1, g_xm_hold ? 29 : 3, X0 + in + ox, ly0 + in - 1 + oy, 1);   /* its lines */
     if (g_xm_hand[2]) {                                          /* the hand: its own colours, whole (over the window's left line too) */
         const int* h = g_xm_hand;
         bestiary_piece(v, 3, h[0], h[1], h[2], h[3], 27, h[0] + ox, h[1] + oy, 1);
@@ -5379,6 +5465,7 @@ static void xmenu_pieces(GlPresent* v) {
     if (g_xm_msg[2]) {                                           /* the message: a window of the style under it, as wide as its words */
         const int* m = g_xm_msg;
         float mw = m[2] + 16.0f, mh = m[3] + 10.0f, mx = floorf((v->cw - mw) / 2), my = fmaxf(wy + h + 6, (float)m[1] - 6);
+        if (g_xm_info[2]) my = fmaxf(my, g_xm_info[3] + oy + 1 + 4);   /* (under the window under it too: who, their HP) */
         if (my + mh > 190) my = 190 - mh;
         XM_WIN(mx, my, mw, mh);
         bestiary_piece(v, 3, m[0], m[1], m[2], m[3], 3, mx + 8, my + 5, 1);
@@ -5475,9 +5562,10 @@ static void hint_update(GlPresent* v) {
     q[2] = 2 * r * kx; q[3] = 2 * r * ky;
 }
 
-/* textures-hd at work (textures-hd-progress.txt, next to the game): a bar at
- * the big screen's bottom left; when it's done, "HD textures ready" for a few
- * seconds and the new ones are loaded. */
+/* hd-pack.exe (hd-pack-progress.txt) or textures-hd (textures-hd-progress.txt)
+ * at work, next to the game: a bar at the big screen's bottom left; when it's
+ * done, "HD pack ready" / "HD textures ready" for a few seconds and the new
+ * textures are loaded (the pack's movies at the next launch). */
 #define HDBAR_W 76.0f                                            /* (DS pixels) */
 #define HDBAR_H 12.0f
 static void hdbar_draw(int W, int H, const char* text, float part) {
@@ -5517,18 +5605,37 @@ static void hdbar_draw(int W, int H, const char* text, float part) {
         }
     gl_set_layer(GL_LAYER_HDBAR, img, W, H);
 }
+static int hdbar_read(const char* file, char* st, int* a, int* b) {   /* "<state> <a> <b>" */
+    FILE* f = fopen(file, "rb");
+    if (!f) return 0;
+    int ok = fscanf(f, "%15s %d %d", st, a, b) == 3;
+    fclose(f);
+    return ok;
+}
 static void hdbar_update(GlPresent* v) {
-    static int state, done, total, made; static uint64_t until; static char shown[128];
+    static int state, done, total, made, pack, pack_msg; static uint64_t until; static char shown[128];
     if (g_frame % 30 == 0) {                                     /* (twice a second) */
-        FILE* f = fopen("textures-hd-progress.txt", "rb");
         char st[16] = ""; int a = 0, b = 0;
         state = 0;
-        if (f) { if (fscanf(f, "%15s %d %d", st, &a, &b) != 3) st[0] = 0; fclose(f); }
-        if (!strcmp(st, "working") && b > 0 && a < b) { state = 1; done = a; total = b; }
-        else if (!strcmp(st, "done")) {                          /* once: the message, the new textures */
-            remove("textures-hd-progress.txt");
-            made = a; until = SDL_GetPerformanceCounter() + g_perf_freq * 8;
-            if (g_texpack) gl_reload_texture_pack();
+        if (hdbar_read("hd-pack-progress.txt", st, &a, &b)) {     /* the HD pack first */
+            if (!strcmp(st, "working") && b > 0 && a < b) {
+                if (hdpack_running()) { state = 1; pack = 1; done = a; total = b; }
+                else remove("hd-pack-progress.txt");             /* left by a run that was stopped: no bar */
+            } else if (!strcmp(st, "done")) {                    /* once: the message, the pack's textures (its
+                                                                  * movies next launch: reading them now would stall the game) */
+                remove("hd-pack-progress.txt");
+                pack_msg = 1; made = 0; until = SDL_GetPerformanceCounter() + g_perf_freq * 8;
+                if (g_texpack) gl_reload_texture_pack();
+            } else if (!strcmp(st, "failed")) remove("hd-pack-progress.txt");   /* (it tries again next time) */
+        }
+        st[0] = 0; a = b = 0;
+        if (!state && hdbar_read("textures-hd-progress.txt", st, &a, &b)) {
+            if (!strcmp(st, "working") && b > 0 && a < b) { state = 1; pack = 0; done = a; total = b; }
+            else if (!strcmp(st, "done")) {                      /* once: the message, the new textures */
+                remove("textures-hd-progress.txt");
+                pack_msg = 0; made = a; until = SDL_GetPerformanceCounter() + g_perf_freq * 8;
+                if (g_texpack) gl_reload_texture_pack();
+            }
         }
     }
     int msg = until && SDL_GetPerformanceCounter() < until;
@@ -5538,7 +5645,8 @@ static void hdbar_update(GlPresent* v) {
     int W = (int)(w * v->sc + 0.5f), H = (int)(h * v->sc + 0.5f);
     if (W < 8 || H < 4) return;
     char text[96], key[128];
-    if (state) snprintf(text, sizeof text, T("HD textures: %d%%"), (int)(100.0 * done / total));
+    if (state) snprintf(text, sizeof text, pack ? T("HD pack: %d%%") : T("HD textures: %d%%"), (int)(100.0 * done / total));
+    else if (pack_msg) snprintf(text, sizeof text, "%s", T("HD pack ready"));
     else snprintf(text, sizeof text, made > 0 ? T("HD textures ready (%d new)") : T("HD textures ready"), made);
     snprintf(key, sizeof key, "%s %d %d %d", text, W, H, state ? done : -1);
     if (strcmp(key, shown)) { snprintf(shown, sizeof shown, "%s", key); hdbar_draw(W, H, text, state ? (float)done / total : -1); }
@@ -5792,6 +5900,7 @@ static void menu_sync(void) {
     menu_check(MI_TEXDUMP, g_texdump); menu_enable(MI_TEXDUMP, g_gl && !g_classic);
     menu_check(MI_HDTEXT, g_hdtext); menu_enable(MI_HDTEXT, g_gl && !g_classic);
     menu_check(MI_HDMOVIE, g_hdmovie); menu_enable(MI_HDMOVIE, g_gl && !g_classic);
+    menu_check(MI_HDPACK, g_hdpack);
     for (int i = 0; i < N_FONTS; i++) { menu_check(MI_FONT0 + i, !strcmp(g_hdfont, g_fonts[i])); menu_enable(MI_FONT0 + i, g_gl && !g_classic && g_hdtext); }
     menu_check(MI_LCD, g_opt.lcd); menu_enable(MI_LCD, g_gl);
     int lcd = g_gl && g_opt.lcd;
@@ -6305,6 +6414,40 @@ static void idle_pump(void) {
     SDL_SetWindowTitle(g_win, t);
 }
 
+/* ---------------------------------------------------------------- what's new (whatsnew.h) */
+/* Help > What's new: the journal's panel (it needs OpenGL and the HD text's font) */
+static void whatsnew_ui_show(void) {
+    if (!g_gl || !text_ready()) { notice("What's new needs the graphics card (OpenGL)"); return; }
+    if (gamemenu_is_open()) gamemenu_close();
+    if (journal_open()) journal_input(JK_CLOSE);
+    whatsnew_show();
+}
+
+/* After an update: the notes once, when the window shows the game (not over
+ * logos skipped unseen, nor in a session). Tests: DQIX_WHATSNEW_TEST=frame,keys
+ * (D U: a page down, up; ',' saves the window as whatsnewN.ppm, also done at the end). */
+static void whatsnew_tick(void) {
+    static long long test = -2; static const char* keys;
+    if (test == -2) { const char* e = getenv("DQIX_WHATSNEW_TEST"); test = e ? atoll(e) : -1; keys = e ? strchr(e, ',') : NULL; }
+    if (!whatsnew_pending() && test < 0) return;
+    if (!g_gl || !text_ready() || session_requested() || bootskip_active() || gamemenu_is_open() || journal_open()) return;
+    if (g_frame < (uint64_t)(test >= 0 ? test : 90)) return;
+    whatsnew_show();
+    if (test < 0) return;
+    test = -1;
+    int shot = 0;
+    for (const char* c = keys ? keys + 1 : ""; ; c++) {
+        if (*c == ',' || !*c) {
+            snprintf(g_shot_next, sizeof g_shot_next, "whatsnew%d.ppm", shot++);
+            present();
+            if (!*c) break;
+            continue;
+        }
+        journal_input(*c == 'U' ? JK_PAGE_UP : JK_PAGE_DOWN);
+    }
+    journal_input(JK_CLOSE);
+}
+
 static void do_action(int id) {
     int relayout = 0;
     switch (id) {
@@ -6393,6 +6536,7 @@ static void do_action(int id) {
     case MI_NPC3D: g_npc3d = !g_npc3d; break;
     case MI_TEXPACK: if (g_gl) { g_texpack = !g_texpack; gl_set_texture_pack(g_texpack); } break;
     case MI_TEXRELOAD: if (g_gl && g_texpack) gl_reload_texture_pack(); break;
+    case MI_HDPACK: g_hdpack = !g_hdpack; hdpack_start(g_hdpack); break;   /* on: hd-pack.exe goes and gets it now */
     case MI_TEXDUMP: if (g_gl) { g_texdump = !g_texdump; gl_set_texture_dump(g_texdump); } break;
     case MI_HDTEXT: if (g_gl) { g_hdtext = !g_hdtext; apply_mode(); } break;
     case MI_HDMOVIE: if (g_gl) { g_hdmovie = !g_hdmovie; if (g_hdmovie) hdmovie_init(); apply_mode(); } break;   /* on: look in movies/ again */
@@ -6585,6 +6729,7 @@ static void do_action(int id) {
         break;
     case MI_CONTROLS: info_box(SDL_MESSAGEBOX_INFORMATION, "Controls", CONTROLS_TEXT, g_win); break;
     case MI_UPDATE: update_menu(); break;
+    case MI_WHATSNEW: whatsnew_ui_show(); break;
     case MI_UPDATE_AUTO: g_update_auto = !g_update_auto; settings_save(); break;
     case MI_ABOUT: {
         char text[600];
@@ -6639,6 +6784,7 @@ static void game_menu_toggle(void) {
 static int g_trophies_back;                                  /* the trophies were opened from the menu: back to it when closed */
 static void game_menu_chose(int id) {
     if (id == GM_TROPHIES) { gamemenu_close(); trophies_show(); g_trophies_back = 1; return; }   /* (the journal's panel, alone) */
+    if (id == MI_WHATSNEW && g_gl && text_ready()) { gamemenu_close(); whatsnew_show(); g_trophies_back = 1; return; }   /* (the same: back to the menu) */
     if (id <= 0) return;                                     /* Resume: closed already */
     do_action(id);
     gamemenu_changed();                                      /* new check marks */
@@ -7104,6 +7250,7 @@ void frontend_frame(void) {
             g_paused = 0;
         }
         if (g_autosave_done) { g_autosave_done = 0; notice("Saved"); }   /* Modern > Save by itself */
+        whatsnew_tick();                                      /* after an update: what's new, once */
         while (!session_requested() && (gamemenu_is_open() || journal_open())) {   /* (the trophies go back to the menu) */
             if (gamemenu_is_open()) {                             /* the in-game menu: the game waits */
                 update_title(0);

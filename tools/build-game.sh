@@ -115,7 +115,10 @@ MINGW*|MSYS*)
     cp /ucrt64/bin/SDL2.dll game/ ;;
 *)
     EXE=game/dqix
-    make -j"$(nproc)" -f build.mk GEN=build/recomp GEN7=build/recomp7 OBJ=build/obj FRONTEND=sdl OUT="$EXE" CORE=game/dqixcore.so PIC=-fPIC \
+    # no make (SteamOS on the Steam Deck): tools/build_nomake.py does build.mk's work
+    MK="make -j$(nproc) -f build.mk"
+    command -v make >/dev/null 2>&1 || MK="$PY tools/build_nomake.py"
+    $MK GEN=build/recomp GEN7=build/recomp7 OBJ=build/obj FRONTEND=sdl OUT="$EXE" CORE=game/dqixcore.so PIC=-fPIC \
          CFLAGS="-O1 -w" DEFS=-DRECOMP_TRACE SDL_CFLAGS="${SDL_CFLAGS:-$(sdl2-config --cflags)}" SDL_LIBS="${SDL_LIBS:-$(sdl2-config --libs)}" "$EXE" core ;;
 esac
 
@@ -126,6 +129,9 @@ if ! cmp -s "$ROM" game/data/dqix.nds; then cp "$ROM" game/data/dqix.nds; fi
 cp skins/*.png skins/*.txt game/skins/ 2>/dev/null || true
 cp fonts/*.ttf fonts/*.txt game/fonts/ 2>/dev/null || true             # the HD text's fonts (Graphics > Text font)
 cp lang/*.txt game/lang/ 2>/dev/null || true                          # the menus' and messages' translations (Language menu)
+rm -rf game/notes && mkdir -p game/notes                              # the release notes, shown after an update (whatsnew.c)
+cp release-notes/v*.md game/notes/ 2>/dev/null || true
+for l in fr de it es; do [ -d release-notes/$l ] && mkdir -p game/notes/$l && cp release-notes/$l/v*.md game/notes/$l/ 2>/dev/null; done; true
 # modern job icons, in the HD texture pack (runtime/hdsprite.h): made from the ROM
 # like the program's icon. Optional: without them the game shows its own.
 $PY tools/job_icons.py "$ROM" game/textures/jobs || echo "   job icons: not made (optional)"
@@ -134,10 +140,11 @@ $PY tools/job_icons.py "$ROM" game/textures/jobs || echo "   job icons: not made
 # Optional: without them (no Internet) the game shows its cups.
 $PY tools/trophy_badges.py game/trophies || echo "   trophy pictures: not fetched (optional)"
 # townspeople in 3D (runtime/npc3d.c, Graphics > Townspeople in 3D): made from
-# the player's own Dragon Quest VII and/or VIII (3DS) files, whose folders (the
-# romfs) are named in rom/dq7-path.txt and rom/dq8-path.txt, and from this ROM's
-# own characters; remade when the list of townspeople changes. Never kept in the
-# project. Optional.
+# the player's own Dragon Quest VII and/or VIII (3DS), put in rom/3DS (a
+# decrypted ROM: .3ds, .cci, .cxi, .cia, or a folder already extracted), or
+# folders named in rom/dq7-path.txt and rom/dq8-path.txt; and from this ROM's
+# own characters. Remade when those change. Never kept in the project. Optional.
+mkdir -p rom/3DS
 gamedir() {
     [ -f "rom/$1-path.txt" ] || return 0
     local d; d="$(tr -d '\r' < "rom/$1-path.txt")"
@@ -145,8 +152,15 @@ gamedir() {
     if [ -d "$d" ]; then echo "$d"; fi
 }
 DQ7="$(gamedir dq7)"; DQ8="$(gamedir dq8)"
-if [ ! -f game/npc3d/map.txt ] || [ -n "$(find tools/npc3d rom/dq7-path.txt rom/dq8-path.txt -newer game/npc3d/map.txt -type f 2>/dev/null)" ]; then
+if [ ! -f game/npc3d/map.txt ] || [ -n "$(find tools/npc3d rom/dq7-path.txt rom/dq8-path.txt rom/3DS -newer game/npc3d/map.txt 2>/dev/null)" ]; then
     echo "== Townspeople in 3D (from Dragon Quest VII / VIII / IX)"
+    if [ -z "$DQ7" ] || [ -z "$DQ8" ]; then                  # rom/3DS: what the paths don't give
+        while read -r g d; do
+            case "$g" in dq7) [ -n "$DQ7" ] || DQ7="$d" ;; dq8) [ -n "$DQ8" ] || DQ8="$d" ;; esac
+        done <<EOF3DS
+$($PY tools/npc3d/rom3ds.py rom/3DS build/npc3d-src)
+EOF3DS
+    fi
     $PY tools/npc3d/make_all.py "${DQ7:--}" "${DQ8:--}" game/npc3d "$ROM" || echo "   townspeople in 3D: not made (optional; needs Python's numpy)"
 fi
 # the same plaques for the modern Equip screen (runtime/frontend_sdl.c equip_pieces:
@@ -164,6 +178,12 @@ case "$(uname -s)" in MINGW*|MSYS*)
     done
     if [ -d game/textures-hd-outil ] && [ -f game/textures-rom.exe ]; then
         ./game/textures-rom.exe --auto || echo "   HD textures from the ROM: not made (optional)"
+    fi
+    # the HD pack (FatalPixels textures, SeedVR2 movies): hd-pack.exe, which the
+    # game starts in the background to download and install it (tools/hd-pack.c;
+    # Graphics > Download the HD pack). Built every time, for everyone.
+    if [ ! -f game/hd-pack.exe ] || [ tools/hd-pack.c -nt game/hd-pack.exe ] || [ tools/hdpack_core.h -nt game/hd-pack.exe ] || [ runtime/hdpack.h -nt game/hd-pack.exe ]; then
+        gcc -O2 -municode -I tools -o game/hd-pack.exe tools/hd-pack.c -lbcrypt -lwinhttp || echo "   hd-pack.exe: not rebuilt (optional: no HD pack download)"
     fi ;;
 esac
 # optional files: the built-in Wi-Fi server's downloads and DQVC schedule

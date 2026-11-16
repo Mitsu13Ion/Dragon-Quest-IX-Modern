@@ -116,6 +116,9 @@ es = Texturas &HD de la carpeta textures (Mejorado)
 en = &Reload the HD textures
 es = &Recargar las texturas HD
 
+en = Download the HD &pack (textures and movies)
+es = Descargar el &paquete HD (texturas y vídeos)
+
 en = &Dump textures to textures\\dump (for making a pack)
 es = &Extraer las texturas a textures\\dump (para crear un pack)
 
@@ -442,6 +445,9 @@ es = &Ayuda
 
 en = &Controls
 es = &Controles
+
+en = &What's new
+es = &Novedades
 
 en = Check for &updates...
 es = Buscar &actualizaciones...
@@ -1222,6 +1228,10 @@ en = HD textures ready (%d new)
 es = Texturas HD listas (%d nuevas)
 en = HD textures ready
 es = Texturas HD listas
+en = HD pack: %d%%
+es = Paquete HD: %d%%
+en = HD pack ready
+es = Paquete HD listo
 
 # ---- hints.c (the name on a keyboard key, under the X Menu sign: short)
 
@@ -1263,3 +1273,6 @@ es = num
 
 en = Map in the corner: roun&d, centred on you (silver compass ring)
 es = Mapa en la esquina: redon&do, centrado en ti (anillo plateado con brújula)
+
+en = What's new needs the graphics card (OpenGL)
+es = «Novedades» necesita la tarjeta gráfica (OpenGL)

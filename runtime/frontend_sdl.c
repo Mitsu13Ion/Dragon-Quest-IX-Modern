@@ -1087,7 +1087,7 @@ static int g_card_item;
 static void list_keys(uint16_t* keys, int* touch, int* tx, int* ty) {
     enum { K_UP = 1 << 6, K_DOWN = 1 << 7 };
     static uint16_t was, held; static int tap, ttx, tty, after;
-    if (multiuse_keys(keys, in_adventure() && !party_in_battle() && !g_hud_n)) { *touch = 0; return; }   /* (Use several at once: its windows take the keys, or it presses them; not in battles, wide HUD or not) */
+    if (g_gl && multiuse_keys(keys, in_adventure() && !party_in_battle() && !g_hud_n)) { *touch = 0; return; }   /* (Use several at once: its windows take the keys, or it presses them; not in battles, wide HUD or not; only with OpenGL, which alone draws its window) */
     uint16_t now = *keys, pressed = now & ~was;
     was = now;
     if (tap) { tap--; *touch = 1; *tx = ttx; *ty = tty; *keys &= (uint16_t)~(K_UP | K_DOWN); if (!tap) after = 3; return; }

@@ -87,6 +87,7 @@ static int g_species_w, g_species_h;                              /* the monster
 static float g_mini_vis = 1.0f;                                   /* ...1 shown, 0 gone (the game's 2D under it: a menu) */
 /* An adventure is loaded (the field's characters, farm.c): before it (the
  * logos, the opening movie, the title) the minimap isn't shown. */
+static int g_map_seen;                                            /* the hero has been on a map (the round minimap may be drawn) */
 static int in_adventure(void) { uint32_t v; memcpy(&v, &g_main_ram[0x0F33E0], 4); return v != 0; }
 #define MINIMAP_GAP 0                                             /* ...right in the corner (the field's "X Menu" sign moves to the bottom: g_sign_dy) */
 static int g_smooth = 1;                                          /* Enhanced: smooth (filtered) textures */
@@ -2782,7 +2783,7 @@ static uint64_t g_patty_other_at;
 static const uint8_t* patty_picture(int w, int h, int* changed) {
     static uint8_t* pic; static int pw, ph; static float at[4];
     *changed = 0;
-    if (g_frame - g_patty_other_at > 2 || w <= 0 || h <= 0) return NULL;
+    if (!g_patty_other_at || g_frame - g_patty_other_at > 2 || w <= 0 || h <= 0) return NULL;   /* (none yet: not at the start) */
     if (w != pw || h != ph || !pic) { free(pic); pic = malloc((size_t)w * h * 4); if (!pic) { pw = ph = 0; return NULL; } pw = w; ph = h; at[2] = -1; }
     if (!memcmp(at, g_patty_other, sizeof at)) return pic;
     memcpy(at, g_patty_other, sizeof at); *changed = 1;
@@ -2924,7 +2925,7 @@ static void canvas_layout_for(GlPresent* v, int ww, int wh, int second) {
         } else if (g_minimap) v->alpha = 1.0f;                   /* battles: solid */
         if (g_small_hide && !pop) small[2] = small[3] = 0;
         int round_z = -1; float round_at[4] = { 0 };               /* the map round, not the screen small: decided at the end (a screen of its own (Equip, a card...) may take it) */
-        if (g_minimap && g_round_map && which != 0 && small[2] > 0 && !g_peek && !second) {
+        if (g_minimap && g_round_map && which != 0 && small[2] > 0 && !g_peek && !second && (g_map_seen |= g_map_hero_ok)) {   /* (not before the hero is first on a map: at the start the RAM isn't the game's yet, in_adventure() may say yes) */
             round_z = g_small_size < 0 || g_small_size > 2 ? 1 : g_small_size;
             memcpy(round_at, small, sizeof round_at);
         }

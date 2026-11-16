@@ -2805,7 +2805,7 @@ static const uint8_t* patty_picture(int w, int h, int* changed) {
 /* A window like the game's dialogue under it: dark see-through, a thick grey line */
 static void patty_window(GlPresent* v, float x, float y, float w, float h, float C) {
     float t = 3 * C;
-    for (int i = 0; i < 2; i++) set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 16, 0, 0, 1), x, y, w, h);   /* (0.8 dark: the dialogue's) */
+    set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 16, 0, 0, 1), x, y, w, h);   /* (as dark as the dialogue's: the field half seen) */
     set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 4, 0, 0, 1), x, y, w, t);
     set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 4, 0, 0, 1), x, y + h - t, w, t);
     set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 4, 0, 0, 1), x, y, t, h);

@@ -88,8 +88,8 @@ static int g_species_w, g_species_h;                              /* the monster
 static float g_mini_vis = 1.0f;                                   /* ...1 shown, 0 gone (the game's 2D under it: a menu) */
 /* An adventure is loaded (the field's characters, farm.c): before it (the
  * logos, the opening movie, the title) the minimap isn't shown. */
-static int g_map_seen;                                            /* the hero has been on a map (the round minimap may be drawn) */
 static int in_adventure(void) { uint32_t v; memcpy(&v, &g_main_ram[0x0F33E0], 4); return v != 0; }
+static int g_map_seen;                                            /* the hero has been on a map since the title (the round minimap may be drawn) */
 #define MINIMAP_GAP 0                                             /* ...right in the corner (the field's "X Menu" sign moves to the bottom: g_sign_dy) */
 static int g_smooth = 1;                                          /* Enhanced: smooth (filtered) textures */
 static int g_smooth2d = 1, g_texup = 1, g_outline = 1;                           /* Enhanced: 2D smoothed, textures upscaled (xBR) */
@@ -2765,7 +2765,6 @@ static void creation_pieces(GlPresent* v, int ww, int wh) {
  * light on it, the chosen row a faint gold bar with the hand, the sex signs
  * white; no parchment, no brown (the list on screen e, its rows:
  * header 0-15, then 16 a row) */
-static float g_patty_lh;                                          /* (the list was drawn beside the stats: "Others" after it, alone) */
 static uint64_t g_patty_at;                                       /* (when the list was last drawn beside the stats) */
 static int patty_parchment(void) {                                /* the screen (0 top, 1 bottom: the pieces' screens) with Patty's list on parchment at its top, else -1 */
 #define TAN(c) ((int)(((c) >> 16) & 255) > 215 && (int)(((c) >> 8) & 255) > 190 && (int)((c) & 255) > 120 && (int)((c) & 255) < 175)
@@ -2954,7 +2953,9 @@ static void canvas_layout_for(GlPresent* v, int ww, int wh, int second) {
         } else if (g_minimap) v->alpha = 1.0f;                   /* battles: solid */
         if (g_small_hide && !pop) small[2] = small[3] = 0;
         int round_z = -1; float round_at[4] = { 0 };               /* the map round, not the screen small: decided at the end (a screen of its own (Equip, a card...) may take it) */
-        if (g_minimap && g_round_map && which != 0 && small[2] > 0 && !g_peek && !second && (g_map_seen |= g_map_hero_ok)) {   /* (not before the hero is first on a map: at the start the RAM isn't the game's yet, in_adventure() may say yes) */
+        if (g_title || !in_adventure()) g_map_seen = 0;           /* (back at the title: a new game or another log, not on a map yet) */
+        else if (g_map_hero_ok) g_map_seen = 1;
+        if (g_minimap && g_round_map && which != 0 && small[2] > 0 && !g_peek && !second && g_map_seen) {   /* (not before the hero is first on a map: at the start the RAM isn't the game's yet, in_adventure() may say yes) */
             round_z = g_small_size < 0 || g_small_size > 2 ? 1 : g_small_size;
             memcpy(round_at, small, sizeof round_at);
         }
@@ -3107,7 +3108,7 @@ static void canvas_layout_for(GlPresent* v, int ww, int wh, int second) {
             else if (g_pop_win[2] && g_accolade_page && v->npiece + 3 <= GL_MAX_PIECES) accolade_plate(v);
             else if (g_pop_win[2] && g_invite && v->npiece + 40 <= GL_MAX_PIECES) {
                 /* Patty's lists (the mockup "Inviter un ami"): the list and the companion's stats */
-                g_patty_at = g_frame; g_patty_lh = 1;
+                g_patty_at = g_frame;
                 patty_pieces(v, g_invite - 1, big, 1);
             }
             else if (g_pop_win[2] && g_patty_at && g_frame - g_patty_at < 240 && v->npiece + 40 <= GL_MAX_PIECES) {

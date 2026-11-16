@@ -5433,7 +5433,10 @@ static void xmenu_pieces(GlPresent* v) {
             XM_WIN(fx, (float)f[1], fw, fh);
             for (int k = 0; k < 3 && g_xm_fsep[i][k]; k++) set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 4, 0, 0, 1), fx + 4, (float)g_xm_fsep[i][k], fw - 8, t);
             int in = f[4] ? 2 : 1;                               /* (a greyed one: its lines doubled, left out) */
-            bestiary_piece(v, 3, f[0] + in, f[1] + in, f[2] - f[0] - 2 * in + 1, f[3] - f[1] - 2 * in + 1, 30, fx + in, (float)f[1] + in, 1);   /* (30: its letters, greyed too, not the lines of the windows over it) */
+            int fb = f[3] - in;                                  /* (its lines' last row: above a message under it, not the message again inside) */
+            if (g_xm_hold && g_xm_msg[2] && fb > g_xm_msg_top - 1) fb = g_xm_msg_top - 1;
+            if (fb >= f[1] + in)
+                bestiary_piece(v, 3, f[0] + in, f[1] + in, f[2] - f[0] - 2 * in + 1, fb - (f[1] + in) + 1, 30, fx + in, (float)f[1] + in, 1);   /* (30: its letters, greyed too, not the lines of the windows over it) */
         }
     XM_WIN(wx, wy, w, h);
     int ly0 = (sep ? sep : top) + 1, in = g_xm_hold ? 3 : 1;   /* (kept between two windows: 3 pixels in, the lines of a window greyed not taken) */

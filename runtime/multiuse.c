@@ -8,8 +8,8 @@
  * top window's chosen row, how deep its windows go), the menus' stack (which
  * window is on top), the message shown, the bag and what each one carries (as
  * journal_alchemy.c reads them), the party's names. Found by comparing memory
- * between runs going through Items (European version). The player stops it
- * with B. */
+ * between runs going through Items (European version: on the others it stays
+ * off, rom_is_eur()). The player stops it with B. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,6 +42,7 @@ static void centred(const JournalCanvas* c, int cx, int y, float px, uint32_t rg
 
 const uint8_t* multiuse_picture(int w, int h, int* changed) {
     *changed = 0;
+    if (!rom_is_eur()) return NULL;                       /* (the menus' addresses: found on the European version only) */
     if ((g_state != MU_COUNT && g_state != MU_CONFIRM) || w <= 0 || h <= 0) return NULL;
     if (w != g_pw || h != g_ph || !g_pic) {
         free(g_pic); g_pic = malloc((size_t)w * h * 4);
@@ -221,6 +222,7 @@ static void run(void) {
 }
 
 int multiuse_keys(uint16_t* keys, int field) {
+    if (!rom_is_eur()) return 0;                          /* (MENU_OBJ, MENU_TOP, MSG_OBJ: found on the European version only; elsewhere off) */
     if (g_trace < 0) g_trace = getenv("DQIX_MULTIUSE_TRACE") != NULL;
     uint16_t now = *keys, pressed = now & ~g_was;
     g_was = now;

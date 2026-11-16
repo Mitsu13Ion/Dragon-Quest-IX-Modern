@@ -181,6 +181,8 @@ static void stop(const char* why) { TRACE("stop: %s", why); g_state = MU_OFF; g_
  * (the field menu's level: 5 the list, 6 its menu, 7 "To whom?"). */
 enum { S_NAV, S_MSGS };
 static int g_stable, g_moves;
+#define MSG_A_MAX 6                   /* the A pressed through one use's messages, at most (an A may only finish a line being written) */
+static int g_msg_a;
 static uint32_t g_lastw; static int g_lastl = -1, g_lastc = -1;
 static void press(uint16_t k, int frames) { g_key = k; g_hold = frames; }
 static int level(void) { uint32_t o = obj(); return o ? r8(o + OBJ_LEVEL) : -1; }
@@ -196,7 +198,14 @@ static void run(void) {
     if (g_wait > 60 * 15) { stop("too long"); return; }
     if (g_hold) return;
     if (g_step == S_MSGS) {                                      /* used: its messages, A now and then, until a window is still */
-        if (m) { g_away = 1; if (g_wait % 30 == 15) press(K_A, 6); return; }
+        if (m) {
+            g_away = 1;
+            if (g_wait % 30 == 15) {                                 /* (a plain use: two or three messages; more, something else is asked: the player's to answer) */
+                if (++g_msg_a > MSG_A_MAX) { stop("messages go on (a question?)"); return; }
+                press(K_A, 6);
+            }
+            return;
+        }
         if (!g_away && held(g_id) >= g_had) { if (g_wait > 120) stop("not used"); return; }
         g_away = 1;
         if (g_stable < 30) return;
@@ -217,7 +226,7 @@ static void run(void) {
         press(c != 0 ? K_UP : K_A, 6); return;
     case 7:                                                      /* "To whom?": the companion, A */
         if (c != g_target) { press(c < g_target ? K_DOWN : K_UP, 6); return; }
-        g_had = held(g_id); g_away = 0; g_step = S_MSGS; g_wait = 0; press(K_A, 6); return;
+        g_had = held(g_id); g_away = 0; g_msg_a = 0; g_step = S_MSGS; g_wait = 0; press(K_A, 6); return;
     default: stop("not the item's windows"); return;
     }
 }

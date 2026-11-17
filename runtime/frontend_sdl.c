@@ -2310,9 +2310,10 @@ static void caract_pieces(GlPresent* v) {
  *    there: hdmovie.c draws it on the top screen), the button's black
  *    see-through.
  * 2. The adventure logs' menu (Continue, the log's window...) over the
- *    title's picture: the picture ui/title-back.png fills the window if the
- *    player put one there (never in this project: it is the player's own),
- *    else the game's top screen (the logo); the touch screen's windows
+ *    title's picture: ui/title-back-<1080|1440|2160>.png (the HD title, 16:9,
+ *    its logo at the top in the middle: not in git, it comes with the game's
+ *    pictures) or ui/title-back.png fills the window when there, else the
+ *    game's top screen (the logo); the touch screen's windows
  *    (found by the game's grey line round them) sit small at the bottom
  *    right, in windows of the modern style, so the logo stays in view. A
  *    touch on them goes to where they are on the touch screen. */
@@ -2384,8 +2385,8 @@ static void title_update(int a_on_top) {
         if (!have) have = 1;
         else if (n && d > (long)n * 60) { phase = 0; g_title = 0; g_title_n = 0; return; }
     }
-    if (!g_title_n) {                                             /* no window: fading (dark), or another screen (the Wi-Fi settings...): as the game shows it */
-        long sum = 0;
+    if (!g_title_n && phase == 2) {                               /* no window: fading (dark), or another screen (the Wi-Fi settings...): as the game shows it */
+        long sum = 0;                                             /* (not between START and the menu's first windows: the touch screen flashes white, then its own title; the picture stays) */
         for (int i = 0; i < 256 * 192; i += 7) { uint32_t c = bot[i]; sum += ((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255); }
         if (sum > 150L * (256 * 192 / 7)) g_title = 0;
     }
@@ -2395,21 +2396,34 @@ static void title_update(int a_on_top) {
  * bottom (cut at its top on a wider screen: sky there), over it its top
  * row's colour (the sky), the picture fading into it; at the window's pixels. *pic = where it is on
  * the canvas: x, y, w, h */
+static UiPic g_title_hd[3];                                        /* ui/title-back-1080, -1440, -2160 */
+static int g_title_hd_n = -1;                                     /* which of them is in g_title_pic's place (-1: none yet) */
 static int title_back(GlPresent* v, float* pic) {
-    const UiPic* p = ui_pic(&g_title_pic, "ui/title-back.png");
-    if (!p) return 0;
     static uint8_t* img; static int iw, ih;
     float s = fminf(g_lay_s > 0 ? g_lay_s : 5.625f, 11.25f);
     int W = (int)(v->cw * s + 0.5f), H = (int)(v->ch * s + 0.5f);
     if (W <= 0 || H <= 0) return 0;
+    /* the HD title nearest the window's height (from it up, else the biggest), else ui/title-back.png */
+    static const char* const HD[3] = { "ui/title-back-1080.png", "ui/title-back-1440.png", "ui/title-back-2160.png" };
+    static const int HD_H[3] = { 1080, 1440, 2160 };
+    int want = -1;
+    for (int i = 0; i < 3; i++) if (ui_pic(&g_title_hd[i], HD[i]) && (want < 0 || HD_H[want] < H)) want = i;
+    const UiPic* p = want >= 0 ? &g_title_hd[want] : ui_pic(&g_title_pic, "ui/title-back.png");
+    if (!p) return 0;
+    if (want != g_title_hd_n) { g_title_hd_n = want; iw = ih = 0; }   /* (another picture: drawn again) */
     float ph = (float)W * p->h / p->w;                           /* (its height at the canvas' width, window pixels) */
+    float pw = (float)W, px = 0, py = (float)H - ph;             /* (where it is drawn, window pixels) */
+    if (want >= 0) {                                              /* the HD title covers the window: its top kept (the logo), cut at its bottom or its sides */
+        float k = fmaxf((float)W / p->w, (float)H / p->h);
+        pw = p->w * k; ph = p->h * k; px = ((float)W - pw) / 2; py = 0;
+    }
     if (!img || iw != W || ih != H) {
         uint8_t* n = (uint8_t*)realloc(img, (size_t)W * H * 4);
         if (!n) return 0;
         img = n; iw = W; ih = H;
         memset(img, 0, (size_t)W * H * 4);
-        ui_draw(img, W, H, p, 0, 0, (float)p->w, (float)p->h, 0, (float)H - ph, (float)W, ph, 1);
-        if (ph < H) {                                             /* the sky over it: its top row's colour, the picture's top fading into it */
+        ui_draw(img, W, H, p, 0, 0, (float)p->w, (float)p->h, px, py, pw, ph, 1);
+        if (want < 0 && ph < H) {                                /* the sky over it: its top row's colour, the picture's top fading into it */
             long c[3] = { 0 };
             for (int x = 0; x < p->w; x++) for (int i = 0; i < 3; i++) c[i] += p->px[(size_t)x * 4 + i];
             int top = (int)((float)H - ph), fade = (int)(ph * 0.08f);
@@ -2425,7 +2439,7 @@ static int title_back(GlPresent* v, float* pic) {
         gl_set_layer(GL_LAYER_BACK, img, W, H);
     }
     float* q = v->layer[GL_LAYER_BACK]; q[0] = 0; q[1] = 0; q[2] = v->cw; q[3] = v->ch;
-    pic[2] = v->cw; pic[3] = v->cw * p->h / p->w; pic[0] = 0; pic[1] = v->ch - pic[3];
+    pic[0] = px / W * v->cw; pic[1] = py / H * v->ch; pic[2] = pw / W * v->cw; pic[3] = ph / H * v->ch;
     return 1;
 }
 
@@ -2453,7 +2467,9 @@ static void title_pieces(GlPresent* v) {
      * under it; on the game's top screen, its logo and its copyright */
     float avoid[2][4], pic[4];
     if (title_back(v, pic)) {
-        const float L[2][4] = { { 0.02f, 0.16f, 0.76f, 0.48f }, { 0.09f, 0.60f, 0.63f, 0.17f } };   /* (parts of the picture: x, y, w, h) */
+        const float LO[2][4] = { { 0.02f, 0.16f, 0.76f, 0.48f }, { 0.09f, 0.60f, 0.63f, 0.17f } };   /* (parts of the picture: x, y, w, h) */
+        const float HD[2][4] = { { 0.24f, 0.02f, 0.52f, 0.33f }, { 0.04f, 0.10f, 0.20f, 0.25f } };    /* (the HD title: its logo; Yggdrasil at the tower's top) */
+        const float (*L)[4] = g_title_hd_n >= 0 ? HD : LO;
         for (int i = 0; i < 2; i++) { avoid[i][0] = pic[0] + L[i][0] * pic[2]; avoid[i][1] = pic[1] + L[i][1] * pic[3]; avoid[i][2] = L[i][2] * pic[2]; avoid[i][3] = L[i][3] * pic[3]; }
     } else {                                                      /* no picture: the game's logo screen whole at the left, blurred and dark at its right */
         bestiary_piece(v, 0, (256 - sw) / 2, 0, sw, sh, 37, 0, 0, k);

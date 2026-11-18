@@ -586,6 +586,7 @@ static const char* FS_COPY =
     "  }\n"
     "  if (u_mode == 4) { o_color = vec4(vec3(0.5), 1.0); return; }\n"
     "  if (u_mode == 16) { o_color = vec4(0.0, 0.0, 0.0, 0.55); return; }\n"   /* (a window's panel alone: its line drawn apart, as thin as the game's around it) */
+    "  if (u_mode == 46) { o_color = vec4(vec3(u_line), 1.0) * u_fade; return; }\n"   /* (a plain colour over all, grey level and alpha from the piece: the game's fade to black or white, drawn over a modern screen) */
     "  if (u_mode == 5) {\n"
     "    float m = 0.0;\n"
     "    for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) m += red(v_uv + vec2(i, j) * 0.6 * u_ds);\n"
@@ -2461,7 +2462,9 @@ static void draw_pieces(const GlPresent* v, GLuint src, int from, int to) {
             p_glUniform4f(loc_uv, 0, 0, 1, 1);
             p_glUniform2f(p_glGetUniformLocation(prog_copy, "u_px"), q[2] * v->sc, q[3] * v->sc);
         }
+        if (mode == 46) { p_glUniform1f(p_glGetUniformLocation(prog_copy, "u_fade"), q[5]); p_glUniform1f(p_glGetUniformLocation(prog_copy, "u_line"), q[6]); }   /* (its alpha, its grey level) */
         p_glDrawArrays(GL_TRIANGLES, 0, 6);
+        if (mode == 46) { p_glUniform1f(p_glGetUniformLocation(prog_copy, "u_fade"), 1.0f); p_glUniform1f(p_glGetUniformLocation(prog_copy, "u_line"), v->sc); }
     }
     p_glUniform1i(loc_mode, 0);
     p_glDisable(GL_BLEND);

@@ -26,3 +26,11 @@ main 02032370 RandBelow                    # a random number from 0 to r0 - 1
 # Enhanced > Townspeople in 3D (runtime/npc3d.c): a townsperson's picture
 # (a sprite facing the camera) drawn; its quads hidden, a model drawn there.
 main 0203cd64 DrawSprite                   # one sprite: its quads, for the way it faces as seen from the camera
+
+# Modern > Use several (runtime/multiuse.c): an everyday item's "What do you
+# want to do?" gets the row "Use several" (its text, written with tags, gets
+# one more); the rows chosen there and in "To whom?" after it.
+ov002 0215cd98 ItemCmdText                 # writes the item's menu: <TITLE=..>, then <N=0>Use</N>... (object, text, frame)
+ov002 021631e8 ItemCmdFrame                # the item's menu, once a frame (its row chosen: the next screen)
+ov002 02163664 ItemWhoFrame                # "To whom?" for an item, once a frame (the companion chosen: the item used)
+main 0205d794 MenuRow                      # a window's chosen row: the item's menu does what its row does (theirs, with ours one more)

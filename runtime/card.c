@@ -209,7 +209,7 @@ int backup_flush(void) {
         warned = 1;
         return -1;
     }
-    if (warned) LOG_INFO("save: %s written again\n", g_backup_path);
+    LOG_INFO("save: wrote %s\n", g_backup_path);
     warned = 0;
     g_backup_dirty = 0;
     return 0;

@@ -132,8 +132,8 @@ doublonnent pas Superpowers ou pr-review-toolkit :
   browser-testing, les commandes `/spec /plan /build /test /review /ship /webperf`
   et les agents code-reviewer, test-engineer, web-performance-auditor.
 - Les sous-agents `dqix-*` n'ont pas l'outil Skill : la session principale charge le
-  skill, ou l'agent lit son `SKILL.md` (Glob
-  `~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md`).
+  skill, ou l'agent lit son `SKILL.md` (chemin :
+  `ls -d ~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md` dans Bash).
 
 ## Agents (`.claude/agents/`)
 - `dqix-coordinateur` : arbitre les fichiers partagés ; à appeler avant d'ouvrir une branche ou de toucher un fichier partagé.

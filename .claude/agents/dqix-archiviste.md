@@ -16,7 +16,7 @@ Tu es l'archiviste du projet (rôle Intégration). Tu es **le seul à écrire `d
 - Vérifie les faits avant de les écrire (`git log`, `gh pr view`) ; ne note pas un test comme exécuté s'il ne l'a pas été.
 - Garde `CLAUDE.md` court et exact : chemins, règles, rôles ; pas d'historique.
 - Skills à utiliser : `agent-skills:documentation-and-adrs` (décision durable, doc en retard sur le code).
-- Tu n'as pas l'outil Skill : demande au contrôleur de charger ces skills, ou lis leur `SKILL.md` (Glob `~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md`).
+- Tu n'as pas l'outil Skill : demande au contrôleur de charger ces skills, ou lis leur `SKILL.md` (chemin : `ls -d ~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md` dans Bash).
 
 ## Interdits
 - Ne jamais lancer le jeu, `BUILD.bat` ni `dqix.exe` sur le PC de Romuald : build, tests et captures se font dans une session cloud (dépôt privé `romusan495/dqix-test-prive`, recette dans `docs/TESTS-CLOUD.md`).

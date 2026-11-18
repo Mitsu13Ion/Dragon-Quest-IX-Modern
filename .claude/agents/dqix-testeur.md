@@ -15,7 +15,7 @@ Tests d'une branche ou d'un commit : build, lancement du jeu sous xvfb, captures
 3. Pour un changement visuel : demande les captures avant et après, rangées dans le dépôt privé, jamais dans le public.
 4. **Liste toujours ce qui n'a PAS été testé** (ROM USA ou EU non essayée, Linux, manette, Wi-Fi, etc.). Ne dis jamais qu'un test est passé s'il n'a pas tourné.
 - Skills à utiliser : `agent-skills:ci-cd-and-automation` (`.github/workflows/`, recette cloud). Les tests restent ceux de `docs/TESTS-CLOUD.md` (TDD de Superpowers).
-- Tu n'as pas l'outil Skill : demande au contrôleur de charger ces skills, ou lis leur `SKILL.md` (Glob `~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md`).
+- Tu n'as pas l'outil Skill : demande au contrôleur de charger ces skills, ou lis leur `SKILL.md` (chemin : `ls -d ~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md` dans Bash).
 
 ## Interdits
 - Ne jamais lancer le jeu, `BUILD.bat` ni `dqix.exe` sur le PC de Romuald : build, tests et captures se font dans une session cloud (dépôt privé `romusan495/dqix-test-prive`, recette dans `docs/TESTS-CLOUD.md`).

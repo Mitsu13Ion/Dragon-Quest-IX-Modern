@@ -2318,6 +2318,7 @@ static void caract_pieces(GlPresent* v) {
  *    right, in windows of the modern style, so the logo stays in view. A
  *    touch on them goes to where they are on the touch screen. */
 static int g_title;                                               /* 1 the movie and START, 2 the menu; 0 neither */
+static float g_title_fade = 1; static int g_title_white;          /* the game's fade over the title: 1 shown, 0 black (or white) */
 static int g_title_n, g_title_box[6][4];                          /* 1: the button's box; 2: each window (its grey line included): x, y, w, h on the touch screen */
 static UiPic g_title_pic;
 
@@ -2346,12 +2347,45 @@ static int title_windows(const uint32_t* px, int box[][4], int max) {
     return n;
 }
 
+/* the game's own fade on the title (its master brightness, top screen's
+ * engine): 1 shown, 0 black; *white: towards white instead */
+static float title_fade(int a_on_top, int* white) {
+    uint16_t mb; memcpy(&mb, &g_io[(a_on_top ? 0 : 0x1000) + 0x6C], 2);
+    int mode = mb >> 14, k = mb & 31; if (k > 16) k = 16;
+    *white = mode == 1;
+    return mode == 1 || mode == 2 ? 1.0f - k / 16.0f : 1.0f;
+}
+
+/* the title's top screen (its logo art), a few points, kept the first time
+ * the menu is seen fully lit: to know the title again (back from a screen of
+ * its own: Erase a log, the Wi-Fi settings...) */
+static uint32_t g_title_art[12 * 16]; static int g_title_art_ok;
+static int title_art_like(const uint32_t* top, int keep) {
+    long d = 0, sa = 0, st = 0;
+    for (int i = 0; i < 12 * 16; i++) {
+        uint32_t c = top[((i / 16) * 16 + 8) * 256 + (i % 16) * 16 + 8] & 0xFFFFFF;
+        if (keep) { g_title_art[i] = c; continue; }
+        sa += ((g_title_art[i] >> 16) & 255) + ((g_title_art[i] >> 8) & 255) + (g_title_art[i] & 255);
+        st += ((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255);
+    }
+    if (keep) { g_title_art_ok = 1; return 1; }
+    if (!g_title_art_ok || sa <= 0 || st * 6 < sa) return 0;     /* (too dark to tell) */
+    float k = (float)st / sa;                                     /* (fading in: as dim as the art scaled) */
+    for (int i = 0; i < 12 * 16; i++) {
+        uint32_t c = top[((i / 16) * 16 + 8) * 256 + (i % 16) * 16 + 8], a = g_title_art[i];
+        for (int sh = 0; sh <= 16; sh += 8) d += abs((int)((c >> sh) & 255) - (int)(((a >> sh) & 255) * k));
+    }
+    return d < 12L * 16 * 3 * 24;
+}
+
 static void title_update(int a_on_top) {
     static int phase;                                             /* 1 START seen, 2 the menu seen */
-    g_title = 0; g_title_n = 0;
+    static int quiet;                                             /* frames since the menu's windows (phase 1: since START) */
+    g_title = 0; g_title_n = 0; g_title_fade = 1; g_title_white = 0;
     if (!g_gl || g_classic || !(WIDE_GL && g_wide && !g_side_by_side && !(g_two && !g_single))) { phase = 0; return; }
     if (in_adventure() || g_cc_n) { phase = 0; return; }
-    const uint32_t* bot = g_engine_out[a_on_top ? 1 : 0];
+    const uint32_t* bot = g_engine_out[a_on_top ? 1 : 0], *top = g_engine_out[a_on_top ? 0 : 1];
+    float f = title_fade(a_on_top, &g_title_white);
     if (hdmovie_playing("TD_nouhin_DS_form")) {                    /* the opening movie: START on the touch screen? (black, an orange button) */
         int black = 0, orange = 0, x0 = 256, y0 = 192, x1 = -1, y1 = -1;
         for (int y = 0; y < 192; y++)
@@ -2361,35 +2395,33 @@ static void title_update(int a_on_top) {
                 if (r > 180 && g > 70 && g < 170 && b < 80) orange++;
                 if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
             }
-        if (black * 100 >= 256 * 192 * 85 && (orange >= 40 || x1 < 0)) {   /* (no button: fading in or out) */
-            phase = 1; g_title = 1;
-            if (x1 >= 0) { g_title_n = 1; g_title_box[0][0] = x0; g_title_box[0][1] = y0; g_title_box[0][2] = x1 - x0 + 1; g_title_box[0][3] = y1 - y0 + 1; }
+        if (black * 100 >= 256 * 192 * 85 && orange >= 40) {      /* (START there: the movie behind it) */
+            phase = 1; quiet = 0; g_title = 1;
+            g_title_n = 1; g_title_box[0][0] = x0; g_title_box[0][1] = y0; g_title_box[0][2] = x1 - x0 + 1; g_title_box[0][3] = y1 - y0 + 1;
             return;
         }
     }
+    int n = title_windows(bot, g_title_box, 6);
+    if (!phase && n && title_art_like(top, 0)) phase = 2;         /* the menu again (back from a screen of its own) */
     if (!phase) return;
-    g_title = 2;                                                  /* after the movie: the menu (until a log is loaded or a character made) */
-    g_title_n = title_windows(bot, g_title_box, 6);
-    if (g_title_n) {                                              /* the title's picture round them, as it first was (not a story's scene with windows) */
-        static uint32_t was[12 * 16]; static int have;
-        if (phase == 1) { have = 0; phase = 2; }
-        long d = 0; int n = 0;
-        for (int i = 0; i < 12 * 16; i++) {
-            int x = (i % 16) * 16 + 8, y = (i / 16) * 16 + 8, in = 0;
-            for (int j = 0; j < g_title_n; j++) { const int* b = g_title_box[j]; in |= x >= b[0] && x < b[0] + b[2] && y >= b[1] && y < b[1] + b[3]; }
-            uint32_t c = bot[y * 256 + x] & 0xFFFFFF;
-            if (!have) { was[i] = c; continue; }
-            if (in) continue;
-            d += abs((int)(c >> 16) - (int)(was[i] >> 16)) + abs((int)((c >> 8) & 255) - (int)((was[i] >> 8) & 255)) + abs((int)(c & 255) - (int)(was[i] & 255)); n++;
+    if (n) {                                                      /* the menu's windows */
+        if (phase == 1) phase = 2;
+        quiet = 0;
+        if (f >= 0.999f && !g_title_white) title_art_like(top, 1);
+    } else {
+        quiet++;
+        /* no window: between START and the menu (black), the menu fading in or
+         * out, or not the title any more: the movie over without START (the
+         * logos again), the log being opened, another screen (the Wi-Fi
+         * settings...) shown as the game shows it */
+        if (phase == 1 ? f > 0.3f || quiet > 600 : f < 0.01f || quiet > 120) { phase = 0; return; }
+        if (phase == 2) {
+            long sum = 0;
+            for (int i = 0; i < 256 * 192; i += 7) { uint32_t c = bot[i]; sum += ((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255); }
+            if (sum > 150L * (256 * 192 / 7)) return;
         }
-        if (!have) have = 1;
-        else if (n && d > (long)n * 60) { phase = 0; g_title = 0; g_title_n = 0; return; }
     }
-    if (!g_title_n && phase == 2) {                               /* no window: fading (dark), or another screen (the Wi-Fi settings...): as the game shows it */
-        long sum = 0;                                             /* (not between START and the menu's first windows: the touch screen flashes white, then its own title; the picture stays) */
-        for (int i = 0; i < 256 * 192; i += 7) { uint32_t c = bot[i]; sum += ((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255); }
-        if (sum > 150L * (256 * 192 / 7)) g_title = 0;
-    }
+    g_title = 2; g_title_n = n; g_title_fade = f;
 }
 
 /* the title's picture (ui/title-back.png) as wide as the canvas, at its
@@ -2449,6 +2481,7 @@ static int title_hits(const float* w, const float r[][4], int n) {   /* the rect
     return 0;
 }
 
+static void title_windows_pieces(GlPresent* v, float avoid[2][4]);
 static void title_pieces(GlPresent* v) {
     memset(v->top, 0, sizeof v->top); memset(v->bot, 0, sizeof v->bot);
     v->front = 0; v->alpha = 1.0f;
@@ -2477,9 +2510,17 @@ static void title_pieces(GlPresent* v) {
         const float L[2][4] = { { 8, 20, 240, 82 }, { 0, 143, 218, 48 } };
         memcpy(avoid, L, sizeof avoid);
     }
-    if (!g_title_n) return;
-    /* the windows at the bottom right, in their order, their right edges in
-     * line, as big as they can be without covering those words */
+    if (g_title_n && g_title_fade >= 0.5f) title_windows_pieces(v, avoid);   /* (not while too dark: the game's letters gone, its windows would show empty) */
+    if (g_title_fade < 0.999f) {                                  /* the game's fade (to black, or white), over all */
+        float* q = bestiary_piece(v, 0, 0, 0, 1, 1, 46, 0, 0, 1);
+        if (q) { set_rect(q, 0, 0, cw, ch); q[5] = 1 - g_title_fade; q[6] = g_title_white ? 1.0f : 0.0f; }   /* (46: its alpha, its grey) */
+    }
+}
+
+/* the menu's windows at the bottom right, in their order, their right edges in
+ * line, as big as they can be without covering the title's words (avoid) */
+static void title_windows_pieces(GlPresent* v, float avoid[2][4]) {
+    float cw = v->cw, ch = v->ch;
     float M = 5, gap = 3, tot = 0, wmax = 0;
     for (int i = 0; i < g_title_n; i++) { tot += (float)g_title_box[i][3]; wmax = fmaxf(wmax, (float)g_title_box[i][2]); }
     float kw = 0.56f;

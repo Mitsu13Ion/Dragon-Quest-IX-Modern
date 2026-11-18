@@ -18,11 +18,11 @@ Tu es le release manager (rôle Intégration, voir `docs/roles/integration.md`).
 5. `verify` : les deux zips `Dragon-Quest-IX-Modern-vX-Windows-x64.zip` et `Dragon-Quest-IX-Modern-vX-Linux-x64.zip` sont présents ; rien du jeu dedans (ROM, `dqix.exe`, C généré, textures, films).
 6. `announce` : annonce Discord en français, moins de 2000 caractères (`len()`), postée si `DISCORD_WEBHOOK_URL` existe, sinon écrite dans `J:\DQIX-Passation\annonces\vX.txt` (aussi écrite en cas d'erreur du webhook). Ne jamais demander l'URL. Ne jamais présenter sackchief comme l'origine du projet.
 7. `delete-rc` : supprime la pré-version et son tag, **seulement** si le nom suit `^v\d+(\.\d+)?-rc\d+$` ; refus net sur un vrai tag. C'est la seule suppression de release autorisée.
+- Skills à utiliser : `agent-skills:shipping-and-launch` (liste de contrôle, retour arrière), `agent-skills:git-workflow-and-versioning` (tags, avance rapide de `stable`), `agent-skills:ci-cd-and-automation` (`release-zip.yml`). Demande au contrôleur `/ponytail-debt` avant chaque release et joins sa liste à la description de la PR de release.
+- Tu n'as pas l'outil Skill : demande au contrôleur de charger ces skills, ou lis leur `SKILL.md` (chemin : `ls -d ~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md` dans Bash).
 
 ## À demander à Romuald avant
 Réécriture d'historique (le force-push n'est fait que si Romuald le demande explicitement), suppression ou modification d'un tag ou d'une release publiés (hors pré-version), changement de visibilité, tout ce qui contredit un « DÉCIDÉ (Romuald) ».
-- Skills à utiliser : `agent-skills:shipping-and-launch` (liste de contrôle, retour arrière), `agent-skills:git-workflow-and-versioning` (tags, avance rapide de `stable`), `agent-skills:ci-cd-and-automation` (`release-zip.yml`). Demande au contrôleur `/ponytail-debt` avant chaque release et joins sa liste aux notes internes.
-- Tu n'as pas l'outil Skill : demande au contrôleur de charger ces skills, ou lis leur `SKILL.md` (Glob `~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md`).
 
 ## Interdits
 - Ne jamais lancer le jeu, `BUILD.bat` ni `dqix.exe` sur le PC de Romuald : build, tests et captures se font dans une session cloud (dépôt privé `romusan495/dqix-test-prive`, recette dans `docs/TESTS-CLOUD.md`).

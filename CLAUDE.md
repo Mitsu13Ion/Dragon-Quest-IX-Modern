@@ -89,8 +89,8 @@ Aucun plugin ne lève un interdit (réseau, ROM, PC de Romuald, captures avant/a
 - Le graphe vit dans `J:\DQIX-Enhanced-repo\graphify-out\` (jamais commité, dans `.gitignore`).
   Les crochets git (`graphify hook install`) le refont après commit, merge et checkout
   dans ce clone seulement ; à la main : `graphify update .` (local, sans appel réseau).
-- Exclusions (`.graphifyignore`) : `build/`, `game/`, `gen/`, `rom/`, `extract/`, `wfc/`,
-  `extras/`, `third_party/`, `config/usa/`, `runtime/stb_*.h`, `runtime/pl_mpeg.h`,
+- Exclusions (`.graphifyignore`) : `build/`, `game/`, `gen/`, `gen7/`, `rom/`, `extract/`,
+  `reports/`, `release/`, `wfc/`, `extras/`, `third_party/`, `config/usa/`, `runtime/stb_*.h`, `runtime/pl_mpeg.h`,
   tout C généré. Construction : `graphify extract . --code-only` puis
   `graphify cluster-only . --no-label` (aucun envoi de code à un service).
 - **Avant de chercher dans le code ou de modifier un fichier partagé** : interroger
@@ -132,8 +132,8 @@ doublonnent pas Superpowers ou pr-review-toolkit :
   browser-testing, les commandes `/spec /plan /build /test /review /ship /webperf`
   et les agents code-reviewer, test-engineer, web-performance-auditor.
 - Les sous-agents `dqix-*` n'ont pas l'outil Skill : la session principale charge le
-  skill, ou l'agent lit son `SKILL.md` (Glob
-  `~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md`).
+  skill, ou l'agent lit son `SKILL.md` (chemin :
+  `ls -d ~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md` dans Bash).
 
 ## Agents (`.claude/agents/`)
 - `dqix-coordinateur` : arbitre les fichiers partagés ; à appeler avant d'ouvrir une branche ou de toucher un fichier partagé.

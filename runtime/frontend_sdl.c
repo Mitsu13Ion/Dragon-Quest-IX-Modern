@@ -194,6 +194,7 @@ static int g_xm_msg[4];                                           /* ...a messag
 static int g_xm_msg_top;                                          /* ...its window's top line (the kept window's lines and band stop above it) */
 static int g_xm_word[4][4], g_xm_nword;                           /* ...the path: the menus' names before, and its own */
 static int g_xm_free, g_xm_nf, g_xm_fwin[8][5], g_xm_fsep[8][3];  /* windows round it (a spell's cost, its help...): all where the game has them (x0 y0 x1 y1 greyed; its lines inside) */
+static float g_xm_rect[4];                                        /* ...where it was put this frame (canvas), w 0: not drawn */
 static void xm_place(float cw, float* wx, float* wy) {
     if (g_xm_free) { *wx = (cw - 256) / 2 + g_xm_win[0]; *wy = (float)g_xm_win[1]; return; }
     *wx = floorf(cw / 2 - (g_xm_win[2] - g_xm_win[0] + 1) / 2.0f);
@@ -743,19 +744,30 @@ static void bestiary_logo_rect(GlPresent* v) {                    /* in the midd
  * R) drawn as hints.c draws the "X Menu" one, into layer id at the canvas
  * rect x, y (its height h; its width follows the key's name). */
 static int g_key_pad;                                             /* bestiary_key(): this controller button instead of the action's (0: the action's) */
+/* an action's sign (hints.h) as the player has it: the controller's button
+ * (the last one used), else the keyboard's key; 0 when it has none there */
+static int action_sign(int action, int pad_button, int* style, int* face, char* lab, size_t n) {
+    int pad = g_hint_pad < 0 ? g_pad != NULL : g_hint_pad && g_pad;
+    int b = pad ? (pad_button ? pad_button : g_ctl_pad[action]) : CTL_NONE;
+    *style = HINT_KEYBOARD; *face = HINT_OTHER; lab[0] = 0;
+    if (b != CTL_NONE) {
+        *style = g_ctl_pad_style == CTL_STYLE_PLAYSTATION ? HINT_PLAYSTATION : g_ctl_pad_style == CTL_STYLE_XBOX ? HINT_XBOX :
+                 g_ctl_pad_style == CTL_STYLE_NINTENDO ? HINT_NINTENDO : HINT_GENERIC;
+        *face = b == SDL_CONTROLLER_BUTTON_B ? HINT_RIGHT : b == SDL_CONTROLLER_BUTTON_A ? HINT_BOTTOM : b == SDL_CONTROLLER_BUTTON_Y ? HINT_TOP :
+                b == SDL_CONTROLLER_BUTTON_X ? HINT_LEFT : HINT_OTHER;
+        if (*face == HINT_OTHER) controls_pad_name(b, lab, n);
+        return 1;
+    }
+    int k = g_ctl_key[action][g_ctl_key[action][0] ? 0 : 1];
+    controls_key_label(k, lab, n);
+    return k != 0;
+}
 static void bestiary_key(GlPresent* v, int id, int action, float x, float y, float h) {
     static char shown[GL_LAYERS][96];
     static uint8_t img[GL_LAYERS][64 * 8 * 9 * 8 * 4];
-    int pad = g_hint_pad < 0 ? g_pad != NULL : g_hint_pad && g_pad;
-    int style = HINT_KEYBOARD, face = HINT_OTHER, b = pad ? (g_key_pad ? g_key_pad : g_ctl_pad[action]) : CTL_NONE;
+    int style, face;
     char lab[64] = "", key[96];
-    if (b != CTL_NONE) {
-        style = g_ctl_pad_style == CTL_STYLE_PLAYSTATION ? HINT_PLAYSTATION : g_ctl_pad_style == CTL_STYLE_XBOX ? HINT_XBOX :
-                g_ctl_pad_style == CTL_STYLE_NINTENDO ? HINT_NINTENDO : HINT_GENERIC;
-        face = b == SDL_CONTROLLER_BUTTON_B ? HINT_RIGHT : b == SDL_CONTROLLER_BUTTON_A ? HINT_BOTTOM : b == SDL_CONTROLLER_BUTTON_Y ? HINT_TOP :
-               b == SDL_CONTROLLER_BUTTON_X ? HINT_LEFT : HINT_OTHER;
-        if (face == HINT_OTHER) controls_pad_name(b, lab, sizeof lab);
-    } else controls_key_label(g_ctl_key[action][g_ctl_key[action][0] ? 0 : 1], lab, sizeof lab);
+    action_sign(action, g_key_pad, &style, &face, lab, sizeof lab);
     int cols = style == HINT_KEYBOARD ? (int)lroundf(hint_key_aspect(lab) * 9) : 9, w = cols * 8, hh = 9 * 8;
     if (style != HINT_KEYBOARD) w = hh = 72;
     snprintf(key, sizeof key, "%d %d %s", style, face, lab);
@@ -3340,6 +3352,10 @@ static void canvas_layout_for(GlPresent* v, int ww, int wh, int second) {
     else if (g_opt.integer && sc >= 1.0f && !wide) sc = floorf(sc);   /* (widescreen fills the window: no bars) */
     v->sc = sc;
     v->ox = floorf(((float)ww - v->cw * sc) / 2); v->oy = floorf(((float)wh - v->ch * sc) / 2);
+    if (g_xm_rect[2] > 0) {                                      /* Use several: its window beside the X menu's (drawable pixels) */
+        multiuse_anchor(v->ox + g_xm_rect[0] * sc, v->oy + g_xm_rect[1] * sc, g_xm_rect[2] * sc, g_xm_rect[3] * sc, sc);
+        g_xm_rect[2] = 0;
+    }
     v->shell = shell;
     v->lcd = g_gl && g_opt.lcd;
     v->lcd_color = g_opt.lcd_color; v->grid = g_opt.grid; v->ghost = g_opt.ghost;
@@ -5533,6 +5549,7 @@ static void xmenu_pieces(GlPresent* v) {
     if (!g_xm_free) path_pieces(v);
     #undef XM_WIN
     v->icons[0] = X; v->icons[1] = 0; v->icons[2] = 256; v->icons[3] = 192;
+    g_xm_rect[0] = wx; g_xm_rect[1] = wy; g_xm_rect[2] = w; g_xm_rect[3] = h;   /* (Use several: its window beside this one, canvas_layout_for()) */
 }
 
 /* The map's markers (mapmarks.c) over the top screen, in whichever window
@@ -7288,6 +7305,21 @@ void frontend_frame(void) {
         int tx, ty;
         static int dragging;                                  /* the press began on the touch screen */
         int held = (mb & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
+        static int mu_was, mu_up;                             /* Use several: the button last frame; its window up last frame */
+        if (!multiuse_up()) mu_up = 0;
+        else {                                                /* its window takes the mouse (and the keys, list_keys()) */
+            static const int act[4] = { CA_A, CA_B, CA_L, CA_R };
+            MuKey k[4]; memset(k, 0, sizeof k);
+            for (int i = 0; i < 4; i++)                       /* (a face button: its picture, no name; none: not shown) */
+                if (!action_sign(act[i], 0, &k[i].style, &k[i].face, k[i].label, sizeof k[i].label)) k[i].label[0] = 0;
+                else if (!k[i].label[0]) snprintf(k[i].label, sizeof k[i].label, "%s", g_ctl[act[i]].name);
+            multiuse_show_keys(k);
+            if (!mu_up) mu_was = held;                        /* (the click that opened it isn't one on it) */
+            int ww, wh, dw, dh; SDL_GetWindowSize(g_win, &ww, &wh); SDL_GL_GetDrawableSize(g_win, &dw, &dh);
+            if (held && !mu_was && SDL_GetMouseFocus() == g_win)
+                multiuse_mouse(((float)mx + 0.5f) * (float)dw / (float)(ww > 0 ? ww : 1), ((float)my + 0.5f) * (float)dh / (float)(wh > 0 ? wh : 1));
+            mu_was = held; mu_up = 1; held = 0;
+        }
         g_fe_touch = held && !gamemenu_is_open() && !journal_open() && to_touch_in(SDL_GetMouseFocus(), mx, my, &tx, &ty, dragging);
         dragging = g_fe_touch;
         if (g_fe_touch) { g_fe_tx = tx; g_fe_ty = ty; }

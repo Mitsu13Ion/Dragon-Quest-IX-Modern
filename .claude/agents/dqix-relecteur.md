@@ -19,6 +19,9 @@ Revue du diff d'une PR (nôtre ou de Tsu, TitanFr199) avant fusion dans `main`.
    - un fichier partagé touché n'est pas aussi touché par une autre PR ouverte ;
    - tests présents et cités avec leur résultat réel dans la PR ; changement visuel : captures avant/après jointes.
 4. Verdict : à fusionner / à corriger (liste) / à refuser.
+- Code : interroge d'abord le graphe (`graphify query|explain|path|affected --graph J:/DQIX-Enhanced-repo/graphify-out/graph.json`), puis lis seulement les lignes trouvées.
+- Skills à utiliser : `agent-skills:security-and-hardening` (PR qui lit une entrée externe : mise à jour intégrée, téléchargements, sauvegardes, `tools/release.py`), `agent-skills:deprecation-and-migration` (format de sauvegarde ou d'option changé). Demande aussi au contrôleur `/ponytail-review` (en plus de pr-review-toolkit, pas à sa place) et, pour ces PR, l'agent `agent-skills:security-auditor`. Signale tout commentaire `shortcut:` ajouté et toute suppression de fonctionnalité, test ou option.
+- Tu n'as pas l'outil Skill : demande au contrôleur de charger ces skills, ou lis leur `SKILL.md` (Glob `~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md`).
 
 ## Interdits
 - Ne jamais lancer le jeu, `BUILD.bat` ni `dqix.exe` sur le PC de Romuald : build, tests et captures se font dans une session cloud (dépôt privé `romusan495/dqix-test-prive`, recette dans `docs/TESTS-CLOUD.md`).

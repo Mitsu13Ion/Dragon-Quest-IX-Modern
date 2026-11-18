@@ -1,0 +1,17 @@
+# graphify: only our own code and docs. Never game data, generated C or third-party code.
+build/
+game/
+gen/
+gen7/
+rom/
+extract/
+reports/
+wfc/
+extras/
+release/
+third_party/
+config/usa/
+runtime/stb_*.h
+runtime/pl_mpeg.h
+graphify-out/
+*.nds

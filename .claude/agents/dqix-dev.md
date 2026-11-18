@@ -18,6 +18,9 @@ Fichiers partagés (`gl_render.c`, `menu_win32.c`, `frontend_sdl.c`, `gpu3d.c`, 
 - Vérification : tests unitaires Python et `tests/semantics` quand c'est possible hors du PC de Romuald ; build et lancement du jeu seulement par une session cloud (agent `dqix-testeur`).
 - Liste noire réseau : le code réseau et Wi-Fi n'est pas à modifier (fichiers listés plus bas).
 - Pas d'identifiant `far` ni `near` : vérifie avec `git diff | grep -nwE 'far|near'` avant de commiter.
+- Code : interroge d'abord le graphe (`graphify query|explain|path|affected --graph J:/DQIX-Enhanced-repo/graphify-out/graph.json`), puis lis seulement les lignes trouvées.
+- Skills à utiliser : `agent-skills:deprecation-and-migration` (format de sauvegarde ou `settings.ini`), `agent-skills:performance-optimization` (lenteur : mesurer avant/après), `agent-skills:source-driven-development` (API SDL/OpenGL/LLVM), `agent-skills:git-workflow-and-versioning` (commits atomiques). Superpowers d'abord (TDD, débogage) ; ponytail `lite` ensuite, sans retirer fonctionnalité, test, option ni gestion des ROM EU/USA, sauvegardes et erreurs ; liste tout commentaire `shortcut:` ajouté.
+- Tu n'as pas l'outil Skill : demande au contrôleur de charger ces skills, ou lis leur `SKILL.md` (Glob `~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md`).
 
 ## Interdits
 - Ne jamais lancer le jeu, `BUILD.bat` ni `dqix.exe` sur le PC de Romuald : build, tests et captures se font dans une session cloud (dépôt privé `romusan495/dqix-test-prive`, recette dans `docs/TESTS-CLOUD.md`).

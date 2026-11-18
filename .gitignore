@@ -61,3 +61,6 @@ setup-log.txt
 *.cci
 *.cxi
 *.cia
+
+# graphify knowledge graph (local only, rebuilt by the git hooks)
+graphify-out/

@@ -17,6 +17,9 @@ Les dossiers `game\textures`, `game\movies`, `game\textures-hd-outil` ne sont ja
 ## Règle des captures (obligatoire)
 Tout changement visuel exige des captures **avant** et **après**, prises par un test cloud (`docs/TESTS-CLOUD.md`), rangées dans le dépôt **privé** `dqix-test-prive` (jamais dans le dépôt public, une release ou Discord). Elles sont montrées à Romuald avant la fusion : c'est sa seule validation obligatoire. Boîtes de combat : pas au-delà du style Moderne sans son accord.
 Textures HD : « IA seule » (choix du 2026-10-29), voir `docs/roles/graphismes.md`.
+- Code : interroge d'abord le graphe (`graphify query|explain|path|affected --graph J:/DQIX-Enhanced-repo/graphify-out/graph.json`), puis lis seulement les lignes trouvées.
+- Skills à utiliser : `agent-skills:performance-optimization` (coût d'un rendu ou d'une texture : mesurer avant/après), `agent-skills:source-driven-development` (API OpenGL/SDL). Captures avant/après toujours montrées à Romuald avant fusion.
+- Tu n'as pas l'outil Skill : demande au contrôleur de charger ces skills, ou lis leur `SKILL.md` (Glob `~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md`).
 
 ## Interdits
 - Ne jamais lancer le jeu, `BUILD.bat` ni `dqix.exe` sur le PC de Romuald : build, tests et captures se font dans une session cloud (dépôt privé `romusan495/dqix-test-prive`, recette dans `docs/TESTS-CLOUD.md`).

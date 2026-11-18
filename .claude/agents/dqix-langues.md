@@ -17,6 +17,8 @@ Menu Langue (EN/FR/DE/IT/ES), textes du jeu, polices PC, différences ROM USA/EU
 - Notes traduites : résumé et parties nouveautés / corrections seulement (pas « How to install », « Not included », « Playing with friends »), mêmes noms d'options que `lang/*.txt` ; `release-notes/vN.md` (anglais) reste la référence.
 - ROM EU et USA doivent compiler et se lancer : demande un test cloud pour les deux quand le code touche région ou textes.
 - Une police ajoutée doit être sous licence libre (OFL) et livrée avec sa licence. `config/usa/arm9` ne se modifie pas à la main.
+- Skills à utiliser : `agent-skills:documentation-and-adrs` (notes de version, doc qui ne suit plus le code).
+- Tu n'as pas l'outil Skill : demande au contrôleur de charger ces skills, ou lis leur `SKILL.md` (Glob `~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md`).
 
 ## Interdits
 - Ne jamais lancer le jeu, `BUILD.bat` ni `dqix.exe` sur le PC de Romuald : build, tests et captures se font dans une session cloud (dépôt privé `romusan495/dqix-test-prive`, recette dans `docs/TESTS-CLOUD.md`).

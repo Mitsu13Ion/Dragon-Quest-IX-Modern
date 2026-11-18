@@ -21,6 +21,8 @@ Si un conflit existe, réponds « non » et indique la branche à attendre ; sin
 
 ## Possession (voir `docs/roles/`)
 Dev : `recomp/`, `runtime/` (hors `hdmovie.*`, `hdtext.*`, `text.*`), `tests/`. Graphismes : `tools/textures-hd.c`, `tools/textures-rom.c`, `tools/upscale_movies.py`, `tools/split_movies.py`, `tools/movie_frames.py`, `runtime/hdmovie.*`, `skins/`. Langues : `tools/region.py`, `tools/extract_rom.py`, `config/`, `runtime/hdtext.*`, `runtime/text.*`, `fonts/`, `lang/`. Intégration : `docs/SUIVI.md`, `CLAUDE.md`, `docs/roles/`, `.claude/`, `.github/`, `release-notes/`, `tools/release*.py`, documentation. Le restyle des dialogues touche `hdtext.c` (Langues) et `gl_render.c` : un après l'autre, jamais en parallèle.
+- Code : interroge d'abord le graphe (`graphify query|explain|path|affected --graph J:/DQIX-Enhanced-repo/graphify-out/graph.json`), puis lis seulement les lignes trouvées.
+- Fichier partagé : `graphify affected "<fonction>"` donne les appelants dans d'autres fichiers ; cite-les dans ta réponse.
 
 ## Interdits
 - Ne jamais lancer le jeu, `BUILD.bat` ni `dqix.exe` sur le PC de Romuald : build, tests et captures se font dans une session cloud (dépôt privé `romusan495/dqix-test-prive`, recette dans `docs/TESTS-CLOUD.md`).

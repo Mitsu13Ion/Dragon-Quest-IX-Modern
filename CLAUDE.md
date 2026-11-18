@@ -75,11 +75,65 @@ Romuald (`dqix-build-check`) : les tests, eux, sont cloud (section suivante).
 - Ressources du jeu (textures, films, polices, ROM) : sauvegarde avant d'écraser.
 - Textures HD : IA seule (Real-ESRGAN anime) pour toutes les textures.
 
-## Plugins (installés : superpowers, pr-review-toolkit, code-simplifier, claude-code-setup)
+## Plugins (installés : superpowers, pr-review-toolkit, code-simplifier, claude-code-setup, ponytail, agent-skills ; skill graphify)
 - Avant un gros changement : `superpowers:brainstorming` puis `superpowers:writing-plans`.
 - Bug : `superpowers:systematic-debugging`. Avant « fini » : `superpowers:verification-before-completion`.
-- Avant fusion : sous-agent `pr-review-toolkit:code-simplifier`, puis `/pr-review-toolkit:review-pr`.
+- Avant fusion : sous-agent `pr-review-toolkit:code-simplifier`, puis `/pr-review-toolkit:review-pr`, puis `/ponytail-review` (en plus, jamais à la place).
 - Ne pas recréer d'agent qu'un plugin fournit déjà.
+
+## Plugins graphify / ponytail / agent skills
+**Priorité** : règles du projet (ce fichier, `docs/roles/`, « DÉCIDÉ (Romuald) ») > Superpowers > ponytail > agent skills.
+Aucun plugin ne lève un interdit (réseau, ROM, PC de Romuald, captures avant/après).
+
+**graphify (carte du code)**
+- Le graphe vit dans `J:\DQIX-Enhanced-repo\graphify-out\` (jamais commité, dans `.gitignore`).
+  Les crochets git (`graphify hook install`) le refont après commit, merge et checkout
+  dans ce clone seulement ; à la main : `graphify update .` (local, sans appel réseau).
+- Exclusions (`.graphifyignore`) : `build/`, `game/`, `gen/`, `rom/`, `extract/`, `wfc/`,
+  `extras/`, `third_party/`, `config/usa/`, `runtime/stb_*.h`, `runtime/pl_mpeg.h`,
+  tout C généré. Construction : `graphify extract . --code-only` puis
+  `graphify cluster-only . --no-label` (aucun envoi de code à un service).
+- **Avant de chercher dans le code ou de modifier un fichier partagé** : interroger
+  d'abord le graphe, puis lire seulement les lignes trouvées.
+  `graphify query "<question>"`, `graphify explain "<symbole>"`, `graphify path "A" "B"`,
+  `graphify affected "<symbole>"`. Depuis un worktree : ajouter
+  `--graph J:/DQIX-Enhanced-repo/graphify-out/graph.json`. Mettre cette règle dans
+  le prompt de tout sous-agent qui explore le code.
+- Chaque plan a une étape « risques de régression » : `graphify affected` et
+  `graphify explain` sur les fonctions touchées. Les liens `INFERRED` sont des
+  devinettes par nom (`memcpy`, `tests/semantics/cases.c`) : à vérifier dans le code.
+
+**ponytail (code minimal)**
+- Mode `lite` par défaut (`%APPDATA%\ponytail\config.json`, `defaultMode`) : construire
+  ce qui est demandé et nommer en une ligne l'option plus petite.
+- On garde le TDD de Superpowers. Jamais de suppression de fonctionnalité, de test
+  ou d'option ; on garde la gestion des ROM EU/USA, des sauvegardes et des erreurs.
+- `/ponytail-review` : revue en plus avant chaque fusion. `/ponytail-debt` : avant
+  chaque release. `/ponytail-audit` : sur demande ; aucune correction sans plan validé.
+- Tout commentaire `shortcut:` ajouté est listé dans le compte rendu.
+
+**agent skills (Addy Osmani, `addyosmani/agent-skills`)** — seulement ceux qui ne
+doublonnent pas Superpowers ou pr-review-toolkit :
+- `agent-skills:security-and-hardening` : PR qui touche une entrée externe (mise à jour
+  intégrée, téléchargements, `tools/release.py`, fichiers de sauvegarde lus).
+- `agent-skills:deprecation-and-migration` : changement de format de sauvegarde,
+  `settings.ini` ou option renommée (garder la lecture de l'ancien format).
+- `agent-skills:performance-optimization` : lenteur du runtime (mesurer avant, après).
+- `agent-skills:source-driven-development` : API SDL, OpenGL, GitHub, LLVM : vérifier
+  dans la doc officielle avant d'écrire.
+- `agent-skills:git-workflow-and-versioning` : commits atomiques, découpage d'un arbre en désordre.
+- `agent-skills:shipping-and-launch` : liste de contrôle et retour arrière d'une release.
+- `agent-skills:ci-cd-and-automation` : `.github/workflows/` (zip de release).
+- `agent-skills:documentation-and-adrs` : décision durable ou doc en retard sur le code.
+- Agent `agent-skills:security-auditor` : revue sécurité en plus pour ces mêmes PR.
+- Ignorés (doublons ou web) : TDD, debugging, planning, spec, idea-refine, interview-me,
+  code-review, code-simplification, incremental-implementation, doubt-driven,
+  constraint-driven, context-engineering, observability, api-design, frontend-ui,
+  browser-testing, les commandes `/spec /plan /build /test /review /ship /webperf`
+  et les agents code-reviewer, test-engineer, web-performance-auditor.
+- Les sous-agents `dqix-*` n'ont pas l'outil Skill : la session principale charge le
+  skill, ou l'agent lit son `SKILL.md` (Glob
+  `~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills/<nom>/SKILL.md`).
 
 ## Agents (`.claude/agents/`)
 - `dqix-coordinateur` : arbitre les fichiers partagés ; à appeler avant d'ouvrir une branche ou de toucher un fichier partagé.

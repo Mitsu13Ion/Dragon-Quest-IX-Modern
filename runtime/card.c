@@ -196,8 +196,8 @@ static void backup_copy(void) {
     }
 }
 
-void backup_flush(void) {
-    if (!g_backup_dirty || !g_backup_path[0]) return;
+int backup_flush(void) {
+    if (!g_backup_dirty || !g_backup_path[0]) return 0;
     time_t now = time(NULL);
     if (g_save_backups && now - g_last_write >= 10) backup_copy();
     g_last_write = now;
@@ -207,10 +207,12 @@ void backup_flush(void) {
     if (save_file_atomic(g_backup_path, g_backup, g_backup_size) != 0) {
         if (!warned) LOG_WARN("save: cannot write %s\n", g_backup_path);
         warned = 1;
-        return;
+        return -1;
     }
+    if (warned) LOG_INFO("save: %s written again\n", g_backup_path);
     warned = 0;
     g_backup_dirty = 0;
+    return 0;
 }
 
 /* ---------------------------------------------------------------- downloadable content

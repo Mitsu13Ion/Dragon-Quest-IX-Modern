@@ -7,8 +7,10 @@
 #define to_disk(f) _commit(_fileno(f))
 #define replace(from, to) (MoveFileExA(from, to, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) ? 0 : -1)
 #else
+#include <errno.h>
 #include <unistd.h>
-#define to_disk(f) fsync(fileno(f))
+/* EINVAL: a file system that cannot sync (some shared or FUSE folders); the write itself went through */
+#define to_disk(f) (fsync(fileno(f)) == 0 || errno == EINVAL ? 0 : -1)
 /* shortcut: the folder itself is not fsynced after the rename, upgrade if a save is ever lost to a power cut on Linux */
 #define replace(from, to) rename(from, to)
 #endif

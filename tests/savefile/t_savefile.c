@@ -51,6 +51,11 @@ int main(int argc, char** argv) {
     CHECK("tmp cannot be made: returns -1", save_file_atomic(p, data, SIZE) == -1);
     CHECK("tmp cannot be made: old save untouched", holds_old(p));
 
+    snprintf(p, sizeof p, "%s/isdir.sav", argv[1]); snprintf(tmp, sizeof tmp, "%s.tmp", p);
+    MKDIR(p);
+    CHECK("replace fails: returns -1", save_file_atomic(p, data, SIZE) == -1);
+    CHECK("replace fails: whole .tmp kept", holds_data(tmp));
+
     snprintf(p, sizeof p, "%s/missing/x.sav", argv[1]);
     CHECK("folder missing: returns -1", save_file_atomic(p, data, SIZE) == -1);
     CHECK("folder missing: nothing created", !exists(p));

@@ -41,7 +41,7 @@
 #define WM_CURSOR  0x20          /*     u8 the top window's chosen row */
 #define WM_LEVEL   0xB0          /*     u8 how deep they go: 4 who, 5 the items, 6 the item's menu, 7 "To whom?" */
 #define OBJ_STEP   0x1BC0        /*   u32 the screen's step (1: its window up, waiting) */
-#define OBJ_WHOSE  0x1C20        /*   s8 whose items the list shows: a companion (0-3), else the bag */
+#define OBJ_WHOSE  0x1C20        /*   s8 whose items the list shows: a companion (0-3, the game's order), else the bag */
 #define MSG_OBJ    0x11532C      /* -> the message shown (0: none) */
 #define PAD        0x02114E30    /* the game's buttons this frame: u16 pressed, u16 ... (func_02012454) */
 #define PAD_OK     0x601         /*   the ones that choose (as the menus test them) */
@@ -98,7 +98,11 @@ static int carried_count(int slot, uint16_t id) {
 /* how many the list's owner holds: a companion's own (0-3), else the bag (4) */
 static int g_src;
 static int held(uint16_t id) { return g_src < 4 ? carried_count(g_src, id) : bag_count(id); }
-static int whose(uint32_t o) { int8_t s = (int8_t)r8(o + OBJ_WHOSE); return s >= 0 && s <= 3 ? s : 4; }
+/* whose list it is: the bag (4), else the companion as shown in "who"
+ * (its row there, kept by multiuse_keys(): the game's own number, at
+ * OBJ_WHOSE, counts them in another order) */
+static int g_who_row = 4;
+static int whose(uint32_t o) { int8_t s = (int8_t)r8(o + OBJ_WHOSE); return s >= 0 && s <= 3 && record(g_who_row) ? g_who_row : 4; }
 
 static void member_name(int slot, char* out, size_t size) {
     char raw[24]; uint32_t r = record(slot);
@@ -558,6 +562,7 @@ int multiuse_keys(uint16_t* keys, int field) {
     {   uint32_t o = obj(); static int ll = -9, lc = -9;              /* (tests: the menus' windows as they change) */
         if (g_trace && o && (level() != ll || cursor() != lc)) { ll = level(); lc = cursor();
             TRACE("level %d row %d step %d sel %d/%d whose %d item %04x screen %d", ll, lc, (int)r32(o + OBJ_STEP), (int16_t)r16(o + 0x1BEA), (int16_t)r16(o + 0x1BEC), (int8_t)r8(o + OBJ_WHOSE), hovered(), (int)r32(o + 0x1BB8)); } }
+    if (g_state == MU_OFF && level() == 4) g_who_row = cursor();   /* (whose list: the row in "who", however chosen) */
     uint16_t now = *keys, pressed = now & ~g_was;
     g_was = now;
     if (g_state == MU_RUN) {

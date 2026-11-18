@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include "nds.h"
 #include "bootskip.h"
+#include "savefile.h"
 #ifdef _WIN32
 #include <direct.h>
 #define make_dir(d) _mkdir(d)
@@ -200,10 +201,8 @@ void backup_flush(void) {
     time_t now = time(NULL);
     if (g_save_backups && now - g_last_write >= 10) backup_copy();
     g_last_write = now;
-    FILE* f = fopen(g_backup_path, "wb");
-    if (!f) { LOG_WARN("save: cannot write %s\n", g_backup_path); return; }
-    fwrite(g_backup, 1, g_backup_size, f);
-    fclose(f);
+    /* still dirty on failure: the next flush tries again, dqix.sav keeps the last whole save */
+    if (save_file_atomic(g_backup_path, g_backup, g_backup_size) != 0) { LOG_WARN("save: cannot write %s\n", g_backup_path); return; }
     g_backup_dirty = 0;
 }
 

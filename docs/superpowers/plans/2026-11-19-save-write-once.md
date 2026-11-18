@@ -21,7 +21,7 @@
 
 1. Quit, restart or update less than 0.5 s after the game's last chip write → those paths already call `backup_flush()`, the save is written. To verify by reading each caller, not assumed.
 2. A crash during the 0.5 s window → `dqix.sav` keeps the previous whole save (before: a half-written new save, since the file followed each page). Better than today; say it in the PR.
-3. A write that fails → `backup_frame()` retries on every following frame (dirty stays 1, log warns once). 60 tries a second of a 64 KB write while the disk is full: acceptable, same as today's per-command retry but rarer.
+3. A write that fails → dirty stays 1, log warns once, `backup_frame()` tries again 600 frames (10 s) later, not every frame (60 disk syncs a second on the emulation thread during a long failure). Quit and the other direct callers still try at once.
 4. Erase commands (0xDB/0xD8) set dirty without touching `g_backup_written` → `backup_frame()` writes on the next frame; harmless (DQIX's EEPROM never erases).
 5. `backup_copy()` "nothing written for 10 seconds" still means "a new game save starts": one flush per save keeps it true.
 

@@ -60,3 +60,11 @@ int hdtext_render(int glyph, uint8_t* out, int stride, int* w);
  * extra: DS pixels a takes beyond its letter (its shadow). */
 float hdtext_follow(int ga, float xa, int gb, float xb, float shift, float k, float extra);
 uint32_t hdtext_font_gen(void);               /* changes when the font does (the GPU's copies are stale) */
+
+/* The game's own letters (its windows' font, as in main RAM), for text the
+ * PC version draws itself: a character's picture (12 rows, w pixels; the
+ * game puts 1 pixel between letters, a space is 4 more); 0 if the game has no
+ * such letter (or its font isn't loaded yet). kern: pixels added between two
+ * letters. */
+int hdtext_game_letter(int cp, uint16_t rows[12], int* w);
+int hdtext_game_kern(int cpa, int cpb);

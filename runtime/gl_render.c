@@ -558,6 +558,11 @@ static const char* FS_COPY =
     "  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec4 c = textureLod(u_src, v_uv + dx * float(i) + dy * float(j), 0.0); vec3 r = c.rgb / max(c.a, 0.001);\n"
     "    float a = max(smoothstep(0.8, 0.9, r.r) * smoothstep(0.6, 0.72, r.g) * smoothstep(0.35, 0.22, r.b), smoothstep(0.55, 0.68, r.g) * smoothstep(0.25, 0.4, r.g - max(r.r, r.b))) * c.a; t += a; m = max(m, a); }\n"   /* (and the green of a line the stylus holds: gold too) */
     "  return max(t / 9.0, m * 0.75); }\n"
+    "float reds() {\n"   /* (bright red letters (251, 0, 0: a companion knocked out, in a menu's list): shown red, not dropped as too dark) */
+    "  vec2 dx = dFdx(v_uv) / 3.0, dy = dFdy(v_uv) / 3.0; float t = 0.0, m = 0.0;\n"
+    "  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec4 c = textureLod(u_src, v_uv + dx * float(i) + dy * float(j), 0.0); vec3 r = c.rgb / max(c.a, 0.001);\n"
+    "    float a = smoothstep(0.6, 0.75, r.r) * smoothstep(0.35, 0.2, max(r.g, r.b)) * c.a; t += a; m = max(m, a); }\n"
+    "  return max(t / 9.0, m * 0.75); }\n"
     "float greys() {\n"   /* (dim grey letters (121, 121, 121: a list's ??? not known yet): shown grey, their dots and all) */
     "  vec2 dx = dFdx(v_uv) / 3.0, dy = dFdy(v_uv) / 3.0; float t = 0.0, m = 0.0;\n"
     "  ivec2 ts = textureSize(u_src, 0);\n"   /* (the texels themselves: a thin grey stroke not mixed with the panel's brown round it) */
@@ -606,10 +611,10 @@ static const char* FS_COPY =
     "    float a = (1.0 - bg) * c.a; o_color = vec4(r * a, a); return; }\n"
     "  if (u_mode == 32) { vec3 r = c.rgb / max(c.a, 0.001); float sat = max(r.r, max(r.g, r.b)) - min(r.r, min(r.g, r.b));\n"   /* (a list on its dark panel: the letters and the grey icons, not the panel (0.19) nor its blue frame) */
     "    float a = smoothstep(0.30, 0.42, L) * smoothstep(0.30, 0.15, sat) * c.a; o_color = vec4(r * a, a); return; }\n"
-    "  if (u_mode == 30) { float t = letters(5), y = yellows(), a = max(t, y);\n"   /* (the windows round a menu: letters light or greyed (0.73), not the grey lines (0.51, 0.64)) */
-    "    vec3 col = mix(vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
-    "  if (u_mode == 29) { float t = letters(4), y = yellows(), a = max(t, y);\n"   /* (as 3, for a window going grey: its letters (0.64, 0.73) in white, not its grey lines (0.51); letters(4): above 0.57) */
-    "    vec3 col = mix(vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
+    "  if (u_mode == 30) { float t = letters(5), y = yellows(), rd = reds(), a = max(max(t, y), rd);\n"   /* (the windows round a menu: letters light or greyed (0.73), not the grey lines (0.51, 0.64)) */
+    "    vec3 col = mix(mix(vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)), vec3(0.95, 0.26, 0.22), rd / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
+    "  if (u_mode == 29) { float t = letters(4), y = yellows(), rd = reds(), a = max(max(t, y), rd);\n"   /* (as 3, for a window going grey: its letters (0.64, 0.73) in white, not its grey lines (0.51); letters(4): above 0.57) */
+    "    vec3 col = mix(mix(vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)), vec3(0.95, 0.26, 0.22), rd / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
     "  if (u_mode == 28) { vec3 r = c.rgb / max(c.a, 0.001); float mx = max(r.r, max(r.g, r.b)), sat = (mx - min(r.r, min(r.g, r.b))) / max(mx, 0.02);\n"   /* (stats' letters: light ones light, coloured ones (a value going down: red; up) their own colour; the dark panel not) */
     "    float k = smoothstep(0.4, 0.6, sat) * smoothstep(0.5, 0.7, mx), a = max(smoothstep(0.38, 0.55, L) * (1.0 - k), k) * c.a; vec3 col = mix(vec3(0.93), r * (1.0 / max(mx, 0.01)) * 0.98, k); o_color = vec4(col * a, a); return; }\n"
     "  if (u_mode == 27) { vec3 r = c.rgb / max(c.a, 0.001);\n"   /* (the menus' hand alone, its own colours: its warm pixels (golds, browns, its pale yellow); not the window's black, its grey line, the white letters) */
@@ -633,6 +638,7 @@ static const char* FS_COPY =
     "    o_color = vec4(b / 25.0 * 0.45, 1.0); return; }\n"
     "  if (u_mode == 36) { vec3 r = c.rgb / max(c.a, 0.001); float a = smoothstep(0.04, 0.14, max(r.r, max(r.g, r.b))) * c.a; o_color = vec4(r * a, a); return; }\n"   /* (the picture without its black: see-through there (the title's button over the movie)) */
     "  if (u_mode == 42 || u_mode == 43 || u_mode == 45) { vec3 r = c.rgb / max(c.a, 0.001); float mx = max(r.r, max(r.g, r.b)), sat = (mx - min(r.r, min(r.g, r.b))) / max(mx, 0.02); float a = (u_mode == 45 ? smoothstep(0.58, 0.66, L) * smoothstep(0.34, 0.26, sat) : smoothstep(0.80, 0.90, L)) * c.a; vec3 t = u_mode == 42 ? vec3(0.53, 0.71, 1.0) : u_mode == 43 ? vec3(0.95, 0.60, 0.77) : vec3(0.97, 0.77, 0.16); o_color = vec4(t * a, a); return; }\n"   /* (as 40, tinted: a sex sign blue or pink (its white alone), a chosen row's words gold) */
+    "  if (u_mode == 47) { float y = yellows(); o_color = vec4(vec3(0.98, 0.78, 0.16) * y, y); return; }\n"   /* (the game's yellow alone: the hand over a window's edge, gold) */
     "  if (u_mode == 44) { o_color = vec4(0.84, 0.67, 0.24, 1.0) * 0.42; return; }\n"   /* (a chosen row: the gold bar of the item windows) */
     "  if (u_mode == 41) { vec3 r = c.rgb / max(c.a, 0.001); float mx = max(r.r, max(r.g, r.b)), sat = (mx - min(r.r, min(r.g, r.b))) / max(mx, 0.02); float a = smoothstep(0.40, 0.52, L) * smoothstep(0.40, 0.30, sat) * c.a; o_color = vec4(vec3(0.85) * a, a); return; }\n"   /* (as 40 for the thin pale letters on a dark brown box: a header line) */
     "  if (u_mode == 40) { vec3 r = c.rgb / max(c.a, 0.001); float mx = max(r.r, max(r.g, r.b)), sat = (mx - min(r.r, min(r.g, r.b))) / max(mx, 0.02); float a = smoothstep(0.58, 0.66, L) * smoothstep(0.34, 0.26, sat) * c.a; o_color = vec4(vec3(0.93) * a, a); return; }\n"   /* (light letters and signs alone, white: not the brown or the pink round them, nor the cream parchment) */
@@ -657,7 +663,8 @@ static const char* FS_COPY =
     "  if (u_mode == 1) { float t = smoothstep(0.52, 0.32, L) * c.a;\n"
     "    o_color = vec4(vec3(0.93) * t, t); return; }\n"
     "  if (u_mode == 3 || u_mode == 6 || u_mode == 35 || (u_mode >= 12 && u_mode <= 15)) { float t = letters(u_mode == 6 ? 0 : u_mode == 35 ? 6 : u_mode == 15 ? 3 : u_mode == 12 || u_mode == 14 ? 2 : 1), y = u_mode == 6 || u_mode == 35 || u_mode == 15 ? 0.0 : yellows();\n"   /* (35: as 6, a stamp's shaded edge left out too) */   /* (the game's yellow letters, a chosen line: gold) */
-    "    float g = u_mode == 13 || u_mode == 14 ? greys() : 0.0, a = max(max(t, y), g); vec3 col = mix(g > t ? vec3(0.6) : u_mode == 15 ? vec3(0.7) : vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
+    "    float g = u_mode == 13 || u_mode == 14 ? greys() : 0.0, rd = u_mode == 3 ? reds() : 0.0, a = max(max(t, y), max(g, rd));\n"   /* (3: red letters red) */
+    "    vec3 col = mix(mix(g > t ? vec3(0.6) : u_mode == 15 ? vec3(0.7) : vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)), vec3(0.95, 0.26, 0.22), rd / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
     "  o_color = c;\n"
     "}\n";
 
@@ -2789,6 +2796,15 @@ int gl_3d_ready(void) { return g_comp_has3d && g_fb_shown >= 0 && g_fb[g_fb_show
 void gl_set_hud_cut(int on) { g_cut = on != 0; }
 void gl_set_top_cut(int on) { g_cut_top = on != 0; }
 void gl_set_split(int on) { g_split = on != 0; }
+int gl_dialog_boxes(int r[][4], int max) {
+    int n = 0;
+    for (int k = 0; k < g_ndlg && n < max; k++) {
+        if (g_dlg_boxes[k][2] <= g_dlg_boxes[k][0] || g_dlg_boxes[k][3] <= g_dlg_boxes[k][1]) continue;
+        for (int i = 0; i < 4; i++) r[n][i] = (int)lroundf(g_dlg_boxes[k][i]);
+        n++;
+    }
+    return n;
+}
 int gl_dialog_box(int r[4]) {
     if (g_dlg_box[2] <= g_dlg_box[0] || g_dlg_box[3] <= g_dlg_box[1]) return 0;
     for (int i = 0; i < 4; i++) r[i] = (int)lroundf(g_dlg_box[i]);

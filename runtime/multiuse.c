@@ -31,6 +31,7 @@
 #include "cpu.h"
 #include "romdata.h"
 #include "journal.h"
+#include "text.h"
 #include "hints.h"
 #include "multiuse.h"
 
@@ -383,6 +384,7 @@ const uint8_t* multiuse_picture(int w, int h, int* changed) {
         g_pw = w; g_ph = h; g_dirty = 1;
     }
     if (g_frame - g_anchor_at > 2 && g_anchor[2] > 0) { memset(g_anchor, 0, sizeof g_anchor); g_dirty = 1; }   /* (the game's window gone: in the middle) */
+    { static unsigned font; if (font != text_font_gen()) { font = text_font_gen(); g_dirty = 1; } }   /* (the font changed) */
     if (!g_dirty) return g_pic;
     g_dirty = 0; *changed = 1; g_nhit = 0;
     memset(g_pic, 0, (size_t)w * h * 4);

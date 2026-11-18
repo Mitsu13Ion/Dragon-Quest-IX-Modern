@@ -23,7 +23,8 @@ central.
 1. Le thread de dev a déjà commité sa branche (compte rendu commun).
 2. Sous-agent `pr-review-toolkit:code-simplifier` sur le diff, puis
    `/pr-review-toolkit:review-pr` (code-reviewer, silent-failure-hunter ;
-   pr-test-analyzer si `tests/` change). Les corrections reviennent au thread de dev.
+   pr-test-analyzer si `tests/` change), puis `/ponytail-review` en plus.
+   Les corrections reviennent au thread de dev.
 3. Test cloud de la branche (`dqix-testeur`, `docs/TESTS-CLOUD.md`) : rapport
    PASS pour le commit exact. Rien ne se lance sur le PC de Romuald.
 4. Changement visuel : captures avant/après montrées à Romuald avant la fusion

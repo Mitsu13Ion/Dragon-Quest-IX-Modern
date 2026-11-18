@@ -89,8 +89,8 @@ Aucun plugin ne lève un interdit (réseau, ROM, PC de Romuald, captures avant/a
 - Le graphe vit dans `J:\DQIX-Enhanced-repo\graphify-out\` (jamais commité, dans `.gitignore`).
   Les crochets git (`graphify hook install`) le refont après commit, merge et checkout
   dans ce clone seulement ; à la main : `graphify update .` (local, sans appel réseau).
-- Exclusions (`.graphifyignore`) : `build/`, `game/`, `gen/`, `rom/`, `extract/`, `wfc/`,
-  `extras/`, `third_party/`, `config/usa/`, `runtime/stb_*.h`, `runtime/pl_mpeg.h`,
+- Exclusions (`.graphifyignore`) : `build/`, `game/`, `gen/`, `gen7/`, `rom/`, `extract/`,
+  `reports/`, `release/`, `wfc/`, `extras/`, `third_party/`, `config/usa/`, `runtime/stb_*.h`, `runtime/pl_mpeg.h`,
   tout C généré. Construction : `graphify extract . --code-only` puis
   `graphify cluster-only . --no-label` (aucun envoi de code à un service).
 - **Avant de chercher dans le code ou de modifier un fichier partagé** : interroger

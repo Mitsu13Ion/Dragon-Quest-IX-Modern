@@ -196,13 +196,20 @@ static void backup_copy(void) {
     }
 }
 
+/* Once per DS frame: the file is written when the game has not written to the
+ * chip for half a second, so a game save (~450 page writes) is one safe write
+ * with its disk sync, and dqix.sav never holds a half-written save. */
+void backup_frame(void) {
+    if (g_backup_dirty && g_frame - g_backup_written >= 30) backup_flush();
+}
+
 int backup_flush(void) {
     if (!g_backup_dirty || !g_backup_path[0]) return 0;
     time_t now = time(NULL);
     if (g_save_backups && now - g_last_write >= 10) backup_copy();
     g_last_write = now;
     /* still dirty on failure: the next flush tries again, dqix.sav keeps the last whole save;
-     * warned once per run of failures, as the game flushes after every chip command */
+     * warned once per run of failures, as backup_frame tries again every frame */
     static int warned;
     if (save_file_atomic(g_backup_path, g_backup, g_backup_size) != 0) {
         if (!warned) LOG_WARN("save: cannot write %s\n", g_backup_path);
@@ -323,7 +330,6 @@ static uint8_t backup_xfer(uint8_t in, int hold) {
         }
         if (g_bk_cmd == 0x02 || g_bk_cmd == 0x0A || g_bk_cmd == 0xDB || g_bk_cmd == 0xD8) g_bk_status &= ~2;
         g_bk_cmd = 0;
-        backup_flush();
     }
     return out;
 }

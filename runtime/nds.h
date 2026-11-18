@@ -181,6 +181,7 @@ void card_write(Core* k, uint32_t off, uint32_t v, int size);
 uint32_t card_read_data(Core* k);
 void backup_init(const char* save_path);
 int backup_flush(void);   /* 0: dqix.sav is up to date; -1: not written, tried again next time */
+void backup_frame(void);  /* every DS frame: writes dqix.sav once the game has finished writing its save */
 const uint8_t* backup_image(uint32_t* size);   /* the save as the game will see it */
 int backup_unlock_dlc(void);              /* downloadable quests + special guests (see card.c) */
 extern uint64_t g_backup_written;         /* the frame the game last wrote to its save chip */

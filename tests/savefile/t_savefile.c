@@ -2,7 +2,6 @@
  * and only then put in place, so a failed write never empties dqix.sav.
  * argv[1]: an empty folder to work in. Built and run by tests/savefile/run.sh. */
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #ifdef _WIN32

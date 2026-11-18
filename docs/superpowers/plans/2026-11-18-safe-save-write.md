@@ -36,7 +36,7 @@
 - Create: `tests/savefile/t_savefile.c`, `tests/savefile/run.sh`
 
 **Interfaces:**
-- Produces: `int save_file_atomic(const char* path, const void* data, size_t n);` — returns 0 on success, -1 on any failure (errno kept); on failure the file at `path` is unchanged and `<path>.tmp` removed when possible.
+- Produces: `int save_file_atomic(const char* path, const void* data, size_t n);` — returns 0 on success, -1 on any failure; on failure the file at `path` is unchanged and `<path>.tmp` removed when possible.
 
 - [ ] **Step 1: Write the failing test** `tests/savefile/t_savefile.c` (same PASS/FAIL style as `tests/hdpack/t_rank.c`), working in a folder given as `argv[1]`:
   - `new file`: path absent → returns 0, content equals the 64 KB buffer, `<path>.tmp` absent.

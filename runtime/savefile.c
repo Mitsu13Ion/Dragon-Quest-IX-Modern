@@ -14,13 +14,12 @@
 #endif
 
 int save_file_atomic(const char* path, const void* data, size_t n) {
-    char tmp[1100];
+    char tmp[1100];   /* g_backup_path (card.c) is 1024 */
     if (snprintf(tmp, sizeof tmp, "%s.tmp", path) >= (int)sizeof tmp) return -1;
     FILE* f = fopen(tmp, "wb");
     if (!f) return -1;
     int ok = fwrite(data, 1, n, f) == n && fflush(f) == 0 && to_disk(f) == 0;
     if (fclose(f) != 0) ok = 0;
-    if (ok && replace(tmp, path) == 0) return 0;
-    remove(tmp);
-    return -1;
+    if (!ok) { remove(tmp); return -1; }
+    return replace(tmp, path) == 0 ? 0 : -1;   /* a whole .tmp is kept if only the replace failed */
 }

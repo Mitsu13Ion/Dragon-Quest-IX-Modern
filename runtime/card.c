@@ -201,8 +201,15 @@ void backup_flush(void) {
     time_t now = time(NULL);
     if (g_save_backups && now - g_last_write >= 10) backup_copy();
     g_last_write = now;
-    /* still dirty on failure: the next flush tries again, dqix.sav keeps the last whole save */
-    if (save_file_atomic(g_backup_path, g_backup, g_backup_size) != 0) { LOG_WARN("save: cannot write %s\n", g_backup_path); return; }
+    /* still dirty on failure: the next flush tries again, dqix.sav keeps the last whole save;
+     * warned once per run of failures, as the game flushes after every chip command */
+    static int warned;
+    if (save_file_atomic(g_backup_path, g_backup, g_backup_size) != 0) {
+        if (!warned) LOG_WARN("save: cannot write %s\n", g_backup_path);
+        warned = 1;
+        return;
+    }
+    warned = 0;
     g_backup_dirty = 0;
 }
 

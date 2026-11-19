@@ -189,7 +189,6 @@ int journal_wrap(const JournalCanvas* c, int x, int y, int max_w, float px, uint
     return y;
 }
 
-void journal_clean(const char* s, char* out, int cap) { romdata_clean_name(s, out, (size_t)cap); }
 
 /* ---------------------------------------------------------------- the panel */
 #define C_PANEL 0x0E1218

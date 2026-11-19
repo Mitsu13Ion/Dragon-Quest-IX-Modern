@@ -16,7 +16,6 @@ extern int g_hdtext_on;                       /* set by the frontend (Enhanced o
 extern int g_hdtext_any;                      /* some memory carries tags */
 
 /* memory */
-void hdtext_forget(const uint8_t* p, int size);                    /* a write: what was there is gone */
 void hdtext_write(const uint8_t* p, const uint8_t* v, int size);   /* ...before it: a text window's letter written again unchanged stays (HDT_WIN) */
 void hdtext_copy(uint32_t dst, uint32_t src, uint32_t bytes);       /* a copy (after the bytes moved) */
 uint32_t hdtext_tag(uint32_t src2);           /* the tag of a VRAM pixel: src2 = byte address * 2 + high nibble */
@@ -48,7 +47,6 @@ int hdtext_texture_letter(const uint8_t* p, int w, int h, int* glyph, int* ox, i
 /* the letters at high resolution: R pixels per DS pixel, 12 rows */
 #define HDT_R 8
 void hdtext_set_font(const char* name);       /* "original", or a .ttf file (fonts/, the system's fonts) */
-const char* hdtext_font_name(void);
 int hdtext_font_ok(void);                     /* the TrueType font was found */
 /* coverage (0-255) of one letter, (w * HDT_R) x (12 * HDT_R); 0 if unknown */
 int hdtext_render(int glyph, uint8_t* out, int stride, int* w);

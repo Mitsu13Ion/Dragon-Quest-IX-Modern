@@ -42,7 +42,6 @@ int journal_wrap(const JournalCanvas* c, int x, int y, int max_w, float px, uint
 void journal_box(const JournalCanvas* c, int x, int y, int w, int h, uint32_t rgb, float alpha);   /* rounded rectangle */
 void journal_bar(const JournalCanvas* c, int x, int y, int w, int h, float part, uint32_t rgb);     /* a progress bar 0..1 */
 /* The game's own texts, with the game's letters (<'e>...) as UTF-8. */
-void journal_clean(const char* game_text, char* out, int cap);
 /* A text of one of the game's per-language tables (tag 0x67 records: number,
  * text) in the game's language, cleaned, or NULL: ("data/bin/menu/str_sta.gp2",
  * "str_sta", 5) -> "Warrior". The file inside is <stem>_<en|fr|de|it|es>.bin. */

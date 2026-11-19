@@ -88,11 +88,6 @@ static uint8_t* addr_ptr(uint32_t a) {
     return NULL;
 }
 
-void hdtext_forget(const uint8_t* p, int size) {
-    uint32_t off; uint32_t* pg = page_for(p, 0, &off);
-    if (pg) memset(pg + off, 0, (size_t)size * 2 * sizeof(uint32_t));   /* (writes never cross a 4 KB page: they're aligned) */
-}
-
 void hdtext_write(const uint8_t* p, const uint8_t* v, int size) {
     uint32_t off; uint32_t* pg = page_for(p, 0, &off);
     if (!pg) return;
@@ -460,7 +455,6 @@ void hdtext_set_font(const char* name) {
     if (strcmp(name, "original") != 0) load_ttf(name);
     g_font_gen++;
 }
-const char* hdtext_font_name(void) { return g_font_name; }
 int hdtext_font_ok(void) { return g_tt_data != NULL; }
 uint32_t hdtext_font_gen(void) { return g_font_gen; }
 

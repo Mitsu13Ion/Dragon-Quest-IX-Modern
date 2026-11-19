@@ -2936,15 +2936,6 @@ void gl_read_screens(uint32_t out[2][256 * 192]) {
 }
 
 /* For tests: the 3D layer as rendered (premultiplied RGBA8, bottom-up rows). */
-int gl_read_3d(uint8_t* out, int* w, int* h) {
-    if (g_fb_latest < 0) return 0;
-    *w = g_fb3_w; *h = g_fb_h;
-    p_glBindFramebuffer(GL_FRAMEBUFFER, g_fb[g_fb_latest].post_fbo);
-    p_glReadBuffer(GL_COLOR_ATTACHMENT0);
-    p_glReadPixels(0, 0, g_fb3_w, g_fb_h, GL_RGBA, GL_UNSIGNED_BYTE, out);
-    p_glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    return 1;
-}
 
 /* Widescreen: which screen was composed wide last (0 top, 1 bottom, -1
  * none) and the DS pixels added each side. */

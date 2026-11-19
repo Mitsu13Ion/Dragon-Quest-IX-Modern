@@ -14,7 +14,6 @@ typedef struct {
     void (*exit_console)(int code);       /* this console stops (never returns) */
     const uint8_t* rom; size_t rom_size;  /* the ROM, already loaded */
 } CoreHost;
-int rt_hosted(void);
 char* rt_getenv(const char* name);        /* getenv, or the host's settings for this console */
 _Noreturn void rt_exit(int code);
 int rt_yield(void);                       /* 1 if the host ran others meanwhile */
@@ -82,7 +81,6 @@ void sound_discard(void);                   /* GXFIFO interrupt condition (level
 extern int g_save_backups;               /* keep a copy of every save (card.c) */
 void sound_set_speed(int n);             /* Modern > Battle speed: the game runs n times faster */
 void gx_write(uint32_t off, uint32_t v); /* geometry FIFO / command ports 0x400-0x5FF, GXSTAT */
-uint32_t vram_bank_size(int b);
 uint8_t  vram_bank_cnt(int b);           /* its VRAMCNT value */
 
 /* ---- graphics ---- */
@@ -219,7 +217,6 @@ void trace_dump(FILE* f, int n);
 /* ---- game threads (both CPUs) ---- */
 void threads_init(void);
 void threads_after_irq(Cpu* c);
-void* threads_current_coro(Core* k);
 void threads_start_arm7(uint32_t entry);
 extern unsigned g_thread_switches;
 
@@ -251,7 +248,6 @@ void firmware_set_mac(const uint8_t mac[6]);
 void firmware_write_wireless(FILE* f);
 void net_deliver(const uint8_t* frame, int len);    /* a frame to the DS (the built-in server) */
 void wfc_enable(int on, const char* dir);           /* the built-in WFC server (wfc.c) */
-int wfc_enabled(void);
 void wfc_frame(void);
 void wfc_poll(void);
 int wfc_input(const uint8_t* frame, int len);               /* the Wi-Fi settings area (reports) */

@@ -88,7 +88,6 @@ int gl_dialog_box(int r[4]);                          /* the dialogue window on 
 int gl_dialog_boxes(int r[][4], int max);             /* ...each of its windows (the dialogue's, Yes / No's...): x0, y0, x1, y1; how many */
 uint8_t* gl_read_full(int* w, int* h);
 void gl_read_screens(uint32_t out[2][256 * 192]);
-int gl_read_3d(uint8_t* out, int* w, int* h);
 
 /* Per-frame counters (the frontend reads and clears them). */
 typedef struct { double render_ms, upload_ms; int uploads, polys; long upload_texels; } GlStats;

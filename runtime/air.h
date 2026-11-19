@@ -33,7 +33,6 @@ typedef struct {
 int air_init(const char* name, int index, int count);
 int air_active(void);
 int air_index(void);
-int air_count(void);
 
 /* Time: the tick this console is about to process (everything before it is
  * done and sent). `listening`: the radio is on, so wait until the others

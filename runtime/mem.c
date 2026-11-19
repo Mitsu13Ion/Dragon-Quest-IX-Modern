@@ -192,5 +192,4 @@ void mem_write32(uint32_t a, uint32_t v) {
 
 /* Bank access for the graphics engines (extended palettes, texture slots). */
 uint8_t* vram_bank(int b) { return &g_vram[bank_off[b]]; }
-uint32_t vram_bank_size(int b) { return bank_size[b]; }
 uint8_t vram_bank_cnt(int b) { return g_io[0x240 + b + (b >= 7 ? 1 : 0)]; }

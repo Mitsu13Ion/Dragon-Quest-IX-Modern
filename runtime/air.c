@@ -210,7 +210,6 @@ int air_init(const char* name, int index, int count) {
 
 int air_active(void) { return g_air != NULL; }
 int air_index(void) { return g_me; }
-int air_count(void) { return g_n; }
 void air_set_gone(int index) { if (g_air && index >= 0 && index < g_n) g_air->con[index].gone = 1; }
 
 void air_reach(uint64_t tick, int listening) {

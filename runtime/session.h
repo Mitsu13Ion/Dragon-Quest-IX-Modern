@@ -28,8 +28,6 @@
 
 int session_hidden(void);                 /* this process is another player's console */
 int session_running(void);                /* inputs go through the session */
-int session_console(void);                /* this console's number (0 = host) */
-int session_players(void);
 int session_requested(void);              /* DQIX_SESSION or hidden: wireless online is off */
 
 /* main(): before firmware_init (session_pre_boot) and before the game boots
@@ -60,7 +58,5 @@ typedef struct {
 } SessionInfo;
 void session_info(SessionInfo* out);
 void session_start_now(void);             /* host: everyone is here */
-void session_cancel(void);
-void session_set_name(const char* name);
 /* the lobby screen etc.: called repeatedly while the lobby waits */
 extern void (*session_lobby_hook)(void);

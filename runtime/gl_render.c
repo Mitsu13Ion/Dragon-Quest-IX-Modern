@@ -1192,7 +1192,9 @@ static void pack_scan(const char* dir, int depth, int rank) {
 
 static void hdsprite_update(void) { g_hdsprite_on = g_dump_on || (g_pack_on && (!g_pack_loaded || g_pack_n)); }   /* (not loaded yet: the first check loads it) */
 
+static void recolor_unload(void);
 static void pack_unload(void) {
+    recolor_unload();
     for (int i = 0; i < g_pack_cap; i++) { if (g_pack[i].tex) p_glDeleteTextures(1, &g_pack[i].tex); free(g_pack[i].path); }
     free(g_pack); g_pack = NULL; g_pack_n = g_pack_cap = g_pack_live = 0; g_pack_loaded = 0;
     hdsprite_update();
@@ -1231,6 +1233,160 @@ static GLuint pack_texture(uint64_t key) {
     stbi_image_free(px);
     t->w = w; t->h = h; g_pack_live++;
     return t->tex;
+}
+
+/* ---- The same texels in other colours ----
+ * A picture made HD once (textures/recolor/<shape>-hd.png, by Real-ESRGAN like
+ * the others) with the colours it was made from (<shape>-lo.png) stands for
+ * every other palette of it: the character's creation puts a face or a hair
+ * style together in each skin, eye and hair colour (thousands of pictures,
+ * none in the pack), the companions made at the inn too. Its HD: the base's
+ * HD + (this picture - the base's), both enlarged 4x smoothly (repeating, as
+ * DS textures do); see-through as the base's. <shape>: the texels numbered by
+ * their colours in the order they come (recolor_shape), the same for two
+ * palettes of one picture; one whose colours come out the same twice (black
+ * eyes, black lines) takes a base of its size whose texels of one colour are
+ * of one colour in it too. */
+#define RECOLOR_DIR PACK_DIR "/recolor"
+#define RECOLOR_LIVE 48                                        /* made ones kept in the GPU */
+typedef struct { uint64_t shape; int w, h, tried, ncol; uint8_t *lo, *hd, *idx; } RecolorBase;
+static RecolorBase* g_rcb; static int g_rcb_n = -1;            /* -1: textures/recolor not read yet */
+static struct { uint64_t key; GLuint tex; uint64_t used; } g_rct[RECOLOR_LIVE];
+
+static uint64_t recolor_shape(const uint8_t* rgba, int w, int h, uint8_t* idx) {
+    uint32_t col[256]; int n = 0;
+    uint64_t s = 1469598103934665603ull;                       /* (FNV-1a: its size, then each texel's number) */
+    const uint8_t sz[4] = { (uint8_t)w, (uint8_t)(w >> 8), (uint8_t)h, (uint8_t)(h >> 8) };
+    for (int i = 0; i < 4; i++) { s ^= sz[i]; s *= 1099511628211ull; }
+    for (int i = 0; i < w * h; i++) {
+        uint32_t c; memcpy(&c, rgba + 4 * i, 4);
+        int k = 0;
+        while (k < n && col[k] != c) k++;
+        if (k == n) { if (n == 256) return 0; col[n++] = c; }
+        if (idx) idx[i] = (uint8_t)k;
+        s ^= (uint8_t)k; s *= 1099511628211ull;
+    }
+    return s;
+}
+
+static void recolor_add(const char* name) {                   /* <16 hex digits>-lo.png */
+    if (strlen(name) != 23 || strcmp(name + 16, "-lo.png")) return;
+    uint64_t sh = 0;
+    for (int i = 0; i < 16; i++) {
+        char c = name[i]; int v = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+        if (v < 0) return;
+        sh = sh << 4 | (uint64_t)v;
+    }
+    g_rcb = realloc(g_rcb, sizeof *g_rcb * (size_t)(g_rcb_n + 1));
+    memset(&g_rcb[g_rcb_n], 0, sizeof *g_rcb); g_rcb[g_rcb_n++].shape = sh;
+}
+
+static void recolor_scan(void) {
+    g_rcb_n = 0;
+#ifdef _WIN32
+    struct _finddata_t fd; intptr_t h = _findfirst(RECOLOR_DIR "/*-lo.png", &fd);
+    if (h == -1) return;
+    do recolor_add(fd.name); while (_findnext(h, &fd) == 0);
+    _findclose(h);
+#else
+    DIR* d = opendir(RECOLOR_DIR);
+    if (!d) return;
+    struct dirent* e;
+    while ((e = readdir(d))) recolor_add(e->d_name);
+    closedir(d);
+#endif
+    if (g_rcb_n) fprintf(stderr, "HD textures: %d pictures in other colours in %s/\n", g_rcb_n, RECOLOR_DIR);
+}
+
+static void recolor_unload(void) {
+    for (int i = 0; i < RECOLOR_LIVE; i++) if (g_rct[i].tex) { p_glDeleteTextures(1, &g_rct[i].tex); g_rct[i].tex = 0; }
+    for (int i = 0; i < g_rcb_n; i++) { stbi_image_free(g_rcb[i].lo); stbi_image_free(g_rcb[i].hd); free(g_rcb[i].idx); }
+    free(g_rcb); g_rcb = NULL; g_rcb_n = -1;
+}
+
+static void recolor_load(RecolorBase* b) {
+    b->tried = 1;
+    char p[160]; int lw, lh, hw, hh, ch;
+    snprintf(p, sizeof p, RECOLOR_DIR "/%016llx-lo.png", (unsigned long long)b->shape); b->lo = stbi_load(p, &lw, &lh, &ch, 4);
+    snprintf(p, sizeof p, RECOLOR_DIR "/%016llx-hd.png", (unsigned long long)b->shape); b->hd = stbi_load(p, &hw, &hh, &ch, 4);
+    if (!b->lo || !b->hd || hw != 4 * lw || hh != 4 * lh || lw * lh > 256 * 256) {
+        stbi_image_free(b->lo); stbi_image_free(b->hd); b->lo = b->hd = NULL;
+        fprintf(stderr, "HD textures: can't use %s\n", p);
+        return;
+    }
+    b->w = lw; b->h = lh; b->idx = malloc((size_t)lw * lh);
+    if (b->idx && recolor_shape(b->lo, lw, lh, b->idx)) { b->ncol = 0; for (int t = 0; t < lw * lh; t++) if (b->idx[t] + 1 > b->ncol) b->ncol = b->idx[t] + 1; }
+    else { free(b->idx); b->idx = NULL; }
+}
+
+/* a base this picture is (its texels of one colour there of one colour here
+ * too, and not many fewer colours) */
+static int recolor_fits(const RecolorBase* c, const uint8_t* rgba, int w, int h) {
+    if (!c->idx || c->w != w || c->h != h) return 0;
+    uint32_t col[256]; uint8_t seen[256] = { 0 };
+    for (int t = 0; t < w * h; t++) {
+        uint32_t v; memcpy(&v, rgba + 4 * t, 4); int k = c->idx[t];
+        if (!seen[k]) { seen[k] = 1; col[k] = v; }
+        else if (col[k] != v) return 0;
+    }
+    int n = 0;
+    for (int k = 0; k < c->ncol; k++) { int dup = 0; for (int j = 0; j < k && !dup; j++) dup = col[j] == col[k]; n += !dup; }
+    return n >= c->ncol - 4;
+}
+
+static GLuint recolor_texture(uint64_t key, const uint8_t* rgba, int w, int h) {
+    for (int i = 0; i < RECOLOR_LIVE; i++) if (g_rct[i].tex && g_rct[i].key == key) { g_rct[i].used = g_frameno; return g_rct[i].tex; }
+    if (g_rcb_n < 0) { recolor_scan(); for (int i = 0; i < g_rcb_n; i++) recolor_load(&g_rcb[i]); }
+    int any = 0;                                               /* (none of its size: nothing to work out) */
+    for (int i = 0; i < g_rcb_n && !any; i++) any = g_rcb[i].lo && g_rcb[i].w == w && g_rcb[i].h == h;
+    if (!any) return 0;
+    uint64_t sh = recolor_shape(rgba, w, h, NULL);
+    RecolorBase* b = NULL;
+    for (int i = 0; i < g_rcb_n && sh; i++) if (g_rcb[i].shape == sh) b = &g_rcb[i];
+    if (b && !b->lo) b = NULL;
+    for (int i = 0; i < g_rcb_n && !b; i++)                    /* (some of its colours the same: a base that keeps them apart) */
+        if (recolor_fits(&g_rcb[i], rgba, w, h)) b = &g_rcb[i];
+    if (!b || !b->lo || b->w != w || b->h != h) return 0;
+    int16_t* d = malloc(sizeof *d * (size_t)w * h * 3); uint8_t* o = malloc((size_t)w * h * 64);
+    if (!d || !o) { free(d); free(o); return 0; }
+    int same = b->shape == sh || recolor_fits(b, rgba, w, h);
+    if (same) {
+        for (int i = 0; i < w * h; i++) for (int c = 0; c < 3; c++) d[i * 3 + c] = (int16_t)(rgba[i * 4 + c] - b->lo[i * 4 + c]);
+        for (int Y = 0; Y < 4 * h; Y++) {                      /* the difference, enlarged 4x (bilinear, repeating) */
+            float fy = (Y + 0.5f) / 4 - 0.5f; int y0 = (int)floorf(fy); float ty = fy - y0;
+            int ya = ((y0 % h) + h) % h, yb = (ya + 1) % h;
+            for (int X = 0; X < 4 * w; X++) {
+                float fx = (X + 0.5f) / 4 - 0.5f; int x0 = (int)floorf(fx); float tx = fx - x0;
+                int xa = ((x0 % w) + w) % w, xb = (xa + 1) % w;
+                const uint8_t* hp = b->hd + ((size_t)Y * 4 * w + X) * 4; uint8_t* op = o + ((size_t)Y * 4 * w + X) * 4;
+                for (int c = 0; c < 3; c++) {
+                    float v = (d[(ya * w + xa) * 3 + c] * (1 - tx) + d[(ya * w + xb) * 3 + c] * tx) * (1 - ty)
+                            + (d[(yb * w + xa) * 3 + c] * (1 - tx) + d[(yb * w + xb) * 3 + c] * tx) * ty + hp[c];
+                    op[c] = (uint8_t)(v < 0 ? 0 : v > 255 ? 255 : v + 0.5f);
+                }
+                op[3] = hp[3];
+            }
+        }
+    }
+    free(d);
+    if (!same) { free(o); return 0; }
+    int slot = -1;                                             /* the least recently used one goes (not one drawn this frame) */
+    for (int i = 0; i < RECOLOR_LIVE; i++) {
+        if (!g_rct[i].tex) { slot = i; break; }
+        if (g_rct[i].used != g_frameno && (slot < 0 || g_rct[i].used < g_rct[slot].used)) slot = i;
+    }
+    if (slot < 0) { free(o); return 0; }
+    if (g_rct[slot].tex) {
+        for (int i = 0; i < TEXCACHE; i++) if (g_texcache[i].live && g_texcache[i].hd == g_rct[slot].tex) g_texcache[i].w = 0;   /* those decode again */
+        p_glDeleteTextures(1, &g_rct[slot].tex);
+    }
+    p_glGenTextures(1, &g_rct[slot].tex);
+    p_glBindTexture(GL_TEXTURE_2D, g_rct[slot].tex);
+    p_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4 * w, 4 * h, 0, GL_RGBA, GL_UNSIGNED_BYTE, o);
+    p_glGenerateMipmap(GL_TEXTURE_2D);
+    free(o);
+    g_rct[slot].key = key; g_rct[slot].used = g_frameno;
+    return g_rct[slot].tex;
 }
 
 static void textures_hd_after(void);
@@ -1339,6 +1495,7 @@ static GLuint texture_for(uint32_t ti, uint32_t pl, int* w, int* h, int* hd) {
                     uint64_t key = tex_key(g_decode, *w, *h);
                     if (g_dump_on) dump_texture(key, g_decode, *w, *h);
                     if (g_pack_on && g_pack_n && !piece && *w * *h > PACK_MIN_TEXELS) e->hd = pack_texture(key);
+                    if (g_pack_on && !e->hd && !piece && *w * *h > PACK_MIN_TEXELS) e->hd = recolor_texture(key, g_decode, *w, *h);   /* (the same texels in other colours) */
                 }
                 static int pxbr = -1; if (pxbr < 0) pxbr = !getenv("DQIX_PIECE_XBR") || atoi(getenv("DQIX_PIECE_XBR")) != 0;   /* tests */
                 if (!e->hd && g_texup && *w * *h <= 256 * 256 && (!piece || pxbr)) {   /* upscaled: 4x (2x for the big ones) */

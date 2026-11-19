@@ -5331,7 +5331,9 @@ static void bag_update(int a_on_top) {
     }
     g_bag_sel = sel;
     static int word2[4];                                          /* (the menu's grey hand blinks: the line it last pointed at kept) */
-    if (!ok) word2[2] = 0;
+    static uint64_t menus;                                        /* (the last frame of the bag or the X menu's windows) */
+    if (ok || g_xmenu) menus = g_frame;
+    if (g_frame - menus > 60) word2[2] = 0;                       /* (kept through the item's windows over it: back on the list, the hand faint) */
     g_bag_word[0][2] = g_bag_word[1][2] = g_bag_word[2][2] = 0;
     if (ok) {
         bag_word(px, 16, 12, 64, 28, g_bag_word[0]);              /* "Items" */
@@ -5346,7 +5348,8 @@ static void bag_update(int a_on_top) {
                 }
             if (k > best) { best = k; at = y; }
         }
-        if (best >= 8) bag_word(px, 20, at - 3, 106, at + 10, word2);
+        if (best >= 16) { int w[4]; bag_word(px, 20, at - 3, 106, at + 10, w); if (w[2]) memcpy(word2, w, sizeof w); }
+        if (getenv("DQIX_XMDBG")) fprintf(stderr, "bag f%llu hand %d at %d word %d\n", (unsigned long long)g_frame, best, at, word2[2]);   /* (the hand: 30 or so of its greys (a window's corner: 9); none or no words there (the hand faint, back from an item used): the last one kept) */
         memcpy(g_bag_word[2], word2, sizeof word2);
         g_bag_path_n = 0;
         for (int i = 0; i < 3; i++) if (g_bag_word[i][2]) memcpy(g_bag_path[g_bag_path_n++], g_bag_word[i], sizeof g_bag_word[i]);

@@ -5,11 +5,10 @@
  * mouse), the game asks "To whom?" as for Use; the companion chosen, a small
  * window opens beside it, "How many?", then "Use 5 Seeds of Strength on
  * Tsumiko?" Yes / No; Yes uses one the game's own way (its keys pressed for
- * the player). A seed's gain is then the game's own, once for each one chosen
- * (func_02084a74, hooked: the same random gain, again and again), added up in
- * the one message ("Strength goes up by 100"), the other seeds taken from the
- * bag or the companion; the heals go one after another, their messages shown.
- * B stops it.
+ * the player). Its effect is then the game's own, once for each one chosen
+ * (a seed's gain, HP or MP healed: those functions hooked), added up in the
+ * one message ("Strength goes up by 100", "recovers 120 HP"), the others
+ * taken from the bag or the companion. B stops it.
  *
  * The row is the game's own: its window is written as text with tags
  * (<N=0>Use</N>...) by func_ov002_0215cd98, hooked (hooks.txt), which gets
@@ -131,7 +130,9 @@ static int g_row;                                      /* "Use several" is this 
 static int g_pending;                                  /* chosen: the companion chosen next opens the window */
 static uint64_t g_alive;                               /* the frame the frontend last asked (its window can be drawn) */
 static int g_true = -1;                                /* the row really chosen in the item's menu (hook_MenuRow) */
-static int g_more;                                     /* a seed: the ones used by hook_StatGain besides the game's own (to take away) */
+static int g_more;                                     /* the ones used by repeat() besides the game's own (to take away) */
+static int g_redo;                    /* a companion's others taken: their list shown again after (B, then A: the game's own list is a copy) */
+static int g_bag_more;                                 /* ...from the bag: taken with the game's own one (hook_BagTake) */
 
 /* ---------------------------------------------------------------- the row in the item's menu */
 static int lang(void) { return g_fw_language >= 1 && g_fw_language <= 5 ? g_fw_language - 1 : 0; }
@@ -261,47 +262,84 @@ void hook_ItemWhoFrame(Cpu* c, void (*orig)(Cpu*)) {
     open_count(r8(wm + WM_CURSOR));
 }
 
-/* func_02084a74(member, effect): a lasting gain (a seed's): a random amount
- * added to the member's (up to its most), the amount given back for the
- * message. While several are used: again for each one chosen, the amounts
- * added up (the gain's most reached: no more used). */
+/* Several used at once: the game's own effect, once for the item it uses,
+ * again for each other one chosen (the same call, its arguments kept), the
+ * amounts added up for the one message; none more once one does nothing (its
+ * most reached: the rest kept). The others are taken by take_more(). */
 static void take_more(int n);
-void hook_StatGain(Cpu* c, void (*orig)(Cpu*)) {
-    uint32_t r0 = c->r[0], r1 = c->r[1];
+static int take_carried(int n);
+static void says_many(int n);
+static void says_back(void);
+static int is_seed(uint16_t id) { return id >= 0x561D && id <= 0x5625; }
+static void repeat(Cpu* c, void (*orig)(Cpu*), int seed, uint32_t result) {
+    uint32_t a[4] = { c->r[0], c->r[1], c->r[2], c->r[3] };
     orig(c);
-    if (g_state != MU_RUN || g_left <= 1 || g_more || !(g_id >= 0x561D && g_id <= 0x5625)) return;
-    int32_t sum = (int32_t)c->r[0];
+    if (g_state != MU_RUN || g_left <= 1 || g_more || !several(g_id) || is_seed(g_id) != seed) return;
+    int32_t sum = (int16_t)c->r[0];
+    if (seed) sum = (int32_t)c->r[0];
     if (sum <= 0) return;
+    uint8_t res = result ? r8(result) : 0;                 /* (the heal's outcome, for its message: kept as the first one's) */
     int more = 0;
     while (more < g_left - 1) {
-        c->r[0] = r0; c->r[1] = r1;
+        for (int i = 0; i < 4; i++) c->r[i] = a[i];
         orig(c);
-        if ((int32_t)c->r[0] <= 0) break;
-        sum += (int32_t)c->r[0]; more++;
+        int32_t got = seed ? (int32_t)c->r[0] : (int16_t)c->r[0];
+        if (got <= 0) break;
+        sum += got; more++;
     }
+    if (result) w8(result, res);
     c->r[0] = (uint32_t)sum;
     g_more = more;
-    if (more < g_left - 1) g_left = 1 + more;              /* (its most reached: the rest kept) */
-    if (g_src >= 4) take_more(more);                       /* (the bag's: now, the game then takes its own one, the last one too) */
+    if (more < g_left - 1) g_left = 1 + more;
+    if (more) says_many(1 + more); else says_back();      /* (the message: how many were used) */
+    g_bag_more = g_src >= 4 ? more : 0;                    /* (the bag's: taken with the game's own one, hook_BagTake()) */
+    if (g_src < 4 && more) { if (take_carried(more)) g_more = 0; g_redo = 1; }   /* (a companion's: now, before the game takes its own one) */
     TRACE("gain: %d more, %d in all", more, sum);
 }
 
-/* the seeds used besides the game's own one: from the bag (its count, one
- * left at least: before the game takes its own), or the companion's after it
+/* func_020a0a18(bag, item, count): count of the item taken from the bag (its
+ * place emptied at none). The one used: the others too. */
+void hook_BagTake(Cpu* c, void (*orig)(Cpu*)) {
+    if (g_bag_more > 0 && (uint16_t)c->r[1] == g_id) { c->r[2] += (uint32_t)g_bag_more; TRACE("bag: %d more taken", g_bag_more); g_bag_more = 0; }
+    orig(c);
+}
+
+/* func_02084a74(member, effect): a lasting gain (a seed's): a random amount
+ * added to the member's (up to its most), given back for the message. */
+void hook_StatGain(Cpu* c, void (*orig)(Cpu*)) { repeat(c, orig, 1, 0); }
+/* func_ov002_021548c4 and _02154944(?, member, amount, outcome): HP and MP
+ * healed by the amount (up to the most), given back (s16); *outcome 3, or 0
+ * if nothing to heal. */
+void hook_HealHP(Cpu* c, void (*orig)(Cpu*)) { repeat(c, orig, 0, c->r[3]); }
+void hook_HealMP(Cpu* c, void (*orig)(Cpu*)) { repeat(c, orig, 0, c->r[3]); }
+
+/* A companion's others, before the game takes its own one (the one under
+ * the hand, its place g_list_row): the others' places emptied, the ones after
+ * moved up, and the hand's place still one of them (the game then takes that
+ * place: the list as it would have been). 0 if not as expected. */
+static int g_list_row = -1;
+static int take_carried(int n) {
+    uint32_t r = record(g_src);
+    int h = g_list_row;
+    if (!r || h < 0 || h >= CARRIED_N || r16(r + CARRIED + 2u * h) != g_id) return 0;
+    uint16_t v[CARRIED_N];
+    for (int i = 0; i < CARRIED_N; i++) v[i] = r16(r + CARRIED + 2u * i);
+    for (int k = 0; k < n; k++) {
+        int j = -1;
+        for (int i = CARRIED_N - 1; i >= 0 && j < 0; i--) if (i != h && v[i] == g_id) j = i;   /* (after the hand's first) */
+        if (j < 0) return 0;
+        for (int i = j; i < CARRIED_N - 1; i++) v[i] = v[i + 1];
+        v[CARRIED_N - 1] = 0xFFFF;
+        if (j < h) { uint16_t t = v[h - 1]; v[h - 1] = v[h]; v[h] = t; }   /* (the hand's one moved up a place: back under the hand) */
+    }
+    for (int i = 0; i < CARRIED_N; i++) w16(r + CARRIED + 2u * i, v[i]);
+    return 1;
+}
+
+/* the others used besides the game's own one, a companion's: after it
  * (their places emptied, the ones after moved up, as the game keeps them) */
 static void take_more(int n) {
-    if (n <= 0) return;
-    if (g_src >= 4) {
-        for (int i = 0; i < BAG_N; i++) {
-            uint16_t k = r16(BAG_IDS + 2u * i);
-            if (k == 0xFFFF) break;
-            if (k != g_id) continue;
-            int left = r8(BAG_COUNTS + (uint32_t)i) - n;
-            w8(BAG_COUNTS + (uint32_t)i, (uint8_t)(left < 1 ? 1 : left));
-            return;
-        }
-        return;
-    }
+    if (n <= 0 || g_src >= 4) return;
     uint32_t r = record(g_src);
     if (!r) return;
     uint16_t keep[CARRIED_N]; int k = 0;
@@ -510,14 +548,40 @@ const uint8_t* multiuse_picture(int w, int h, int* changed) {
 }
 
 /* ---------------------------------------------------------------- using them: the keys pressed for the player */
-static void stop(const char* why) { TRACE("stop: %s", why); g_state = MU_OFF; g_dirty = 1; }
+/* The game's "<actor> uses <the item>." (its messages' file, in main RAM),
+ * while several are used: "<actor> uses 5 <items>." (the plural's tag), put
+ * back after. In place: no longer than it was. */
+static uint32_t g_says; static char g_said[64]; static size_t g_said_n;
+static void says_back(void) {
+    if (g_says) { memcpy(&g_main_ram[g_says], g_said, g_said_n); g_says = 0; }
+}
+static void says_many(int n) {
+    static const char* const uses[] = {                    /* (en fr de it es; de: both the game has) */
+        "<Cap><DEF_ART_ACTOR> uses <DEF_ART_SGL_I_NAME>.", "<Cap><DEF_ART_ACTOR> utilise <DEF_ART_SGL_I_NAME>.",
+        "<Cap><DEF_ART_ACTOR> benutzt <DEF_ART_SGL_ACC_I_NAME>.", "<Cap><DEF_ART_ACTOR> usa <INDEF_ART_SGL_I_NAME>.",
+        "<Cap><DEF_ART_ACTOR> utiliza <DEF_ART_SGL_I_NAME>." };
+    const char* u = uses[lang()];
+    if (!g_says) {
+        size_t un = strlen(u) + 1;
+        const uint8_t* at = NULL;
+        for (uint32_t i = 0; i + un <= MAIN_RAM_SIZE && !at; i++)   /* (memmem: not on Windows) */
+            if (g_main_ram[i] == '<' && !memcmp(&g_main_ram[i], u, un)) at = &g_main_ram[i];
+        if (!at || un > sizeof g_said) return;
+        g_says = (uint32_t)(at - g_main_ram); g_said_n = un; memcpy(g_said, at, un);
+    }
+    const char* tag = strrchr(g_said, '<');                 /* (the item's tag: the last one) */
+    char t[64]; int k = snprintf(t, sizeof t, "%.*s%d <PLR_I_NAME>.", (int)(tag - g_said), g_said, n);
+    if (k <= 0 || (size_t)k + 1 > g_said_n) return;
+    memcpy(&g_main_ram[g_says], t, (size_t)k + 1);
+}
+static void stop(const char* why) { TRACE("stop: %s", why); g_state = MU_OFF; g_dirty = 1; says_back(); }
 
 /* one use: from the list, the item under the hand, A; "What do you want to
  * do?", Use, A; "To whom?", the companion, A; the messages, A. After it the
  * game builds its windows again: the bag's item back on "What do you want to
  * do?", a carried one's list (that one gone). Each window waited for still
  * (the field menu's level: 5 the list, 6 its menu, 7 "To whom?"). */
-enum { S_NAV, S_MSGS };
+enum { S_NAV, S_MSGS, S_REDO };
 static int g_step, g_wait, g_tap, g_hold, g_away;   /* the macro's step, frames waited, a key held for the game (frames left) */
 static uint16_t g_key;
 static uint16_t g_was;                /* the player's keys last frame */
@@ -553,11 +617,17 @@ static void run(void) {
         if (g_stable < 30) return;
         int now = held(g_id);
         if (now >= g_had) { end_run("not used (no effect)"); return; }
-        if (g_more) { if (g_src < 4) take_more(g_more); now = held(g_id); g_more = 0; }   /* (a seed: the others used with it, the companion's taken now) */
+        if (g_more) { take_more(g_more); now = held(g_id); g_more = 0; g_bag_more = 0; }   /* (the others used with it: a companion's taken now) */
         g_left -= g_had - now; TRACE("used, %d left (%d held)", g_left, now);
-        if (g_left <= 0 || now <= 0) { end_run("done"); return; }
+        if (g_left <= 0 || now <= 0) { if (g_redo) { g_step = S_REDO; g_wait = 0; return; } end_run("done"); return; }
         g_step = S_NAV; g_wait = 0; g_moves = 0;
         return;
+    }
+    if (g_step == S_REDO) {                                      /* the companion's list shown again: back to "who" (B), their name again (A) */
+        if (g_stable < 12) return;
+        if (lv == 5) { if (g_redo) press(K_B, 6); else end_run("done (their list again)"); return; }
+        if (lv == 4 && g_redo) { g_redo = 0; press(K_A, 6); return; }
+        end_run("done"); return;
     }
     if (g_stable < 12) return;
     if (++g_moves > 40) { end_run("lost"); return; }
@@ -575,7 +645,8 @@ static void run(void) {
 }
 
 static void start_run(void) {
-    g_left = g_n; g_state = MU_RUN; g_step = S_NAV; g_wait = 0; g_stable = 12; g_moves = 0; g_more = 0;
+    g_left = g_n; g_state = MU_RUN; g_step = S_NAV; g_wait = 0; g_stable = 12; g_moves = 0; g_more = 0; g_bag_more = 0; g_redo = 0;
+    if (g_n > 1) says_many(g_n);
     uint32_t o = obj();
     g_lastw = o ? r32(o + OBJ_WM + 0x98) ^ r8(o + OBJ_WM + WM_LEVEL) : 0; g_lastl = level(); g_lastc = cursor();
     g_dirty = 1;
@@ -623,6 +694,7 @@ int multiuse_keys(uint16_t* keys, int field) {
         if (g_trace && o && (level() != ll || cursor() != lc)) { ll = level(); lc = cursor();
             TRACE("level %d row %d step %d sel %d/%d whose %d item %04x screen %d", ll, lc, (int)r32(o + OBJ_STEP), (int16_t)r16(o + 0x1BEA), (int16_t)r16(o + 0x1BEC), (int8_t)r8(o + OBJ_WHOSE), hovered(), (int)r32(o + 0x1BB8)); } }
     if (g_state == MU_OFF && level() == 4) g_who_row = cursor();   /* (whose list: the row in "who", however chosen) */
+    if (g_state == MU_OFF && level() == 5) g_list_row = cursor();  /* (the item's place in a companion's list) */
     uint16_t now = *keys, pressed = now & ~g_was;
     g_was = now;
     if (g_state == MU_RUN) {

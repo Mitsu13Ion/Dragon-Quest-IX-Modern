@@ -35,3 +35,6 @@ ov002 021631e8 ItemCmdFrame                # the item's menu, once a frame (its 
 ov002 02163664 ItemWhoFrame                # "To whom?" for an item, once a frame (the companion chosen: the item used)
 main 0205d794 MenuRow                      # a window's chosen row: the item's menu does what its row does (theirs, with ours one more)
 main 02084a64 StatGain                     # a lasting gain on one member (a seed's): its amount (r0 the member, r1 the effect)
+ov002 021548c4 HealHP                      # HP healed on one member by an item (r2 the amount): the amount healed
+ov002 02154944 HealMP                      # MP healed the same way
+main 020a0a08 BagTake                      # items taken from the bag (r1 the item, r2 how many)

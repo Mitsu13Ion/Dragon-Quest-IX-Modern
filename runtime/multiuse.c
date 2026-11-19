@@ -1,6 +1,6 @@
 /* Use several at once (multiuse.h). On an everyday item the party has more
  * than one of (a fixed heal: Medicinal herb and the Strong, Special and
- * Superior medicines; or a seed), the item's "What do you want to do?" has
+ * Superior medicines; Magic water, the Sage's and Elfin elixirs; or a seed), the item's "What do you want to do?" has
  * one more row under Use: "Use several". Chosen (with A, a touch or the
  * mouse), the game asks "To whom?" as for Use; the companion chosen, a small
  * window opens beside it, "How many?", then "Use 5 Seeds of Strength on
@@ -80,8 +80,8 @@ static int level(void) { uint32_t o = obj(); return o ? r8(o + OBJ_WM + WM_LEVEL
 static int message(void) { return r32(MSG_OBJ) != 0; }
 
 /* the items it is for: the fixed heals (not the leaf or dew of Yggdrasil, the
- * elixirs, the antidotes) and the seeds */
-static int several(uint16_t id) { return (id >= 0x55F0 && id <= 0x55F3) || (id >= 0x561D && id <= 0x5625); }
+ * antidotes), the ones for MP (Magic water, Sage's and Elfin elixirs) and the seeds */
+static int several(uint16_t id) { return (id >= 0x55F0 && id <= 0x55F3) || (id >= 0x55FF && id <= 0x5601) || (id >= 0x561D && id <= 0x5625); }
 
 static int bag_count(uint16_t id) {
     for (int i = 0; i < BAG_N; i++) { uint16_t k = r16(BAG_IDS + 2u * i); if (k == 0xFFFF) break; if (k == id) return r8(BAG_COUNTS + (uint32_t)i); }

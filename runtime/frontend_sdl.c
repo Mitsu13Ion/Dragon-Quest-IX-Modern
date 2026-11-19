@@ -200,10 +200,20 @@ static int g_xm_msg_top;                                          /* ...its wind
 static int g_xm_word[4][4], g_xm_nword;                           /* ...the path: the menus' names before, and its own */
 static int g_xm_free, g_xm_nf, g_xm_fwin[8][5], g_xm_fsep[8][3];  /* windows round it (a spell's cost, its help...): all where the game has them (x0 y0 x1 y1 greyed; its lines inside) */
 static float g_xm_rect[4];                                        /* ...where it was put this frame (canvas), w 0: not drawn */
+static int xm_asked(void) {                                      /* a list over the 3D's dialogue window: someone's (Patty's), not the X menu */
+    uint32_t dc; memcpy(&dc, &g_io[0], 4);
+    int d[4];
+    return (dc & 0x108) == 0x108 && gl_dialog_box(d);
+}
 static void xm_place(float cw, float* wx, float* wy) {
     if (g_xm_free) { *wx = (cw - 256) / 2 + g_xm_win[0]; *wy = (float)g_xm_win[1]; return; }
     *wx = floorf(cw / 2 - (g_xm_win[2] - g_xm_win[0] + 1) / 2.0f);
-    *wy = floorf(85 - (g_xm_win[3] - g_xm_win[1] + 1) / 2.0f);
+    float h = (float)(g_xm_win[3] - g_xm_win[1] + 1);
+    *wy = floorf(85 - h / 2);
+    uint32_t dc; memcpy(&dc, &g_io[0], 4);                        /* the 3D's dialogue window (and its name's plate) under it: not against them (Patty's lists) */
+    int db[8][4], nd = (dc & 0x108) == 0x108 ? gl_dialog_boxes(db, 8) : 0, top = 192;
+    for (int i = 0; i < nd; i++) if (db[i][3] > 100 && db[i][1] < top) top = db[i][1];
+    if (top < 192 && *wy + h > top - 8) *wy = fmaxf(2, (float)top - 8 - h);
 }
 static int g_hud_list;                                            /* ...a list open (spells, items, targets): modern, the chooser alone */
 static int g_hud_win[4];                                          /* ...or a window alone there (experience, level up): x, y, w, h (w 0: none) */
@@ -3064,9 +3074,9 @@ static void patty_pieces(GlPresent* v, int e, const float* big, int stats) {
     float C = v->ch / 576.0f, s = big[3] / 192.0f, fx = big[0];   /* (the dialogue box: on the field's picture, as wide as big) */
     int d[4] = { 8, 0, 248, 120 };
     if (!gl_dialog_box(d)) { d[0] = (int)(big[2] / s / 2) - 123; d[2] = d[0] + 246; d[1] = 100; }
-    float X0 = fx + d[0] * s, X1 = fx + d[2] * s, top = 14 * C, bot = big[1] + d[1] * s - 12 * C, gap = 12 * C;
+    float X0 = fx + d[0] * s, X1 = fx + d[2] * s, top = 14 * C, bot = big[1] + d[1] * s - 30 * C, gap = 12 * C;   /* (well above the dialogue window and its name's plate) */
     if (bot - top < 200 * C) bot = top + 200 * C;
-    bestiary_piece(v, 4, 0, 0, big[2] / s, 100, 0, fx, big[1], s);   /* the parchment gone: the 3D alone there */
+    bestiary_piece(v, 4, -(big[2] / s - 256) / 2, 0, big[2] / s, 100, 0, fx, big[1], s);   /* the parchment gone: the 3D alone there (all its width, its sides too: not shifted by them, its right edge not stretched) */
     const uint32_t* f = g_screen[e < 0 ? 0 : e];
     uint32_t hb = f[7 * 256 + 244];                               /* Invite: its header's brown box at the right (the places left); Leave: none */
     int invite = e < 0 || ((hb >> 16) & 255) > 95 && ((hb >> 16) & 255) < 150 && ((hb >> 8) & 255) > 50 && ((hb >> 8) & 255) < 100 && (hb & 255) < 65;
@@ -3100,10 +3110,13 @@ static void patty_pieces(GlPresent* v, int e, const float* big, int stats) {
             bestiary_piece(v, e, 14, (float)(16 + 16 * r), 12, 16, 39, x - 4 * C, ty, kl);   /* the hand */
         }
         int wm = chosen ? 45 : 6;                                 /* (gold on the chosen row, else light) */
-        bestiary_piece(v, e, 25, (float)(17 + 16 * r), 58, 14, wm, cx, ty + kl, kl);   /* the name (not the row's lines) */
+        for (int pass = 0; pass < (chosen ? 1 : 2); pass++) {   /* (not chosen: its dark ink, and light letters too: the row the cursor comes to, white a frame before its brown) */
+            int m = pass ? 40 : wm;
+            bestiary_piece(v, e, 25, (float)(17 + 16 * r), 58, 14, m, cx, ty + kl, kl);   /* the name (not the row's lines) */
+            bestiary_piece(v, e, 99, (float)(17 + 16 * r), 52, 14, m, cx + 76 * kl, ty + kl, kl);    /* the vocation */
+            bestiary_piece(v, e, 190, (float)(17 + 16 * r), 47, 14, m, X0 + lw - pad - 47 * kl, ty + kl, kl);   /* the level */
+        }
         if (pink || blue) bestiary_piece(v, e, 84, (float)(17 + 16 * r), 14, 14, pink ? 43 : 42, cx + 60 * kl, ty + kl, kl);   /* the sign */
-        bestiary_piece(v, e, 99, (float)(17 + 16 * r), 52, 14, wm, cx + 76 * kl, ty + kl, kl);    /* the vocation */
-        bestiary_piece(v, e, 190, (float)(17 + 16 * r), 47, 14, wm, X0 + lw - pad - 47 * kl, ty + kl, kl);   /* the level */
     }
     if (!invite || (!stats && !others)) return;
   stats_only:;                    /* Leave: the list alone, as wide as both; Invite, the stats not there yet: the list */
@@ -3347,7 +3360,7 @@ static void canvas_layout_for(GlPresent* v, int ww, int wh, int second) {
             if (g_pop_win[2] && g_quest_page && v->npiece + 6 <= GL_MAX_PIECES) quest_pieces(v);
             else if (g_pop_win[2] && g_card_page && v->npiece + 13 <= GL_MAX_PIECES) card_pieces(v);
             else if (g_pop_win[2] && g_accolade_page && v->npiece + 3 <= GL_MAX_PIECES) accolade_plate(v);
-            else if (g_pop_win[2] && g_invite && v->npiece + 40 <= GL_MAX_PIECES) {
+            else if (g_pop_win[2] && g_invite && v->npiece + 52 <= GL_MAX_PIECES) {
                 /* Patty's lists (the mockup "Inviter un ami"): the list and the companion's stats */
                 g_patty_at = g_frame;
                 patty_pieces(v, g_invite - 1, big, 1);
@@ -3376,7 +3389,7 @@ static void canvas_layout_for(GlPresent* v, int ww, int wh, int second) {
             }
         }
         int pe = -1;
-        if ((page == 0 || (page == 1 && !(g_pop_win[2] && g_invite))) && !second && !cc_drawn && g_winstyle == 2 && in_adventure() && (pe = patty_parchment()) >= 0 && v->npiece + 40 <= GL_MAX_PIECES) {
+        if ((page == 0 || (page == 1 && !(g_pop_win[2] && g_invite))) && !second && !cc_drawn && g_winstyle == 2 && in_adventure() && (pe = patty_parchment()) >= 0 && v->npiece + 52 <= GL_MAX_PIECES) {
             /* Patty's lists without the stats (Leave; Invite before they come, or on "Others"): no parchment, ever; the minimap not */
             patty_pieces(v, pe, big, 0);
             small[0] = small[1] = small[2] = small[3] = 0;
@@ -4690,9 +4703,10 @@ static float pop_cost(float x, float y, float k, float S, float w, float h, floa
 static void pop_place(void) {
     float S = (float)wide_side_target(), cw = 256 + 2 * S, w = (float)g_pop_win[2], h = (float)g_pop_win[3];
     int side = 0, field = gl_wide_shown(&side) == 1 && g_comp_has3d, d[4], dlg = field && gl_dialog_box(d);
+    if (dlg) { d[0] -= side; d[2] -= side; }                     /* (its box in the widened 3D's columns: on the DS's picture) */
     for (int y = 0; y < 192; y++)
         for (int x = 0, row = 0; x < 256; x++) {
-            row += !field ? 0 : dlg && x >= d[0] - 2 && x < d[2] + 2 && y >= d[1] - 2 && y < d[3] + 2 ? (g_pop_panel ? 1 : 40)   /* (the dialogue window is 3D; never over it: it is read with the page. A
+            row += !field ? 0 : dlg && x >= d[0] - 2 && x < d[2] + 2 && y >= d[1] - 8 && y < d[3] + 2 ? (g_pop_panel ? 1 : 40)   /* (the dialogue window is 3D; never over it, nor right against its top: it is read with the page. A
                   * panel page (a companion's stats, while choosing one) goes over it rather than over the list it is chosen from) */
                  : ((g_comp_info[(y * 256 + x) * 4] & 3) != 1) * (g_pop_panel ? 2 : 1);
             g_pop_sum[y + 1][x + 1] = g_pop_sum[y][x + 1] + row;
@@ -5029,7 +5043,9 @@ static int text_key(SDL_Scancode k) {                             /* a key that 
  * picture (an item's card) is cut into its parts by colour: the parchment
  * around them, and what touches the edge (the sky, the torn border), go. */
 static void pop_update(int a_on_top) {
-    if (!g_pop_win[2]) g_pop_held = 0;                            /* (not up last frame: placed afresh) */
+    {   static int gone;                                          /* (not up for a while: placed afresh; a frame or two between a list and the same list greyed under a question: where it was) */
+        if (g_pop_win[2]) gone = 0; else if (++gone > 20) g_pop_held = 0;
+    }
     g_pop_win[2] = 0; g_quest_page = g_card_page = g_pop_nook = g_accolade_page = g_pop_modern = g_pop_panel = g_invite = 0;
     bestiary_update(a_on_top);
     equip_update(a_on_top);
@@ -5567,7 +5583,9 @@ static void xmenu_update(int a_on_top) {
             return;
         }
     }
-    int ok = g_xmenu && g_frame - last <= 12 && !a_on_top && !g_bag && !party_in_battle();
+    uint32_t dc; memcpy(&dc, &g_io[0], 4);                        /* (a question in the 3D's dialogue window over it: Patty's "You already have..." under her list) */
+    int d[4], asked = (dc & 0x108) == 0x108 && gl_dialog_box(d);
+    int ok = g_xmenu && (g_frame - last <= 12 || (asked && g_frame - last <= 1800)) && !a_on_top && !g_bag && !party_in_battle();
     if (ok) {                                                     /* (its top line: grey, the game's or greyed) */
         uint32_t c = px[g_xm_win[1] * 256 + g_xm_win[0] + 6] & 0xFFFFFF;
         ok = c == 0x828282 || c == 0xA2A2A2;
@@ -5608,7 +5626,7 @@ static void menu_icons_update(void) {
             keys[i] = k ? k : 0xFFFF;
         }
         changed = mapmarks_bag(keys, 8, g_ca_ic[0], g_ca_ic[1], g_ca_ic[2], g_ca_ic[3], -1, 0, 0, 0, "", 0, 0, 0, chev, 0, 0, &rgba);
-    } else if (g_xmenu && !g_xm_free) {                          /* (its windows all where they are: no path, the menus behind shown) */
+    } else if (g_xmenu && !g_xm_free && !xm_asked()) {           /* (its windows all where they are: no path, the menus behind shown; someone's list (Patty's): none either) */
         float wx, wy;
         xm_place(cw, &wx, &wy);
         path_set(wx + 1, wy - 7, (const int (*)[4])g_xm_word, g_xm_nword);
@@ -5678,7 +5696,7 @@ static void xmenu_pieces(GlPresent* v) {
         XM_WIN(mx, my, mw, mh);
         bestiary_piece(v, 3, m[0], m[1], m[2], m[3], 3, mx + 8, my + 5, 1);
     }
-    if (!g_xm_free) path_pieces(v);
+    if (!g_xm_free && !xm_asked()) path_pieces(v);               /* (the X menu's path; not over someone's list, Patty's) */
     #undef XM_WIN
     v->icons[0] = X; v->icons[1] = 0; v->icons[2] = 256; v->icons[3] = 192;
     g_xm_rect[0] = wx; g_xm_rect[1] = wy; g_xm_rect[2] = w; g_xm_rect[3] = h;   /* (Use several: its window beside this one, canvas_layout_for()) */

@@ -2459,7 +2459,7 @@ static void title_update(int a_on_top) {
     if (in_adventure() || g_cc_n) { phase = 0; started = 0; return; }
     const uint32_t* bot = g_engine_out[a_on_top ? 1 : 0], *top = g_engine_out[a_on_top ? 0 : 1];
     float f = title_fade(a_on_top, &g_title_white);
-    if (hdmovie_playing("TD_nouhin_DS_form")) {                    /* the opening movie: START on the touch screen? (black, an orange button) */
+    {                                                             /* the opening movie: START on the touch screen? (black, an orange button; its second time round too, not read from the card again) */
         int black = 0, orange = 0, x0 = 256, y0 = 192, x1 = -1, y1 = -1;
         for (int y = 0; y < 192; y++)
             for (int x = 0; x < 256; x++) {
@@ -2470,11 +2470,11 @@ static void title_update(int a_on_top) {
             }
         if (black * 100 >= 256 * 192 * 85 && orange >= 40) {      /* (START there: the movie behind it) */
             phase = 1; quiet = 0; g_title = 1;
-            if ((g_keys_down & 9) || g_touch_down) started = 1;
             g_title_n = 1; g_title_box[0][0] = x0; g_title_box[0][1] = y0; g_title_box[0][2] = x1 - x0 + 1; g_title_box[0][3] = y1 - y0 + 1;
             return;
         }
     }
+    if (phase == 1) started = 1;                                  /* (the START screen gone: pressed, or the movie over, when the game goes on by itself (the quick save's question)) */
     int n = title_windows(bot, g_title_box, 6);
     if (!phase && n && title_art_like(top, 0)) phase = 2;         /* the menu again (back from a screen of its own) */
     {                                                             /* the Wi-Fi settings (only from the title): both screens side by side over the title's picture */
@@ -4816,7 +4816,7 @@ static int quest_page(const uint32_t* px) {
 
 /* Is the top screen an item's card (card_pieces())? Its name's dark bar and
  * the description's parchment under the text, at their places. */
-static int card_page(const uint32_t* px) {
+static int card_shape(const uint32_t* px) {                       /* an item's card, any (its name's brown bar, its parchment) */
     int bar = 0, page = 0, n = 0;
     for (int x = 40; x < 140; x += 8) {
         uint32_t t = px[11 * 256 + x], d = px[96 * 256 + x + 30];   /* (the bar above its letters: a long name, accents) */
@@ -4825,7 +4825,10 @@ static int card_page(const uint32_t* px) {
         page += dr > 170 && dg > 140 && db > 60 && db < 130 && dr > db + 70;                       /* the parchment (203, 170, 89) */
         n++;
     }
-    if (bar * 4 <= n * 3 || page * 4 <= n * 3) return 0;
+    return bar * 4 > n * 3 && page * 4 > n * 3;
+}
+static int card_page(const uint32_t* px) {
+    if (!card_shape(px)) return 0;
     /* an item's (not worn): under the prices, the brown panel of where it is found
      * reaches the right side, where equipment has its light "Equips:" panel */
     int brown = 0;
@@ -5318,7 +5321,7 @@ static void bag_update(int a_on_top) {
         if (x1 >= x0) { g_bag_box[0] = x0; g_bag_box[1] = y0; g_bag_box[2] = x1 - x0 + 1; g_bag_box[3] = y1 - y0 + 1; }
     }
     g_bag_ink[0] = 1; g_bag_ink[1] = 0;
-    if (ok) {                                                     /* the card's description (dark letters on its parchment, x 60..171) */
+    if (ok && card_shape(g_engine_out[1])) {                       /* the card's description (dark letters on its parchment, x 60..171; not the map still there a moment) */
         const uint32_t* t = g_engine_out[1];
         for (int y = 30; y < 96; y++) {
             int ink = 0;
@@ -5440,7 +5443,7 @@ static int xmenu_detect(int a_on_top) {
                 if (x1 - x0 < 24) continue;                       /* (a line of its own first: not a window's side) */
                 {   /* (back past a window over its left: its corner hidden, its side seen under it) */
                     int g = x0 - 1; while (g >= 0 && x0 - g <= 140 && (px[y * 256 + g] & 0xFFFFFF) != c && (info[(y * 256 + g) * 4] & 3) != 1) g--;
-                    if (g >= 0 && x0 - g > 8) {                       /* (its left side under the window over it, a few rows down) */
+                    if (g >= 2 && x0 - g > 8 && (px[y * 256 + g - 1] & 0xFFFFFF) == c && (px[y * 256 + g - 2] & 0xFFFFFF) == c) {   /* (its line going on there (not another window's side): its left side under the window over it, a few rows down) */
                         int sx = -1;
                         for (int xx = g + 1; xx < x0 && sx < 0; xx++) {
                             int n = 0; for (int yy = y + 1; yy < y + 40 && yy < 192; yy++) n += (px[yy * 256 + xx] & 0xFFFFFF) == c;
@@ -5545,6 +5548,7 @@ static int xmenu_detect(int a_on_top) {
     } else if (sep && g_xm_nword < 4) { bag_word(px, X0 + 2, top + 1, X1 - 1, sep, g_xm_word[g_xm_nword]); if (g_xm_word[g_xm_nword][2]) g_xm_nword++; }
     #undef GREY
     if (dbg && (dbg > 1 || g_frame % 30 == 0)) fprintf(stderr, "xm f%llu ok win %d %d %d %d sep %d words %d band %d %d %d %d hand %d-%d %d-%d\n", (unsigned long long)g_frame, X0, top, X1, bot, sep, g_xm_nword, g_xm_band[0], g_xm_band[1], g_xm_band[2], g_xm_band[3], hx0, hx1, hy0, hy1);
+    if (dbg > 2) for (int i = 0; i < g_xm_nf; i++) fprintf(stderr, "xm f%llu free %d: %d %d %d %d grey %d\n", (unsigned long long)g_frame, i, g_xm_fwin[i][0], g_xm_fwin[i][1], g_xm_fwin[i][2], g_xm_fwin[i][3], g_xm_fwin[i][4]);
     return 1;
 }
 

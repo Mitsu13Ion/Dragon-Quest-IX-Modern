@@ -4,8 +4,12 @@
  * one more row under Use: "Use several". Chosen (with A, a touch or the
  * mouse), the game asks "To whom?" as for Use; the companion chosen, a small
  * window opens beside it, "How many?", then "Use 5 Seeds of Strength on
- * Tsumiko?" Yes / No; Yes uses them one after another, the game's own way
- * (its keys pressed for the player), the game's messages shown. B stops it.
+ * Tsumiko?" Yes / No; Yes uses one the game's own way (its keys pressed for
+ * the player). A seed's gain is then the game's own, once for each one chosen
+ * (func_02084a74, hooked: the same random gain, again and again), added up in
+ * the one message ("Strength goes up by 100"), the other seeds taken from the
+ * bag or the companion; the heals go one after another, their messages shown.
+ * B stops it.
  *
  * The row is the game's own: its window is written as text with tags
  * (<N=0>Use</N>...) by func_ov002_0215cd98, hooked (hooks.txt), which gets
@@ -127,6 +131,7 @@ static int g_row;                                      /* "Use several" is this 
 static int g_pending;                                  /* chosen: the companion chosen next opens the window */
 static uint64_t g_alive;                               /* the frame the frontend last asked (its window can be drawn) */
 static int g_true = -1;                                /* the row really chosen in the item's menu (hook_MenuRow) */
+static int g_more;                                     /* a seed: the ones used by hook_StatGain besides the game's own (to take away) */
 
 /* ---------------------------------------------------------------- the row in the item's menu */
 static int lang(void) { return g_fw_language >= 1 && g_fw_language <= 5 ? g_fw_language - 1 : 0; }
@@ -254,6 +259,58 @@ void hook_ItemWhoFrame(Cpu* c, void (*orig)(Cpu*)) {
     if (rec) w8(rec + 0xC5, (uint8_t)(r8(rec + 0xC5) & ~2));
     orig(c);
     open_count(r8(wm + WM_CURSOR));
+}
+
+/* func_02084a74(member, effect): a lasting gain (a seed's): a random amount
+ * added to the member's (up to its most), the amount given back for the
+ * message. While several are used: again for each one chosen, the amounts
+ * added up (the gain's most reached: no more used). */
+static void take_more(int n);
+void hook_StatGain(Cpu* c, void (*orig)(Cpu*)) {
+    uint32_t r0 = c->r[0], r1 = c->r[1];
+    orig(c);
+    if (g_state != MU_RUN || g_left <= 1 || g_more || !(g_id >= 0x561D && g_id <= 0x5625)) return;
+    int32_t sum = (int32_t)c->r[0];
+    if (sum <= 0) return;
+    int more = 0;
+    while (more < g_left - 1) {
+        c->r[0] = r0; c->r[1] = r1;
+        orig(c);
+        if ((int32_t)c->r[0] <= 0) break;
+        sum += (int32_t)c->r[0]; more++;
+    }
+    c->r[0] = (uint32_t)sum;
+    g_more = more;
+    if (more < g_left - 1) g_left = 1 + more;              /* (its most reached: the rest kept) */
+    if (g_src >= 4) take_more(more);                       /* (the bag's: now, the game then takes its own one, the last one too) */
+    TRACE("gain: %d more, %d in all", more, sum);
+}
+
+/* the seeds used besides the game's own one: from the bag (its count, one
+ * left at least: before the game takes its own), or the companion's after it
+ * (their places emptied, the ones after moved up, as the game keeps them) */
+static void take_more(int n) {
+    if (n <= 0) return;
+    if (g_src >= 4) {
+        for (int i = 0; i < BAG_N; i++) {
+            uint16_t k = r16(BAG_IDS + 2u * i);
+            if (k == 0xFFFF) break;
+            if (k != g_id) continue;
+            int left = r8(BAG_COUNTS + (uint32_t)i) - n;
+            w8(BAG_COUNTS + (uint32_t)i, (uint8_t)(left < 1 ? 1 : left));
+            return;
+        }
+        return;
+    }
+    uint32_t r = record(g_src);
+    if (!r) return;
+    uint16_t keep[CARRIED_N]; int k = 0;
+    for (int i = 0; i < CARRIED_N; i++) {
+        uint16_t v = r16(r + CARRIED + 2u * i);
+        if (v == g_id && n > 0) { n--; continue; }
+        if (v != 0xFFFF && v != 0) keep[k++] = v;
+    }
+    for (int i = 0; i < CARRIED_N; i++) w16(r + CARRIED + 2u * i, i < k ? keep[i] : 0xFFFF);
 }
 
 /* ---------------------------------------------------------------- the windows over the game */
@@ -496,6 +553,7 @@ static void run(void) {
         if (g_stable < 30) return;
         int now = held(g_id);
         if (now >= g_had) { end_run("not used (no effect)"); return; }
+        if (g_more) { if (g_src < 4) take_more(g_more); now = held(g_id); g_more = 0; }   /* (a seed: the others used with it, the companion's taken now) */
         g_left -= g_had - now; TRACE("used, %d left (%d held)", g_left, now);
         if (g_left <= 0 || now <= 0) { end_run("done"); return; }
         g_step = S_NAV; g_wait = 0; g_moves = 0;
@@ -517,7 +575,7 @@ static void run(void) {
 }
 
 static void start_run(void) {
-    g_left = g_n; g_state = MU_RUN; g_step = S_NAV; g_wait = 0; g_stable = 12; g_moves = 0;
+    g_left = g_n; g_state = MU_RUN; g_step = S_NAV; g_wait = 0; g_stable = 12; g_moves = 0; g_more = 0;
     uint32_t o = obj();
     g_lastw = o ? r32(o + OBJ_WM + 0x98) ^ r8(o + OBJ_WM + WM_LEVEL) : 0; g_lastl = level(); g_lastc = cursor();
     g_dirty = 1;

@@ -47,8 +47,7 @@ if defined DQIX_PROGRESS echo progress 0.03 Installing the build tools (MSYS2, o
 echo Installing MSYS2 (one time, a few minutes)...
 winget install --id MSYS2.MSYS2 -e --accept-source-agreements --accept-package-agreements
 if exist "%MSYSROOT%\usr\bin\bash.exe" goto have_msys
-echo MSYS2 could not be installed automatically. Install it from https://www.msys2.org
-echo (default folder C:\msys64), then run this again.
+echo BUILD FAILED: the build tools (MSYS2) could not be installed. Install them from https://www.msys2.org (default folder C:\msys64), then try again.
 if not defined DQIX_NOPAUSE pause
 exit /b 1
 
@@ -75,6 +74,8 @@ if not defined DQIX_NOPAUSE pause
 exit /b 0
 
 :failed
+rem --prepare: build-game.sh's own last line already says why (RecompLauncher shows only that one)
+if defined DQIX_PROGRESS exit /b 1
 echo.
 echo BUILD FAILED. The text above says why.
 if not defined DQIX_NOPAUSE pause

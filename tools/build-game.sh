@@ -14,14 +14,16 @@ cd "$(dirname "$0")/.."
 # the build again into build/build.log, and end a failure with one line saying why
 if [ -n "$DQIX_PROGRESS" ] && [ -z "$DQIX_LOG" ]; then
     mkdir -p build && rm -f build/build.status && export DQIX_LOG=build/build.log
-    { s=0; "${BASH:-sh}" tools/build-game.sh "$@" 2>&1 || s=$?; echo $s > build/build.status; } | tee "$DQIX_LOG"
+    { s=0; "${BASH:-sh}" tools/build-game.sh "$@" 2>&1 || s=$?; echo $s > build/build.status; } | tee "$DQIX_LOG" || true
     s=$(cat build/build.status 2>/dev/null || echo 1); [ "$s" = 0 ] && exit 0
     at=$(sed -n 's/^== //p' "$DQIX_LOG" | tail -n 1)
-    why=$(tr -d '\r' < "$DQIX_LOG" | grep -iE "error|no space left|no such file|cannot|couldn.t|not found|denied|doesn.t exist" | grep -vE "optional|collect2|^make(\[[0-9]+\])?: \*\*\*" | tail -n 1)
-    [ -n "$why" ] || why=$(tr -d '\r' < "$DQIX_LOG" | grep -v '^progress ' | grep . | tail -n 1)
+    # only what came after the last step title or optional part, so an earlier harmless error isn't blamed
+    last=$(tr -d '\r' < "$DQIX_LOG" | awk '/^== |optional/ { b = ""; next } !/^progress / { b = b $0 "\n" } END { printf "%s", b }')
+    why=$(printf '%s\n' "$last" | grep -iE "error|undefined reference|no space left|no such file|cannot|couldn.t|not found|denied|doesn.t exist" | grep -viE "warning|collect2|^make(\[[0-9]+\])?: \*\*\*" | tail -n 1)
+    [ -n "$why" ] || why=$(printf '%s\n' "$last" | grep . | tail -n 1)
     echo
     why=$(printf '%s\n' "$why" | sed 's/^ *//' | cut -c1-200)
-    echo "BUILD FAILED${at:+ ($at)}: $why - full log: build/build.log"
+    echo "BUILD FAILED${at:+ ($at)}: ${why:-no error message} - full log: build/build.log"
     exit "$s"
 fi
 ROM="$1"

@@ -29,6 +29,10 @@ fi
 ROM="$1"
 [ -f "$ROM" ] || { echo "No ROM given (or it doesn't exist): $ROM"; exit 1; }
 PY=python3; command -v $PY >/dev/null 2>&1 || PY=python
+# BUILD.bat only warns when pacman fails: stop here, before anything needs them
+NEED=; command -v $PY >/dev/null 2>&1 || NEED=" Python"
+case "$(uname -s)" in MINGW*|MSYS*) for t in gcc make; do command -v $t >/dev/null 2>&1 || NEED="$NEED $t"; done ;; esac
+[ -z "$NEED" ] || { echo "Missing build tools:$NEED. They could not be installed: check your internet connection, then run this again."; exit 1; }
 # a step's title; with DQIX_PROGRESS (BUILD.bat --prepare, for RecompLauncher)
 # also a "progress <0-1> <step>" line for the launcher's setup screen
 step() {    # step <fraction> <title>

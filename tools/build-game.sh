@@ -1,6 +1,6 @@
 #!/bin/sh
-# Turn a Dragon Quest IX ROM into the PC game. Run by BUILD.bat inside MSYS2
-# (UCRT64); also works on Linux with gcc, make, python3 (+ PyYAML) and SDL2.
+# Turn a Dragon Quest IX ROM into the PC game. Run by BUILD.bat (inside MSYS2,
+# UCRT64) or BUILD.sh; also works on Linux with gcc, make, python3 (+ PyYAML) and SDL2.
 #
 #   tools/build-game.sh <rom.nds>
 #
@@ -15,11 +15,11 @@ cd "$(dirname "$0")/.."
 if [ -n "$DQIX_PROGRESS" ] && [ -z "$DQIX_LOG" ]; then
     mkdir -p build && rm -f build/build.status && export DQIX_LOG=build/build.log
     { s=0; "${BASH:-sh}" tools/build-game.sh "$@" 2>&1 || s=$?; echo $s > build/build.status; } | tee "$DQIX_LOG" || true
-    s=$(cat build/build.status 2>/dev/null || echo 1); [ "$s" = 0 ] && exit 0
-    at=$(sed -n 's/^== //p' "$DQIX_LOG" | tail -n 1)
+    s=$(cat build/build.status 2>/dev/null); s=${s:-1}; [ "$s" = 0 ] && exit 0
+    at=$(sed -n 's/^progress [0-9.]* //p' "$DQIX_LOG" | tail -n 1)     # step()'s titles only, not an optional part's
     # only what came after the last step title or optional part, so an earlier harmless error isn't blamed
     last=$(tr -d '\r' < "$DQIX_LOG" | awk '/^== |optional/ { b = ""; next } !/^progress / { b = b $0 "\n" } END { printf "%s", b }')
-    why=$(printf '%s\n' "$last" | grep -iE "error|undefined reference|no space left|no such file|cannot|couldn.t|not found|denied|doesn.t exist" | grep -viE "warning|collect2|^make(\[[0-9]+\])?: \*\*\*" | tail -n 1)
+    why=$(printf '%s\n' "$last" | grep -iE "error|undefined reference|no space left|no such file|cannot|couldn.t|not found|denied|doesn.t exist" | grep -viE "warning|collect2|^make(\[[0-9]+\])?: \*\*\*|^ *[0-9]* \| " | tail -n 1)     # last: gcc's copy of the source line
     [ -n "$why" ] || why=$(printf '%s\n' "$last" | grep . | tail -n 1)
     echo
     why=$(printf '%s\n' "$why" | sed 's/^ *//' | cut -c1-200)
@@ -29,11 +29,16 @@ fi
 ROM="$1"
 [ -f "$ROM" ] || { echo "No ROM given (or it doesn't exist): $ROM"; exit 1; }
 PY=python3; command -v $PY >/dev/null 2>&1 || PY=python
-# BUILD.bat only warns when pacman fails: stop here, before anything needs them
-NEED=; command -v $PY >/dev/null 2>&1 || NEED=" Python"
-case "$(uname -s)" in MINGW*|MSYS*) for t in gcc make; do command -v $t >/dev/null 2>&1 || NEED="$NEED $t"; done ;; esac
-[ -z "$NEED" ] || { echo "Missing build tools:$NEED. They could not be installed: check your internet connection, then run this again."; exit 1; }
-# a step's title; with DQIX_PROGRESS (BUILD.bat --prepare, for RecompLauncher)
+# BUILD.bat only warns when pacman fails: check Python (and gcc, make, SDL2 under
+# MSYS2) here, before anything needs them
+NEED=; command -v $PY >/dev/null 2>&1 || NEED=" Python"; FIX='install them, then run this again'
+case "$(uname -s)" in MINGW*|MSYS*)
+    for t in gcc make; do command -v $t >/dev/null 2>&1 || NEED="$NEED $t"; done
+    command -v sdl2-config >/dev/null 2>&1 || NEED="$NEED SDL2"
+    FIX='MSYS2 could not install them: open "MSYS2 UCRT64" from the Start menu, run pacman -Syu (twice if it closes), then try again' ;;
+esac
+[ -z "$NEED" ] || { echo "Missing build tools:$NEED. $FIX."; exit 1; }
+# a step's title; with DQIX_PROGRESS (BUILD.bat/BUILD.sh --prepare, for RecompLauncher)
 # also a "progress <0-1> <step>" line for the launcher's setup screen
 step() {    # step <fraction> <title>
     echo "== $2"
@@ -128,7 +133,8 @@ MINGW*|MSYS*)
          CFLAGS="-O1 -w" DEFS=-DRECOMP_TRACE SDL_CFLAGS="$(sdl2-config --cflags)" SDL_LIBS="-lSDL2" \
          LDFLAGS="-static-libgcc -Wl,--stack,67108864" RES="$RES" "$EXE" core
     if ! cmp -s "$EXE" game/dqix.exe; then
-        cp "$EXE" game/dqix.exe.new && mv -f game/dqix.exe.new game/dqix.exe
+        cp "$EXE" game/dqix.exe.new
+        mv -f game/dqix.exe.new game/dqix.exe     # two lines: set -e ignores a failure left of &&
         # the shortcuts' icon read again from the new program (Windows 10/11; harmless if missing)
         cmd //c "ie4uinit.exe -show" >/dev/null 2>&1 || true
     fi
@@ -144,7 +150,8 @@ esac
 
 step 0.9 "Putting the game folder together"
 mkdir -p game/data game/skins game/fonts game/lang
-rm -rf game/data/code && cp -r build/extract game/data/code     # the overlays (the game checks which is loaded)
+rm -rf game/data/code
+cp -r build/extract game/data/code     # the overlays (the game checks which is loaded)
 if ! cmp -s "$ROM" game/data/dqix.nds; then cp "$ROM" game/data/dqix.nds; fi
 cp skins/*.png skins/*.txt game/skins/ 2>/dev/null || true
 cp fonts/*.ttf fonts/*.txt game/fonts/ 2>/dev/null || true             # the HD text's fonts (Graphics > Text font)

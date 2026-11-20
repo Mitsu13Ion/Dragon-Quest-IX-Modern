@@ -19,7 +19,7 @@ if [ -n "$DQIX_PROGRESS" ] && [ -z "$DQIX_LOG" ]; then
     at=$(sed -n 's/^progress [0-9.]* //p' "$DQIX_LOG" | tail -n 1)     # step()'s titles only, not an optional part's
     # only what came after the last step title or optional part, so an earlier harmless error isn't blamed
     last=$(tr -d '\r' < "$DQIX_LOG" | awk '/^== |optional/ { b = ""; next } !/^progress / { b = b $0 "\n" } END { printf "%s", b }')
-    why=$(printf '%s\n' "$last" | grep -iE "error|undefined reference|no space left|no such file|cannot|couldn.t|not found|denied|doesn.t exist" | grep -viE "warning|collect2|^make(\[[0-9]+\])?: \*\*\*" | tail -n 1)
+    why=$(printf '%s\n' "$last" | grep -iE "error|undefined reference|no space left|no such file|cannot|couldn.t|not found|denied|doesn.t exist" | grep -viE "warning|collect2|^make(\[[0-9]+\])?: \*\*\*|^ *[0-9]* \| " | tail -n 1)     # last: gcc's copy of the source line
     [ -n "$why" ] || why=$(printf '%s\n' "$last" | grep . | tail -n 1)
     echo
     why=$(printf '%s\n' "$why" | sed 's/^ *//' | cut -c1-200)

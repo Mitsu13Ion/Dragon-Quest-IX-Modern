@@ -31,7 +31,7 @@ ROM="$1"
 PY=python3; command -v $PY >/dev/null 2>&1 || PY=python
 # BUILD.bat only warns when pacman fails: check Python (and gcc, make, SDL2 under
 # MSYS2) here, before anything needs them
-NEED=; command -v $PY >/dev/null 2>&1 || NEED=" Python"; FIX='install them, then run this again'
+NEED=; command -v $PY >/dev/null 2>&1 || NEED=" Python"; FIX='Install them, then run this again'
 case "$(uname -s)" in MINGW*|MSYS*)
     for t in gcc make; do command -v $t >/dev/null 2>&1 || NEED="$NEED $t"; done
     command -v sdl2-config >/dev/null 2>&1 || NEED="$NEED SDL2"

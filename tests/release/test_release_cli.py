@@ -158,7 +158,7 @@ class CheckHardening(unittest.TestCase):
 
     def test_verify_and_delete_target_the_public_repo(self):
         fake = Fake([(["gh", "run", "list"], 0, runs()),
-                     (["gh", "release", "view"], 0, release_json())])
+                     *release_json()])
         with mock.patch.object(release.time, "sleep", lambda s: None):
             run_main(fake, ["verify", "v3"])
         fake2 = Fake([(["gh", "release", "view"], 0, json.dumps({"isPrerelease": True}))])
@@ -274,9 +274,13 @@ def runs(**kw):
 
 
 def release_json(tag="v3", latest=True, pre=False, zips=("Windows", "Linux")):
+    """The rules answering verify's two questions: the release (no isLatest
+    field in gh view), and the release list that has it."""
     names = ["Dragon-Quest-IX-Modern-%s-%s-x64.zip" % (tag, z) for z in zips]
-    return json.dumps({"assets": [{"name": n} for n in names],
-                       "isLatest": latest, "isPrerelease": pre})
+    return [(["gh", "release", "view"], 0, json.dumps({"assets": [{"name": n} for n in names],
+                                                        "isPrerelease": pre})),
+            (["gh", "release", "list"], 0, json.dumps([{"tagName": tag, "isLatest": latest},
+                                                       {"tagName": "v2.1", "isLatest": not latest}]))]
 
 
 class Verify(unittest.TestCase):
@@ -300,7 +304,7 @@ class Verify(unittest.TestCase):
     def test_watch_has_a_15_minute_timeout(self):
         fake, code, out = self.verify([
             (["gh", "run", "list"], 0, runs()),
-            (["gh", "release", "view"], 0, release_json()),
+            *release_json(),
         ])
         self.assertEqual(code, 0, out)
         i = [c[:3] for c in fake.cmds].index(["gh", "run", "watch"])
@@ -323,7 +327,7 @@ class Verify(unittest.TestCase):
     def test_missing_zip_exits_1(self):
         fake, code, out = self.verify([
             (["gh", "run", "list"], 0, runs()),
-            (["gh", "release", "view"], 0, release_json(zips=("Windows",))),
+            *release_json(zips=("Windows",)),
         ])
         self.assertEqual(code, 1)
         self.assertIn("Linux-x64.zip", out)
@@ -331,17 +335,17 @@ class Verify(unittest.TestCase):
     def test_real_release_must_be_latest(self):
         fake, code, out = self.verify([
             (["gh", "run", "list"], 0, runs()),
-            (["gh", "release", "view"], 0, release_json(latest=False)),
+            *release_json(latest=False),
         ])
         self.assertEqual(code, 1)
         self.assertIn("latest", out)
 
     def test_rc_must_be_prerelease_and_not_latest(self):
         ok = [(["gh", "run", "list"], 0, runs(headBranch="v3-rc1")),
-              (["gh", "release", "view"], 0, release_json("v3-rc1", latest=False, pre=True))]
+              *release_json("v3-rc1", latest=False, pre=True)]
         self.assertEqual(self.verify(ok, "v3-rc1")[1], 0)
         bad = [(["gh", "run", "list"], 0, runs(headBranch="v3-rc1")),
-               (["gh", "release", "view"], 0, release_json("v3-rc1", latest=True, pre=True))]
+               *release_json("v3-rc1", latest=True, pre=True)]
         self.assertEqual(self.verify(bad, "v3-rc1")[1], 1)
 
 

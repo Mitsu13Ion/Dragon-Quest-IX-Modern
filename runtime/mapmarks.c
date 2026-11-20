@@ -2292,7 +2292,7 @@ int mapmarks_shop(uint32_t* px, uint8_t* info, int desc_y, const uint8_t** rgba,
 #define HERO_ITEMS 0x020F58CC                                     /* the leader's things (Items: their name), u16 each */
 #define HERO_SLOTS 8
 static int bag_pager_is(uint32_t b, int n) {
-    return rd32(b) == (uint32_t)n && rd32(b + 4) == (uint32_t)((n + 7) / 8) && rd32(b + 0xC) == 8
+    return rd32(b) == (uint32_t)n && rd32(b + 4) == (uint32_t)((n + 7) / 8) && rd32(b + 0xC) - 1 < 8u   /* (its lines a page: 8, fewer in a short list (a companion's)) */
         && rd32(b + 0x20) == 0x02000000u + b + 8 && rd32(b + 0x24) == 0x02000000u + b + 0xC
         && rd32(b + 0x28) == 0x02000000u + b + 0x18 && rd32(b + 0x2C) == 0x02000000u + b + 0x1C
         && rd32(b + 0x14) < (uint32_t)((n + 7) / 8) && rd32(b + 0x1C) < 8;

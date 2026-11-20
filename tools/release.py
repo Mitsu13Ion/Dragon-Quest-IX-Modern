@@ -265,16 +265,20 @@ def cmd_verify(args):
         raise Fail("Le workflow release-zip.yml est en échec (run %s). "
                    "La release reste publiée ; à corriger puis relancer à la main." % run_id)
     info = load_json(out_of(["gh", "release", "view", tag, "--json",
-                             "assets,isLatest,isPrerelease", "--repo", PUBLIC_REPO]), "release view")
+                             "assets,isPrerelease", "--repo", PUBLIC_REPO]), "release view")
+    # gh release view has no isLatest field; gh release list has
+    latest = load_json(out_of(["gh", "release", "list", "--json", "tagName,isLatest",
+                               "--repo", PUBLIC_REPO]), "release list")
+    is_latest = any(r.get("tagName") == tag and r.get("isLatest") for r in latest)
     names = {a["name"] for a in info.get("assets", [])}
     for osname in ("Windows", "Linux"):
         want = "Dragon-Quest-IX-Modern-%s-%s-x64.zip" % (tag, osname)
         if want not in names:
             raise Fail("Zip manquant dans la release %s : %s" % (tag, want))
     if is_rc_tag(tag):
-        if not info.get("isPrerelease") or info.get("isLatest"):
+        if not info.get("isPrerelease") or is_latest:
             raise Fail("%s doit être une pré-version et pas latest." % tag)
-    elif not info.get("isLatest") or info.get("isPrerelease"):
+    elif not is_latest or info.get("isPrerelease"):
         raise Fail("%s n'est pas marquée latest (RecompLauncher garderait l'ancienne version)." % tag)
     print("verify %s : OK (2 zips, drapeaux corrects)." % tag)
 

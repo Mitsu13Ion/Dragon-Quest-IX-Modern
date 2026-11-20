@@ -8,7 +8,8 @@ cd /d "%~dp0"
 title Dragon Quest IX PC - build
 
 rem ---- RecompLauncher (recomplauncher.json "prepare"): BUILD.bat --prepare "<your ROM>"
-rem builds without pausing and prints "progress <0-1> <step>" lines for its setup screen.
+rem builds without pausing and prints "progress <0-1> <step>" lines for its setup screen;
+rem a failure ends with one "BUILD FAILED (...): <cause>" line (full log: build\build.log).
 rem Without --prepare nothing changes.
 set "ROM="
 if /i not "%~1"=="--prepare" goto pick_rom
@@ -47,7 +48,7 @@ if defined DQIX_PROGRESS echo progress 0.03 Installing the build tools (MSYS2, o
 echo Installing MSYS2 (one time, a few minutes)...
 winget install --id MSYS2.MSYS2 -e --accept-source-agreements --accept-package-agreements
 if exist "%MSYSROOT%\usr\bin\bash.exe" goto have_msys
-echo BUILD FAILED: the build tools (MSYS2) could not be installed. Install them from https://www.msys2.org (default folder C:\msys64), then try again.
+echo BUILD FAILED: the build tools (MSYS2) are not in C:\msys64 and could not be installed there. Install MSYS2 from https://www.msys2.org into C:\msys64, then try again.
 if not defined DQIX_NOPAUSE pause
 exit /b 1
 

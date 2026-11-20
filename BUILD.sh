@@ -42,7 +42,14 @@ mkdir -p rom && printf '%s\n' "$ROM" > rom/last-rom.txt
 command -v python3 >/dev/null 2>&1 || { echo "Python 3 is needed: install your distribution's python3 package, then run this again."; exit 1; }
 [ -n "$DQIX_PROGRESS" ] && echo "progress 0.05 Checking the build tools (the first time may download some)"
 echo "Checking the build tools..."
-TOOLS="$(python3 tools/linux_tools.py build/linux-tools)" || { echo; echo "BUILD FAILED: the build tools are missing (the text above says which)."; exit 1; }
+if [ -n "$DQIX_PROGRESS" ]; then
+    # RecompLauncher shows only the last line: end with linux_tools.py's own reason (on stderr)
+    mkdir -p build
+    TOOLS="$(python3 tools/linux_tools.py build/linux-tools 2>build/tools.err)" || { cat build/tools.err; echo; echo "BUILD FAILED: $(tail -n 1 build/tools.err | sed 's/^ *//')"; exit 1; }
+    cat build/tools.err
+else
+    TOOLS="$(python3 tools/linux_tools.py build/linux-tools)" || { echo; echo "BUILD FAILED: the build tools are missing (the text above says which)."; exit 1; }
+fi
 eval "$TOOLS"
 
 # ---- build

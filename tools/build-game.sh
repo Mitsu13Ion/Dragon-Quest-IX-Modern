@@ -133,7 +133,8 @@ MINGW*|MSYS*)
          CFLAGS="-O1 -w" DEFS=-DRECOMP_TRACE SDL_CFLAGS="$(sdl2-config --cflags)" SDL_LIBS="-lSDL2" \
          LDFLAGS="-static-libgcc -Wl,--stack,67108864" RES="$RES" "$EXE" core
     if ! cmp -s "$EXE" game/dqix.exe; then
-        cp "$EXE" game/dqix.exe.new && mv -f game/dqix.exe.new game/dqix.exe
+        cp "$EXE" game/dqix.exe.new
+        mv -f game/dqix.exe.new game/dqix.exe     # two lines: set -e ignores a failure left of &&
         # the shortcuts' icon read again from the new program (Windows 10/11; harmless if missing)
         cmd //c "ie4uinit.exe -show" >/dev/null 2>&1 || true
     fi
@@ -149,7 +150,8 @@ esac
 
 step 0.9 "Putting the game folder together"
 mkdir -p game/data game/skins game/fonts game/lang
-rm -rf game/data/code && cp -r build/extract game/data/code     # the overlays (the game checks which is loaded)
+rm -rf game/data/code
+cp -r build/extract game/data/code     # the overlays (the game checks which is loaded)
 if ! cmp -s "$ROM" game/data/dqix.nds; then cp "$ROM" game/data/dqix.nds; fi
 cp skins/*.png skins/*.txt game/skins/ 2>/dev/null || true
 cp fonts/*.ttf fonts/*.txt game/fonts/ 2>/dev/null || true             # the HD text's fonts (Graphics > Text font)

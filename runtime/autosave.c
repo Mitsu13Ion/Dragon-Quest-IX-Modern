@@ -82,8 +82,9 @@ static int save_now(Cpu* c) {
     if (!ok || !backup_slot_valid(slot)) { LOG_WARN("autosave: the game's save didn't come out right, nothing written\n"); return 0; }
     backup_store(SLOT_AT, slot + SLOT_AT, SLOT_LEN);                  /* both copies, as the game writes them */
     backup_store(SLOT_SIZE + SLOT_AT, slot + SLOT_AT, SLOT_LEN);
-    backup_flush();
-    LOG_INFO("autosave: saved (frame %llu)\n", (unsigned long long)g_frame);
+    /* on the chip either way: a failed file write is tried again by the next flush */
+    if (backup_flush() == 0) LOG_INFO("autosave: saved (frame %llu)\n", (unsigned long long)g_frame);
+    else LOG_WARN("autosave: saved on the chip, but dqix.sav could not be written yet\n");
     return 1;
 }
 

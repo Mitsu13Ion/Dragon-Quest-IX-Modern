@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include "nds.h"
 #include "bootskip.h"
+#include "savefile.h"
 #ifdef _WIN32
 #include <direct.h>
 #define make_dir(d) _mkdir(d)
@@ -143,7 +144,7 @@ void backup_write_now(FILE* f) { fwrite(g_backup, 1, g_backup_size, f); }
 
 const uint8_t* backup_image(uint32_t* size) { *size = g_backup_size; return g_backup; }
 
-/* Game > Keep a copy of every save: when the game starts writing a new save
+/* Game > Keep a copy of every save: before a new save is written to the file
  * (nothing written for 10 seconds before), the file as it was (the last
  * whole save) is copied to save-backups next to it, named by when it was
  * made; the last BACKUPS_KEPT are kept. */
@@ -195,16 +196,32 @@ static void backup_copy(void) {
     }
 }
 
-void backup_flush(void) {
-    if (!g_backup_dirty || !g_backup_path[0]) return;
+/* Once per DS frame: the file is written when the game has not written to the
+ * chip for half a second, so a game save (~450 page writes) is one safe write
+ * with its disk sync, and dqix.sav never holds a half-written save. */
+void backup_frame(void) {
+    static uint64_t retry_at;   /* after a failed write: try again 10 seconds later, not every frame */
+    if (!g_backup_dirty || g_frame - g_backup_written < 30 || g_frame < retry_at) return;
+    retry_at = backup_flush() ? g_frame + 600 : 0;
+}
+
+int backup_flush(void) {
+    if (!g_backup_dirty || !g_backup_path[0]) return 0;
     time_t now = time(NULL);
     if (g_save_backups && now - g_last_write >= 10) backup_copy();
     g_last_write = now;
-    FILE* f = fopen(g_backup_path, "wb");
-    if (!f) { LOG_WARN("save: cannot write %s\n", g_backup_path); return; }
-    fwrite(g_backup, 1, g_backup_size, f);
-    fclose(f);
+    /* still dirty on failure: the next flush tries again, dqix.sav keeps the last whole save;
+     * warned once per run of failures, as backup_frame tries again every frame */
+    static int warned;
+    if (save_file_atomic(g_backup_path, g_backup, g_backup_size) != 0) {
+        if (!warned) LOG_WARN("save: cannot write %s\n", g_backup_path);
+        warned = 1;
+        return -1;
+    }
+    LOG_INFO("save: wrote %s\n", g_backup_path);
+    warned = 0;
     g_backup_dirty = 0;
+    return 0;
 }
 
 /* ---------------------------------------------------------------- downloadable content
@@ -312,10 +329,10 @@ static uint8_t backup_xfer(uint8_t in, int hold) {
             uint32_t a = (g_bk_addr % g_backup_size) & ~(sz - 1);
             memset(&g_backup[a], 0xFF, sz);
             g_backup_dirty = 1;
+            g_backup_written = g_frame;   /* an erase starts a write: backup_frame waits for the rest */
         }
         if (g_bk_cmd == 0x02 || g_bk_cmd == 0x0A || g_bk_cmd == 0xDB || g_bk_cmd == 0xD8) g_bk_status &= ~2;
         g_bk_cmd = 0;
-        backup_flush();
     }
     return out;
 }

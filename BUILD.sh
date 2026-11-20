@@ -48,6 +48,8 @@ eval "$TOOLS"
 # ---- build
 SH=sh; command -v bash >/dev/null 2>&1 && SH=bash
 if ! $SH tools/build-game.sh "$ROM"; then
+    # --prepare: build-game.sh's own last line already says why (RecompLauncher shows only that one)
+    [ -n "$DQIX_PROGRESS" ] && exit 1
     echo
     echo "BUILD FAILED. The text above says why."
     exit 1

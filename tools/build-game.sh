@@ -17,7 +17,7 @@ if [ -n "$DQIX_PROGRESS" ] && [ -z "$DQIX_LOG" ]; then
     { s=0; "${BASH:-sh}" tools/build-game.sh "$@" 2>&1 || s=$?; echo $s > build/build.status; } | tee "$DQIX_LOG"
     s=$(cat build/build.status 2>/dev/null || echo 1); [ "$s" = 0 ] && exit 0
     at=$(sed -n 's/^== //p' "$DQIX_LOG" | tail -n 1)
-    why=$(tr -d '\r' < "$DQIX_LOG" | grep -iE "error|no space left|no such file|couldn.t|not found|denied|doesn.t exist" | grep -vE "optional|^make(\[[0-9]+\])?: \*\*\*" | tail -n 1)
+    why=$(tr -d '\r' < "$DQIX_LOG" | grep -iE "error|no space left|no such file|cannot|couldn.t|not found|denied|doesn.t exist" | grep -vE "optional|collect2|^make(\[[0-9]+\])?: \*\*\*" | tail -n 1)
     [ -n "$why" ] || why=$(tr -d '\r' < "$DQIX_LOG" | grep -v '^progress ' | grep . | tail -n 1)
     echo
     why=$(printf '%s\n' "$why" | sed 's/^ *//' | cut -c1-200)

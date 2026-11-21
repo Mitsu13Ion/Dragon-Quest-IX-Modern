@@ -166,7 +166,7 @@ static void sprite_type(uint32_t spr, char* out, int n) {
  * the camera (func_0203cbe8's order: 0 down, 1 r_down, 2 right ... 4 up), or
  * -1. The picture is the sprite's animation +0x44 in its sheet (+0x2c: 0x14
  * bytes each, the name first; +0x28: how many), named "<what>_<way>"
- * (stand_down, walk_l_up...); +0x50 bit 2: drawn mirrored, left and right
+ * (stand_down, walk_l_up...); +0x50 & 2: drawn mirrored, left and right
  * swapped. */
 static int shown_way(uint32_t spr) {
     static const char* const way[8] = { "down", "r_down", "right", "r_up", "up", "l_up", "left", "l_down" };
@@ -243,7 +243,7 @@ void hook_DrawSprite(Cpu* c, void (*orig)(Cpu*)) {
      * (DrawSprite skips func_0203cbe8): the town's script set it, e.g. a
      * shopkeeper behind a counter facing the camera whatever +0x60 says. Then
      * face the way the picture does, undoing func_0203cbe8's angle from the
-     * camera (+0x60 - camera (+0x70 of the 2nd argument) + (+0x50 bit 8 ? +0x90 : 0)). */
+     * camera (+0x60 - camera (+0x70 of the 2nd argument) + (+0x50 & 8 ? +0x90 : 0)). */
     int shown = rd32(spr + 0x5c) & 0x30 && is_ram(c->r[1]) ? shown_way(spr) : -1;
     if (shown >= 0)
         face = (int32_t)rd32(c->r[1] + 0x70) - (rd32(spr + 0x50) & 8 ? (int32_t)rd32(spr + 0x90) : 0) + shown * ANGLE_FULL / 8;

@@ -19,14 +19,19 @@ static int g_state;                        /* 0 not tried, 1 ok, -1 none */
 static int load(void) {
     if (g_state) return g_state > 0;
     g_state = -1;
-    char paths[8][300];
+    char paths[12][300];
     int n = 0;
+    /* Use the bundled font for the journal and overlays, like gamemenu.c.
+     * System font locations differ between Linux distributions. */
+    snprintf(paths[n++], 300, "fonts/SourceSans3-Regular.ttf");
+    snprintf(paths[n++], 300, "fonts/SourceSans3.ttf");
     const char* win = getenv("WINDIR");
     if (win) {
         snprintf(paths[n++], 300, "%s\\Fonts\\segoeui.ttf", win);
         snprintf(paths[n++], 300, "%s\\Fonts\\arial.ttf", win);
         snprintf(paths[n++], 300, "%s\\Fonts\\tahoma.ttf", win);
     }
+    snprintf(paths[n++], 300, "/usr/share/fonts/noto/NotoSans-Regular.ttf");
     snprintf(paths[n++], 300, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
     snprintf(paths[n++], 300, "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf");
     snprintf(paths[n++], 300, "/System/Library/Fonts/Supplemental/Arial.ttf");

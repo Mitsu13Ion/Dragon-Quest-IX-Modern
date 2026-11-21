@@ -1211,7 +1211,7 @@ static void pack_fix_edges(uint8_t* px, int w, int h, const uint8_t* org, int ow
         int n = side < 2 ? w : h;
         for (int i = 0; i < n; i++) {
             int x = side < 2 ? i : side == 2 ? 0 : w - 1, y = side >= 2 ? i : side == 0 ? 0 : h - 1;
-            int ix = side == 2 ? 1 : side == 3 ? w - 2 : x, iy = side == 0 ? 1 : side == 1 ? h - 2 : y;   /* the pixel just inside */
+            int ix = x < 1 ? 1 : x > w - 2 ? w - 2 : x, iy = y < 1 ? 1 : y > h - 2 ? h - 2 : y;   /* the pixel just inside (a corner: diagonally) */
             uint8_t* p = px + ((size_t)y * w + x) * 4;
             if (p[3] == 255 || org[((size_t)(y / fy) * ow + (size_t)(x / fx)) * 4 + 3] != 255) continue;
             memcpy(p, px + ((size_t)iy * w + ix) * 4, 3); p[3] = 255;

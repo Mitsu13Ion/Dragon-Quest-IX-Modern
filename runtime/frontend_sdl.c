@@ -2376,6 +2376,7 @@ static void caract_pieces(GlPresent* v) {
 static int g_title;                                               /* 1 the movie and START, 2 the menu, 3 a question (the quick save's), 4 the Wi-Fi settings; 0 neither */
 static float g_title_fade = 1; static int g_title_white;          /* the game's fade over the title: 1 shown, 0 black (or white) */
 static int g_title_n, g_title_box[6][4];                          /* 1: the button's box; 2: each window (its grey line included): x, y, w, h on the touch screen; 3: on the 3D's screen */
+static int g_title_hand[6][4];                                    /* 2: the game's hand at a window's left (x, y, w, h on the touch screen; w 0: none) */
 static int g_title_dlg[4], g_title_scr;                           /* 3: the dialogue window (x0, y0, x1, y1; none: x1 = 0), the 3D's screen (0 top, 1 bottom) */
 static UiPic g_title_pic;
 
@@ -2476,6 +2477,16 @@ static void title_update(int a_on_top) {
     }
     if (phase == 1) started = 1;                                  /* (the START screen gone: pressed, or the movie over, when the game goes on by itself (the quick save's question)) */
     int n = title_windows(bot, g_title_box, 6);
+    for (int i = 0; i < n; i++) {                                 /* the hand (gold) over a window's left line: the chosen row */
+        const int* b = g_title_box[i]; int x0 = 999, x1 = -1, y0 = 999, y1 = -1;
+        for (int y = b[1]; y < b[1] + b[3] && y < 192; y++)
+            for (int x = b[0] - 12 < 0 ? 0 : b[0] - 12; x < b[0] + 12 && x < 256; x++) {
+                uint32_t c = bot[y * 256 + x]; int r = (c >> 16) & 255, g = (c >> 8) & 255, bl = c & 255;
+                if (r > 180 && g > 110 && bl < 100 && r > g) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+            }
+        if (x1 >= 0 && y1 - y0 < 14) { g_title_hand[i][0] = x0 - 1; g_title_hand[i][1] = y0 - 1; g_title_hand[i][2] = x1 - x0 + 3; g_title_hand[i][3] = y1 - y0 + 3; }
+        else g_title_hand[i][2] = 0;
+    }
     if (!phase && n && title_art_like(top, 0)) phase = 2;         /* the menu again (back from a screen of its own) */
     {                                                             /* the Wi-Fi settings (only from the title): both screens side by side over the title's picture */
         static int seen;                                          /* (the title seen: not the warnings, light grey too, at the start) */
@@ -2653,7 +2664,17 @@ static void title_windows_pieces(GlPresent* v, float avoid[2][4]) {
         const int* b = g_title_box[i];
         float w = (float)b[2] * kw, h = (float)b[3] * kw, x = cw - M - w;
         modern_window(v, x, y, w, h);
+        const int* hd = g_title_hand[i];
+        float row = 0, rh = 0;
+        if (hd[2]) {                                               /* the chosen row lit gold (three times: seen over the bright picture too) */
+            rh = 14; row = (float)hd[1] + hd[3] / 2.0f - rh / 2 - (float)b[1];
+            if (row < 2) row = 2;
+            if (row + rh > b[3] - 2) row = (float)b[3] - 2 - rh;
+            for (int k = 0; k < 3; k++) set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 21, 0, 0, 1), x + 3 * kw, y + row * kw, w - 6 * kw, rh * kw);
+        }
         bestiary_piece(v, 1, (float)b[0] + 1, (float)b[1] + 1, (float)b[2] - 2, (float)b[3] - 2, 3, x + kw, y + kw, kw);   /* its letters (not the game's line, nor its see-through panel) */
+        if (hd[2])                                                 /* the hand whole, its own colours, over our window's left line (not cut by it) */
+            bestiary_piece(v, 1, (float)hd[0], (float)hd[1], (float)hd[2], (float)hd[3], 27, x + ((float)hd[0] - (float)b[0]) * kw, y + ((float)hd[1] - (float)b[1]) * kw, kw);
         y += h + gap;
     }
 }

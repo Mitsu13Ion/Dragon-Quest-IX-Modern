@@ -1885,11 +1885,9 @@ static void equip_pieces(GlPresent* v, int ww, int wh) {
 #define MX(m) (mid + ((m) - 960) * C)
 #define MY(m) (oy + (m) * C)
     {   /* the backdrop and the wall, at the window's own pixels */
-        float s = wh > 0 ? (float)wh / v->ch : 5.625f;
-        if (ww > 0 && wh > 0 && (float)ww / wh < cw / v->ch) s = (float)ww / cw;
-        if (s > 11.25f) s = 11.25f;
+        float s = fminf(g_lay_s > 0 ? g_lay_s : 5.625f, 11.25f);  /* (the window's pixels per canvas unit, as the other pictures: ww can be the canvas's own width) */
         int W = (int)(cw * s + 0.5f), H = (int)(v->ch * s + 0.5f);
-        equip_back(W, H, C * s, oy * s);
+        if (ww > 1 && wh > 1) equip_back(W, H, C * s, oy * s);   /* (a layout for the mouse alone (1 x 1): the picture kept as it is) */
         float* q = v->layer[GL_LAYER_BACK]; q[0] = 0; q[1] = 0; q[2] = cw; q[3] = v->ch;
     }
     /* the character, whole, in the middle (the 3D alone: not the backdrop) */
@@ -1933,13 +1931,15 @@ static void equip_pieces(GlPresent* v, int ww, int wh) {
             if (!action_sign(CA_B, 0, &k[2].style, &k[2].face, k[2].key, sizeof k[2].key)) k[2].key[0] = 0;
             else if (!k[2].key[0]) snprintf(k[2].key, sizeof k[2].key, "B");
             k[0].what = nx[lg]; k[1].what = pv[lg]; k[2].what = ex[lg];
-            float s = wh > 0 ? (float)wh / v->ch : 5.625f;           /* (the window's pixels per canvas unit, as the backdrop's) */
-            if (ww > 0 && wh > 0 && (float)ww / wh < cw / v->ch) s = (float)ww / cw;
-            int pw, ph, ch; float wu, hu;
-            const uint8_t* pic = keybar_picture(k, 3, C * s, &pw, &ph, &wu, &hu, &ch);
-            if (pic) {
-                if (ch || !g_keybar_up) gl_set_layer(GL_LAYER_KEYBAR, pic, pw, ph);
-                g_keybar_up = 1;
+            float s = fminf(g_lay_s > 0 ? g_lay_s : 5.625f, 11.25f);   /* (the window's pixels per canvas unit, as the backdrop's) */
+            int pw, ph, ch; static float wu, hu; static int shown;
+            if (ww > 1 && wh > 1) {                               /* (a layout for the mouse alone (1 x 1): the picture kept, its place as before) */
+                const uint8_t* pic = keybar_picture(k, 3, C * s, &pw, &ph, &wu, &hu, &ch);
+                if (pic && (ch || !g_keybar_up)) gl_set_layer(GL_LAYER_KEYBAR, pic, pw, ph);
+                shown = pic != NULL;
+                if (pic) g_keybar_up = 1;
+            }
+            if (shown && g_keybar_up) {
                 float* q = v->layer[GL_LAYER_KEYBAR]; q[0] = MX(26); q[1] = MY(1040) - hu * C; q[2] = wu * C; q[3] = hu * C;
             }
         }

@@ -2632,7 +2632,8 @@ static void title_pieces(GlPresent* v) {
     if (g_title == 4) {                                           /* the Wi-Fi settings: the top screen at the left, the touch screen at the right, under the logo */
         float M = 5, gap = 6, k = fminf((cw - 2 * M - gap) / 512.0f, ch * 0.62f / 192.0f), w = 256 * k, h = 192 * k;
         float x = (cw - 2 * w - gap) / 2, y = ch - M - h;
-        set_rect(bestiary_piece(v, 0, 0, 0, 1, 1, 16, 0, 0, 1), x - 2, y - 2, 2 * w + gap + 4, h + 4);   /* (a dark see-through band behind them) */
+        modern_window(v, x - 2, y - 2, w + 4, h + 4);              /* (each in one of our windows, as the rest of the title) */
+        modern_window(v, x + w + gap - 2, y - 2, w + 4, h + 4);
         bestiary_piece(v, 0, 0, 0, 256, 192, 0, x, y, k);
         bestiary_piece(v, 1, 0, 0, 256, 192, 0, x + w + gap, y, k);
     }

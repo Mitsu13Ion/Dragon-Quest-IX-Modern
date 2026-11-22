@@ -3458,7 +3458,16 @@ static void canvas_layout_for(GlPresent* v, int ww, int wh, int second) {
             round_drawn = 1;
         }
         if (!second) {                                           /* the party's HP and MP: with the round map on foot, larger with the X menu (not Equip: its own screen) */
-            g_party_mode = !g_party_on || !g_gl || g_movie2 || g_title || !in_adventure() || g_party_msg ? 0 : (g_xmenu || g_bag) && !g_equip ? 2 : round_drawn ? 1 : 0;
+            /* the X menu, not a townsperson's (Patty, an inn, a shop...): it opens just after X (the key, the
+               pad or the "X Menu" sign), theirs after A; a few frames off between two of its screens: still it */
+            static uint64_t x_at, menu_seen_at; static int xmenu_real;
+            int menu = (g_xmenu || g_bag) && !g_equip;
+            if (g_keys_down & (1u << 10)) x_at = g_frame;
+            if (menu) {
+                if (g_frame - menu_seen_at > 10) xmenu_real = g_frame - x_at < 60;   /* (a menu newly open) */
+                menu_seen_at = g_frame;
+            }
+            g_party_mode = !g_party_on || !g_gl || g_movie2 || g_title || !in_adventure() || g_party_msg ? 0 : menu ? (xmenu_real ? 2 : 0) : round_drawn ? 1 : 0;
             static int was = -1;                                  /* (tests: in the log when it changes) */
             if (g_party_mode != was) { fprintf(stderr, "party panel: %d (msg %d) frame %llu\n", g_party_mode, g_party_msg, (unsigned long long)g_frame); was = g_party_mode; }
         }

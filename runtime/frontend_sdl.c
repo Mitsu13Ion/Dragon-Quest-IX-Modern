@@ -2679,15 +2679,15 @@ static void title_windows_pieces(GlPresent* v, float avoid[2][4]) {
     }
 }
 
-/* a question (the quick save's): the dialogue window wide at the bottom in
- * the middle, the choices' windows over its right end, in the modern style:
+/* a question (the quick save's): the dialogue window at the bottom right,
+ * where the title's menu and log are, the choices' windows over its right end, in the modern style:
  * the game's letters (and its hand) alone from its screen, over our windows */
 static void title_question_pieces(GlPresent* v) {
     float cw = v->cw, ch = v->ch, M = 5, gap = 3;
     int e = g_title_scr, *d = g_title_dlg;
     float dw = d[2] > d[0] ? (float)(d[2] - d[0]) : 248, dh = d[2] > d[0] ? (float)(d[3] - d[1]) : 72;
     float k = fminf(0.8f, (cw - 2 * M) / dw);
-    float x = (cw - dw * k) / 2, y = ch - M - dh * k;
+    float x = cw - M - dw * k, y = ch - M - dh * k;
     if (d[2] > d[0]) {
         modern_window(v, x, y, dw * k, dh * k);
         bestiary_piece(v, e, (float)d[0] + 2, (float)d[1] + 2, dw - 4, dh - 4, 3, x + 2 * k, y + 2 * k, k);

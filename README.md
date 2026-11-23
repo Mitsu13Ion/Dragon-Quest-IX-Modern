@@ -80,7 +80,7 @@ and **TitanFr199**, helped by Claude.
   slow down and resumes a cut download. To turn it off: Graphics > *Download
   the HD pack*. The older Real-ESRGAN textures are set aside in
   `hd-pack-ancien` (never deleted): empty that folder to free space.
-- **Townspeople in 3D** (Graphics > *Townspeople in 3D*, on by default):
+- **Townspeople in 3D** (Graphics > *Townspeople in 3D*, Enhanced mode, on by default):
   townspeople drawn as real 3D characters instead of flat pictures. A few come
   from Dragon Quest IX itself; for many more, put your own Dragon Quest VII
   and/or VIII (3DS) in `rom\3DS` and run BUILD.bat again. Nothing from those
@@ -114,13 +114,13 @@ and **TitanFr199**, helped by Claude.
 ### Versions, tests and organisation
 - **Frequent releases**, the latest is **v3.2**, with release notes in
   [`release-notes/`](release-notes/). The game offers the update itself.
-  After v47, numbering restarted at v2.0: fixes are v3.1, v3.2…, big additions
-  v4, v5…
-- More than 170 pull requests merged, automatic tests repaired, a **smoke
-  test** (EU and USA) before each merge.
+  After v47 came v2.0: fixes raise the decimal (v3.1, v3.2…), big additions
+  the whole number (v4, v5…).
+- More than 160 pull requests merged, with automatic tests before code
+  changes are merged.
 - Full recap: [docs/RECAP.md](docs/RECAP.md); task tracking:
   [docs/SUIVI.md](docs/SUIVI.md); technical map:
-  [docs/TECHNICAL.md](docs/TECHNICAL.md) (in French).
+  [docs/TECHNICAL.md](docs/TECHNICAL.md) (all in French).
 
 ---
 
@@ -150,7 +150,7 @@ The save (`dqix.sav`) and settings (`settings.ini`) are in the `game` folder.
 (with RecompLauncher, or `sh BUILD.sh` in a terminal), and each release has a
 Linux zip. Step by step: **[docs/LINUX-STEAMDECK.md](docs/LINUX-STEAMDECK.md)**.
 
-**Updates**: the game offers the new version when it starts (or
+**Updates** (Windows): the game offers the new version when it starts (or
 Help > Check for updates). Saves and settings are kept, and the previous
 version stays in `update` (`update\rollback.bat`).
 
@@ -268,7 +268,7 @@ et **TitanFr199**, avec l'aide de Claude.
   Graphismes > *Télécharger le pack HD*. Les anciennes textures Real-ESRGAN
   sont mises de côté dans `hd-pack-ancien` (jamais supprimées) : videz ce
   dossier pour gagner de la place.
-- **Habitants en 3D** (Graphismes > *Habitants en 3D*, activé par défaut) :
+- **Habitants en 3D** (Graphismes > *Habitants en 3D*, mode Enhanced, activé par défaut) :
   les habitants deviennent de vrais personnages en 3D au lieu d'images plates.
   Quelques-uns viennent de Dragon Quest IX lui-même ; pour beaucoup d'autres,
   mettez votre propre Dragon Quest VII et/ou VIII (3DS) dans `rom\3DS` et
@@ -291,7 +291,7 @@ et **TitanFr199**, avec l'aide de Claude.
   défaut) : or, mini-médailles, points de compétence, PV des monstres à 0,
   objets rares garantis, etc.
 - Farm d'or automatique (Ctrl+G), avance rapide (Tab), clavier et manette
-  entièrement reconfigurables (Jeu > Contrôles), stick gauche pour marcher dans
+  entièrement reconfigurables (Jeu > Commandes), stick gauche pour marcher dans
   toutes les directions.
 - Rapport de bug complet avec F10.
 
@@ -304,10 +304,10 @@ et **TitanFr199**, avec l'aide de Claude.
 #### Versions, tests et organisation
 - **Des versions fréquentes**, la dernière est la **v3.2**, avec notes de
   version dans [`release-notes/`](release-notes/). Le jeu propose lui-même la
-  mise à jour. Après la v47, la numérotation est repartie à v2.0 : les
-  corrections sont v3.1, v3.2…, les gros ajouts v4, v5…
-- Plus de 170 pull requests fusionnées, tests automatiques réparés,
-  **test de fumée** (EU et USA) avant chaque fusion.
+  mise à jour. Après la v47 est venue la v2.0 : les corrections changent la
+  décimale (v3.1, v3.2…), les gros ajouts le nombre entier (v4, v5…).
+- Plus de 160 pull requests fusionnées, avec des tests automatiques avant
+  la fusion de tout changement de code.
 - Récapitulatif complet : [docs/RECAP.md](docs/RECAP.md) ; suivi des tâches :
   [docs/SUIVI.md](docs/SUIVI.md) ; carte technique :
   [docs/TECHNICAL.md](docs/TECHNICAL.md).
@@ -338,10 +338,10 @@ contiennent le jeu.
 
 **Linux et Steam Deck** : le jeu tourne aussi sous Linux et sur Steam Deck
 (avec RecompLauncher, ou `sh BUILD.sh` dans un terminal), et chaque version a un
-zip Linux. Le tuto pas à pas est dans
+zip Linux. Le guide pas à pas est dans
 **[docs/LINUX-STEAMDECK.md](docs/LINUX-STEAMDECK.md)**.
 
-**Mises à jour** : le jeu propose la nouvelle version au démarrage (ou
+**Mises à jour** (Windows) : le jeu propose la nouvelle version au démarrage (ou
 Aide > Rechercher des mises à jour). Sauvegardes et réglages sont conservés,
 et la version précédente reste dans `update` (`update\rollback.bat`).
 
@@ -358,7 +358,7 @@ et la version précédente reste dans `update` (`update\rollback.bat`).
 Touches utiles : Échap menu d'options, J Journal, M mini-carte, Tab (maintenu)
 avance rapide, P pause, Ctrl+R réinitialiser, F5 Classic / Enhanced,
 F11 plein écran, F12 capture, F10 rapport de bug, Ctrl+G farm d'or. Tout se
-change dans **Jeu > Contrôles**.
+change dans **Jeu > Commandes**.
 
 ### Un problème ?
 

@@ -37,9 +37,11 @@ static int parse_version(const char* text, char* out, size_t n) {
 #include <windows.h>
 #include <winhttp.h>
 
-/* GET https://host/path into memory (at most `max` bytes) */
-static int https_get(const wchar_t* host, const wchar_t* path, char** out, size_t* len, size_t max, char* err, size_t en) {
-    *out = NULL; *len = 0;
+/* GET https://host/path into memory (at most `max` bytes), or, with `f`,
+ * into that file (on_bytes told how far it is: done, total or -1) */
+static int https_fetch(const wchar_t* host, const wchar_t* path, char** out, size_t* len, FILE* f,
+                       void (*on_bytes)(long long, long long), size_t max, char* err, size_t en) {
+    if (out) { *out = NULL; *len = 0; }
     int ok = 0;
     HINTERNET s = WinHttpOpen(L"dqix-enhanced-updater", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     HINTERNET c = NULL, r = NULL;
@@ -54,18 +56,25 @@ static int https_get(const wchar_t* host, const wchar_t* path, char** out, size_
     DWORD code = 0, sz = sizeof code;
     WinHttpQueryHeaders(r, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &code, &sz, WINHTTP_NO_HEADER_INDEX);
     if (code != 200) { snprintf(err, en, code == 404 ? "not found on GitHub (is the repository public?)" : "GitHub answered %lu", code); goto done; }
+    DWORD clen = 0; sz = sizeof clen;
+    long long total = WinHttpQueryHeaders(r, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &clen, &sz, WINHTTP_NO_HEADER_INDEX) ? (long long)clen : -1;
     size_t cap = 1 << 16, n = 0;
     char* b = malloc(cap + 1);
+    if (!b) { snprintf(err, en, "out of memory"); goto done; }
     for (;;) {
         DWORD avail = 0;
         if (!WinHttpQueryDataAvailable(r, &avail)) { snprintf(err, en, "the download broke off (%lu)", GetLastError()); free(b); goto done; }
         if (!avail) break;
         if (n + avail > max) { snprintf(err, en, "the download is too big"); free(b); goto done; }
-        if (n + avail > cap) { while (n + avail > cap) cap *= 2; b = realloc(b, cap + 1); }
+        size_t at = f ? 0 : n;                       /* a file: the buffer is reused */
+        if (at + avail > cap) { while (at + avail > cap) cap *= 2; char* b2 = realloc(b, cap + 1); if (!b2) { snprintf(err, en, "out of memory"); free(b); goto done; } b = b2; }
         DWORD got = 0;
-        if (!WinHttpReadData(r, b + n, avail, &got)) { snprintf(err, en, "the download broke off (%lu)", GetLastError()); free(b); goto done; }
+        if (!WinHttpReadData(r, b + at, avail, &got)) { snprintf(err, en, "the download broke off (%lu)", GetLastError()); free(b); goto done; }
+        if (f && fwrite(b, 1, got, f) != got) { snprintf(err, en, "couldn't write the download (disk full?)"); free(b); goto done; }
         n += got;
+        if (on_bytes) on_bytes((long long)n, total);
     }
+    if (f) { free(b); ok = 1; goto done; }
     b[n] = 0;
     *out = b; *len = n; ok = 1;
 done:
@@ -74,12 +83,25 @@ done:
     if (s) WinHttpCloseHandle(s);
     return ok;
 }
+static int https_get(const wchar_t* host, const wchar_t* path, char** out, size_t* len, size_t max, char* err, size_t en) {
+    return https_fetch(host, path, out, len, NULL, NULL, max, err, en);
+}
 
 static void read_version(const char* branch, char* out, size_t n, char* err, size_t en) {
     wchar_t path[256];
     swprintf(path, 256, L"/%hs/%hs/runtime/version.h", UPDATE_REPO, branch);
     char* t; size_t len;
     out[0] = 0;
+    const char* src = getenv("DQIX_UPDATE_SOURCE");       /* tests: <folder>/<branch>/runtime/version.h */
+    if (src && *src) {
+        char p[1024]; snprintf(p, sizeof p, "%s/%s/runtime/version.h", src, branch);
+        FILE* f = fopen(p, "rb");
+        if (!f) { snprintf(err, en, "can't reach GitHub (test source)"); return; }
+        t = calloc(1, 1 << 16); len = t ? fread(t, 1, (1 << 16) - 1, f) : 0; fclose(f);
+        if (t && !parse_version(t, out, n)) snprintf(err, en, "the %s version couldn't be read", branch);
+        free(t);
+        return;
+    }
     if (!https_get(L"raw.githubusercontent.com", path, &t, &len, 1 << 16, err, en)) return;
     if (!parse_version(t, out, n)) snprintf(err, en, "the %s version on GitHub couldn't be read", branch);
     free(t);
@@ -208,6 +230,42 @@ static int write_file_w(const wchar_t* path, const void* d, size_t n) {
     return fclose(f) == 0 && ok;
 }
 
+int update_https_get(const char* host, const char* path, char** out, size_t* len, size_t max, char* err, size_t en) {
+    wchar_t h[128], p[512];
+    if (!MultiByteToWideChar(CP_UTF8, 0, host, -1, h, 128) || !MultiByteToWideChar(CP_UTF8, 0, path, -1, p, 512)) { snprintf(err, en, "bad address"); return 0; }
+    return https_get(h, p, out, len, max, err, en);
+}
+
+int update_download(const char* branch, const char* zip_path, void (*on_bytes)(long long done, long long total), char* err, size_t en) {
+    const char* src = getenv("DQIX_UPDATE_SOURCE");       /* tests: <folder>/<branch>.zip */
+    FILE* f = fopen(zip_path, "wb");
+    if (!f) { snprintf(err, en, "couldn't write to the update folder"); return 0; }
+    int ok;
+    if (src && *src) {
+        char p[1024]; snprintf(p, sizeof p, "%s/%s.zip", src, branch);
+        FILE* in = fopen(p, "rb");
+        ok = in != NULL;
+        if (!in) snprintf(err, en, "can't reach GitHub (test source)");
+        char b[65536]; size_t got; long long n = 0;
+        while (in && (got = fread(b, 1, sizeof b, in)) > 0) { fwrite(b, 1, got, f); n += (long long)got; if (on_bytes) on_bytes(n, -1); }
+        if (in) fclose(in);
+    } else {
+        wchar_t path[256];
+        swprintf(path, 256, L"/%hs/zip/refs/heads/%hs", UPDATE_REPO, branch);
+        ok = https_fetch(L"codeload.github.com", path, NULL, NULL, f, on_bytes, 256u << 20, err, en);
+    }
+    if (fclose(f) != 0 && ok) { snprintf(err, en, "couldn't write the download (disk full?)"); ok = 0; }
+    if (ok) {                                             /* a zip, or nothing */
+        FILE* z = fopen(zip_path, "rb"); char pk[2] = {0, 0};
+        if (!z || fread(pk, 1, 2, z) != 2 || memcmp(pk, "PK", 2)) { snprintf(err, en, "GitHub didn't send a zip file"); ok = 0; }
+        if (z) fclose(z);
+    }
+    if (!ok) remove(zip_path);
+    return ok;
+}
+
+const char* update_rollback_bat(void) { return ROLLBACK_BAT; }
+
 int update_install(const char* branch, const char* version, char* err, size_t en) {
     const wchar_t* root = project_dir_w();
     if (!root) { snprintf(err, en, "This copy wasn't made with BUILD.bat, so it can't update itself. Download the new version instead."); return 0; }
@@ -244,4 +302,7 @@ void update_check_async(void) {}
 int update_poll(UpdateInfo* out) { (void)out; return 0; }
 const char* update_project_dir(void) { return NULL; }
 int update_install(const char* branch, const char* version, char* err, size_t n) { (void)branch; (void)version; snprintf(err, n, "updating from the game works on Windows"); return 0; }
+int update_https_get(const char* host, const char* path, char** out, size_t* len, size_t max, char* err, size_t n) { (void)host; (void)path; (void)max; *out = NULL; *len = 0; snprintf(err, n, "Windows only"); return 0; }
+int update_download(const char* branch, const char* zip_path, void (*on_bytes)(long long, long long), char* err, size_t n) { (void)branch; (void)zip_path; (void)on_bytes; snprintf(err, n, "updating from the game works on Windows"); return 0; }
+const char* update_rollback_bat(void) { return ""; }
 #endif

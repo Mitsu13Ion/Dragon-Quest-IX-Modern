@@ -35,3 +35,11 @@ const char* update_project_dir(void);
 /* Download `branch` ("stable" or "main") and hand over to the updater, which
  * waits for this program to close. 1: the caller must now quit. */
 int update_install(const char* branch, const char* version, char* error, size_t n);
+
+/* For the launcher (launcher/lnch_work.c), Windows: GET https://host/path
+ * into memory; the branch's zip into a file, on_bytes told how far it is
+ * (total -1 if unknown); the text of update/rollback.bat. DQIX_UPDATE_SOURCE
+ * (tests) takes version.h and <branch>.zip from a local folder instead. */
+int update_https_get(const char* host, const char* path, char** out, size_t* len, size_t max, char* err, size_t en);
+int update_download(const char* branch, const char* zip_path, void (*on_bytes)(long long done, long long total), char* err, size_t en);
+const char* update_rollback_bat(void);

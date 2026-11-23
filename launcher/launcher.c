@@ -5,7 +5,8 @@
  *
  * Tests and pictures: DQIX_LAUNCHER_DEMO=download|build|ready|failed|options|options-classic
  * shows a fixed state (no network, nothing run); DQIX_LAUNCHER_SHOT=<file.png>
- * saves the window and quits. */
+ * saves the window and quits; DQIX_LAUNCHER_HEADLESS=1 does the work without
+ * a window and prints how it ended. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -392,6 +393,34 @@ static void demo(const char* d) {
     if (!strncmp(d, "options", 7)) { g_options = 1; if (!strcmp(d, "options-classic")) g_classic = 1; }
 }
 
+static const char* step_name(StepState s) {
+    static const char* const N[] = {"idle", "running", "done", "failed", "skipped"};
+    return s >= ST_IDLE && s <= ST_SKIPPED ? N[s] : "?";
+}
+static void to_own_folder(void);
+/* tests (DQIX_LAUNCHER_HEADLESS=1): the work without a window, its outcome on
+ * stdout; exit 0 if PLAY would light up, 1 if not */
+static int headless(void) {
+    to_own_folder();
+    settings_read();
+    tr_set_language(g_lang);
+    g_m.lock = SDL_CreateMutex();
+    work_init(NOTES_LANG[g_lang]);
+    work_start(0);
+    for (;;) {
+        SDL_LockMutex(g_m.lock); int busy = g_m.busy; SDL_UnlockMutex(g_m.lock);
+        if (!busy) break;
+        SDL_Delay(50);
+    }
+    work_stop();
+    Model m = g_m;
+    int can = lstate_can_play(&m.st);
+    printf("update=%s build=%s pack=%s online=%d can_play=%d\n", step_name(m.st.update), step_name(m.st.build), step_name(m.st.pack), m.st.online, can);
+    printf("download: %s | %s\ninstall: %s | %s\n", m.dl.text, m.dl.right, m.in.text, m.in.right);
+    for (int i = 0; i < m.nnews; i++) printf("news: %s %s %s\n", m.news[i].tag, m.news[i].date, m.news[i].title);
+    return can ? 0 : 1;
+}
+
 static void to_own_folder(void) {
     char* b = SDL_GetBasePath();
     if (b && chdir(b) != 0) fprintf(stderr, "launcher: can't go to %s\n", b);
@@ -401,6 +430,7 @@ static void to_own_folder(void) {
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
     SDL_SetMainReady();
+    if (getenv("DQIX_LAUNCHER_HEADLESS")) return headless();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_GAMECONTROLLER) != 0) { fprintf(stderr, "launcher: SDL: %s\n", SDL_GetError()); return 1; }
     to_own_folder();
     settings_read();

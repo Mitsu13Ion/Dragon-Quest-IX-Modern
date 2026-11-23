@@ -58,6 +58,20 @@ static void quote_arg(char* out, size_t cap, size_t* o, const char* a) {
     if (q && *o < cap) out[(*o)++] = '"';
 }
 
+/* every tool started joins this job: when the launcher closes (even killed),
+ * Windows ends them and their children (the build's bash, make, gcc) with it;
+ * a build or a download cut that way starts again next time */
+static HANDLE job(void) {
+    static HANDLE j;
+    if (!j) {
+        j = CreateJobObjectW(NULL, NULL);
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION li; memset(&li, 0, sizeof li);
+        li.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        if (j) SetInformationJobObject(j, JobObjectExtendedLimitInformation, &li, sizeof li);
+    }
+    return j;
+}
+
 LProc* proc_start(const char* const* argv, const char* const* env_add, const char* cwd) {
     char cmd[8192]; size_t o = 0;
     for (int i = 0; argv[i]; i++) { if (i && o < sizeof cmd) cmd[o++] = ' '; quote_arg(cmd, sizeof cmd - 1, &o, argv[i]); }
@@ -102,7 +116,12 @@ LProc* proc_start(const char* const* argv, const char* const* env_add, const cha
     si.hStdInput = GetStdHandle(STD_INPUT_HANDLE); si.hStdOutput = wr; si.hStdError = wr;
     PROCESS_INFORMATION pi;
     wchar_t* wcmd = wide(cmd); wchar_t* wcwd = cwd ? wide(cwd) : NULL;
-    BOOL ok = wcmd && CreateProcessW(NULL, wcmd, NULL, NULL, TRUE, CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT, env, wcwd, &si, &pi);
+    BOOL ok = wcmd && CreateProcessW(NULL, wcmd, NULL, NULL, TRUE, CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED, env, wcwd, &si, &pi);
+    if (ok) {
+        HANDLE j = job();
+        if (j) AssignProcessToJobObject(j, pi.hProcess);
+        ResumeThread(pi.hThread);
+    }
     free(wcmd); free(wcwd); free(env);
     CloseHandle(wr);
     if (!ok) { CloseHandle(rd); return NULL; }

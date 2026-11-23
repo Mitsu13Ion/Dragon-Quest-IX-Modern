@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#define SDL_MAIN_HANDLED                 /* our own main(): no SDL2main to link */
 #include <SDL.h>
 #include "lnch.h"
 #include "lnch_ui.h"
@@ -399,6 +400,7 @@ static void to_own_folder(void) {
 
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
+    SDL_SetMainReady();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_GAMECONTROLLER) != 0) { fprintf(stderr, "launcher: SDL: %s\n", SDL_GetError()); return 1; }
     to_own_folder();
     settings_read();

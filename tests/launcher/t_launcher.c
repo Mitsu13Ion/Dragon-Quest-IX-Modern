@@ -192,6 +192,57 @@ static void news_local_sorted_newest_first(void) {
     CHECK(!strcmp(n[0].title, "l'installation remarche.") && !strcmp(n[1].title, "fixes."));
 }
 
+/* ---- tools and their progress */
+static void progress_build_line(void) {
+    float f = -1; char t[96];
+    CHECK(parse_build_line("progress 0.3 Compiling (x)\r\n", &f, t, sizeof t) == 1);
+    CHECK(f > 0.29f && f < 0.31f && !strcmp(t, "Compiling (x)"));
+    CHECK(parse_build_line("   gcc -O2 ...", &f, t, sizeof t) == 0);
+    CHECK(parse_build_line("progress x", &f, t, sizeof t) == 0);
+}
+static void progress_build_failed_line(void) {
+    float f; char t[96];
+    CHECK(parse_build_line("BUILD FAILED (build tools): make missing\n", &f, t, sizeof t) == 2);
+    CHECK(!strcmp(t, "BUILD FAILED (build tools): make missing"));
+}
+static void pack_status_download(void) {
+    PackStatus s;
+    CHECK(parse_pack_status("download 1048576 4194304 2 3\n", &s) == 1);
+    CHECK(s.kind == 'd' && s.done == 1048576 && s.total == 4194304 && s.i == 2 && s.n == 3);
+    CHECK(parse_pack_status("install 1 4", &s) == 1 && s.kind == 'i' && s.done == 1 && s.total == 4);
+    CHECK(parse_pack_status("done", &s) == 1 && s.kind == 'D');
+    CHECK(parse_pack_status("uptodate\r\n", &s) == 1 && s.kind == 'u');
+}
+static void pack_status_failed_reason(void) {
+    PackStatus s;
+    CHECK(parse_pack_status("failed hd-pack-textures-1.zip: wrong SHA-256\n", &s) == 1);
+    CHECK(s.kind == 'f' && !strcmp(s.reason, "hd-pack-textures-1.zip: wrong SHA-256"));
+}
+static void pack_status_garbage_is_zero(void) {
+    PackStatus s;
+    CHECK(parse_pack_status("", &s) == 0);
+    CHECK(parse_pack_status("working 50 100", &s) == 0);
+    CHECK(parse_pack_status("download a b", &s) == 0);
+    CHECK(parse_pack_status("download 5 2 1 1", &s) == 0);          /* done > total: not believed */
+}
+static void proc_runs_echo(void) {
+#ifdef _WIN32
+    const char* argv[] = {"cmd.exe", "/c", "echo a& echo %LNCH_T%& exit 3", NULL};
+#else
+    const char* argv[] = {"/bin/sh", "-c", "echo a; echo $LNCH_T; exit 3", NULL};
+#endif
+    const char* env[] = {"LNCH_T=b", NULL};
+    LProc* p = proc_start(argv, env, g_tmp);
+    CHECK(p);
+    char lines[4][64]; int n = 0, r; char l[64];
+    while ((r = proc_read_line(p, l, sizeof l)) != -1)
+        if (r == 1 && n < 4) { size_t k = strlen(l); while (k && (l[k-1] == ' ' || l[k-1] == '\r')) l[--k] = 0; strcpy(lines[n++], l); }
+    int code = proc_exit_code(p);
+    proc_free(p);
+    CHECK(n == 2 && !strcmp(lines[0], "a") && !strcmp(lines[1], "b"));
+    CHECK(code == 3);
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) { printf("usage: t_launcher <temp folder>\n"); return 2; }
     g_tmp = argv[1];
@@ -202,6 +253,8 @@ int main(int argc, char** argv) {
     RUN(state_failed_cannot_play); RUN(state_resume_after_kill); RUN(state_update_pending_cannot_play);
     RUN(state_not_built_cannot_play); RUN(state_linux_no_updates); RUN(branch_nightly_stays_main);
     RUN(news_github_three_latest); RUN(news_title_strips_prefix); RUN(news_local_sorted_newest_first);
+    RUN(progress_build_line); RUN(progress_build_failed_line); RUN(pack_status_download);
+    RUN(pack_status_failed_reason); RUN(pack_status_garbage_is_zero); RUN(proc_runs_echo);
     printf("%d/%d passed\n", runs - fails, runs);
     return fails ? 1 : 0;
 }

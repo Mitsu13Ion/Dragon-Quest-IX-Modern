@@ -33,5 +33,17 @@ int news_from_github(const char* json, NewsItem* out, int max);   /* GitHub's re
 int news_title_from_notes(const char* md, char* out, size_t n);   /* first non-empty line, "Dragon Quest IX Modern vX: " taken off */
 int news_local(const char* notes_dir, const char* lang, NewsItem* out, int max);  /* <dir>[/<lang>]/v*.md, newest first, date "" */
 
+/* ---- the tools it runs (lnch_proc.c): no window, their output read through a pipe */
+typedef struct LProc LProc;
+LProc* proc_start(const char* const* argv, const char* const* env_add, const char* cwd);  /* env_add: "NAME=value" ..., NULL */
+int    proc_read_line(LProc* p, char* line, size_t n);   /* 1 a line, 0 nothing yet, -1 finished (all read) */
+int    proc_exit_code(LProc* p);                         /* once proc_read_line said -1 */
+void   proc_free(LProc* p);
+/* BUILD.bat / build-game.sh with DQIX_PROGRESS: 1 "progress <f> <title>", 2 "BUILD FAILED (...)" (title = the line), 0 other */
+int parse_build_line(const char* line, float* frac, char* title, size_t n);
+/* hd-pack-status.txt (tools/hd-pack.c) */
+typedef struct { int kind; long long done, total; int i, n; char reason[161]; } PackStatus;  /* kind 'd' download, 'i' install, 'u' up to date, 'D' done, 'f' failed */
+int parse_pack_status(const char* line, PackStatus* out);   /* 1 understood */
+
 /* from runtime/update.c */
 int update_newer(const char* a, const char* b);

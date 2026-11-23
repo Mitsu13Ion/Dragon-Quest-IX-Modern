@@ -243,6 +243,30 @@ static void proc_runs_echo(void) {
     CHECK(code == 3);
 }
 
+/* ---- texts */
+static void text_every_key_every_language(void) {
+    for (int l = 1; l <= 5; l++) {
+        tr_set_language(l);
+        for (int i = 0; tr_key(i); i++) {
+            const char* t = tr(tr_key(i));
+            if (!t || !t[0] || t == tr_key(i)) printf("  language %d: %s missing\n", l, tr_key(i));
+            CHECK(t && t[0] && t != tr_key(i));
+        }
+    }
+    tr_set_language(2);
+    CHECK(!strcmp(tr("play"), "JOUER") && !strcmp(tr("st_ready"), "Tout est à jour, prêt à jouer !"));
+    tr_set_language(3);
+    CHECK(!strcmp(tr("play"), "SPIELEN"));
+    tr_set_language(1);
+    CHECK(!strcmp(tr("play"), "PLAY"));
+}
+static void text_unknown_key_returns_key(void) {
+    tr_set_language(1);
+    CHECK(!strcmp(tr("no_such_key"), "no_such_key"));
+    tr_set_language(9);                                 /* out of range: English */
+    CHECK(!strcmp(tr("play"), "PLAY"));
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) { printf("usage: t_launcher <temp folder>\n"); return 2; }
     g_tmp = argv[1];
@@ -255,6 +279,7 @@ int main(int argc, char** argv) {
     RUN(news_github_three_latest); RUN(news_title_strips_prefix); RUN(news_local_sorted_newest_first);
     RUN(progress_build_line); RUN(progress_build_failed_line); RUN(pack_status_download);
     RUN(pack_status_failed_reason); RUN(pack_status_garbage_is_zero); RUN(proc_runs_echo);
+    RUN(text_every_key_every_language); RUN(text_unknown_key_returns_key);
     printf("%d/%d passed\n", runs - fails, runs);
     return fails ? 1 : 0;
 }

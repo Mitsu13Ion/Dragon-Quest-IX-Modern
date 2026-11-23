@@ -45,5 +45,11 @@ int parse_build_line(const char* line, float* frac, char* title, size_t n);
 typedef struct { int kind; long long done, total; int i, n; char reason[161]; } PackStatus;  /* kind 'd' download, 'i' install, 'u' up to date, 'D' done, 'f' failed */
 int parse_pack_status(const char* line, PackStatus* out);   /* 1 understood */
 
+/* ---- texts (lnch_text.c): lang 1-5 in LANGUAGE_KEY's order (english french
+ * german italian spanish); a key it doesn't know comes back as itself */
+const char* tr(const char* key);
+void        tr_set_language(int lang);
+const char* tr_key(int i);                   /* every key in turn, NULL after the last (tests) */
+
 /* from runtime/update.c */
 int update_newer(const char* a, const char* b);

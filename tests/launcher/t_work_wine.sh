@@ -21,7 +21,7 @@ trap 'rm -rf -- "$T"' EXIT INT TERM
 export WINEDEBUG=-all
 unset TMPDIR   # Wine 9.0 aborts at start (free(): invalid pointer) with it set in the cloud container
 $GCC -std=c99 -O1 -I "$ROOT/launcher" -I "$ROOT/runtime" -I "$SDL/include/SDL2" -I "$SDL/include" \
-    -o "$T/dqix-launcher.exe" "$ROOT"/launcher/*.c "$ROOT/runtime/update.c" -L "$SDL/lib" -lSDL2 -lwinhttp -lcomdlg32 -lm
+    -o "$T/dqix-launcher.exe" "$ROOT"/launcher/*.c "$ROOT/runtime/update.c" "$ROOT/runtime/controls.c" "$ROOT/runtime/uitext.c" -L "$SDL/lib" -lSDL2 -lwinhttp -lcomdlg32 -lm
 fails=0
 set +e   # every case runs and is counted, even under a shell whose set -e stops at a failed && list
 check() { if [ "$1" = 0 ]; then echo "ok   $2"; else echo "FAIL $2"; sed 's/^/     /' "$T/out.txt"; fails=$((fails + 1)); fi; }

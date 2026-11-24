@@ -17,6 +17,9 @@
 #include "lnch.h"
 #include "lnch_ui.h"
 #include "lnch_work.h"
+#include "lnch_keys.h"
+#include "controls.h"
+#include "uitext.h"
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -39,6 +42,10 @@ static SDL_Renderer* g_ren;
 static SDL_Texture* g_back; static int g_back_w, g_back_h;
 static int g_lang = 1, g_classic, g_fullscreen, g_volume = 100;
 static int g_options, g_lang_menu, g_drag_volume;
+/* the key screen (in the options): 1 keyboard, 2 controller; the action whose
+ * key (slot 0/1) or button (slot 2) is being asked, or -1 */
+static int g_keys, g_keys_top, g_cap = -1, g_cap_slot;
+static SDL_GameController* g_pad;
 static int g_size;                       /* the window: 100, 125 or 150 % of 1100x674; 0 = fit the screen */
 static float S = 1, OX, OY;              /* logical 1100x674 -> pixels */
 
@@ -95,6 +102,7 @@ static void size_apply(void) {
 static void set_language(int l) {
     g_lang = l;
     tr_set_language(l);
+    if (g_keys) ui_lang_load(l);                         /* the actions' names, from the game's lang/ */
     settings_set("language", LANGUAGE_KEY[l]);
     settings_set("menu_language", LANGUAGE_KEY[l]);
     work_news_language(NOTES_LANG[l]);
@@ -102,7 +110,8 @@ static void set_language(int l) {
 
 /* ---- hit areas, made again every frame */
 enum { A_NONE, A_LANG, A_LANG1, A_LANG5 = A_LANG1 + 4, A_DISCORD, A_GITHUB, A_FOLDER, A_NEWS_ALL, A_VERIFY, A_OPTIONS,
-       A_PLAY, A_RETRY, A_CLASSIC, A_MODERN, A_FULLSCREEN, A_VOLUME, A_KEYS_PAD, A_KEYS_KB, A_RESET, A_CLOSE_OPT, A_CHOOSE_ROM, A_SIZE };
+       A_PLAY, A_RETRY, A_CLASSIC, A_MODERN, A_FULLSCREEN, A_VOLUME, A_KEYS_PAD, A_KEYS_KB, A_RESET, A_CLOSE_OPT, A_CHOOSE_ROM, A_SIZE,
+       A_KEYS_BACK, A_KEYS_DEFAULTS, A_KEYCELL = 1000 /* + action * 3 + slot */ };
 typedef struct { float x, y, w, h; int id; } Hit;
 static Hit g_hits[64]; static int g_nhits;
 static int g_mx = -1, g_my = -1;
@@ -259,6 +268,67 @@ static void draw_options(void) {
     button(x + w - 218, y + h - 38, 200, 30, tr("reset_defaults"), A_RESET, col(0x0E1A3D, 255), col(0x3A4F86, 255), INK);
 }
 
+#define KEY_ROWS 9
+static void draw_keys(void) {
+    float x = 22, y = 72, w = 1056, h = 382;
+    frame(x, y, w, h);
+    text(FONT_TITLE, 15, x + 18, y + 14, GOLD, tr(g_keys == 1 ? "keys_keyboard" : "keys_pad"), 0, 0);
+    if (g_keys == 2) text(FONT_TEXT, 13, x + w - 52, y + 16, g_pad ? MUTE : BAD, g_pad ? g_ctl_pad_label : tr("keys_no_pad"), 420, 2);
+    int hv = hover(x + w - 42, y + 8, 32, 30);
+    text(FONT_BOLD, 18, x + w - 26, y + 9, hv ? GOLD : INK, "\xC3\x97", 0, 1);   /* × back to the options */
+    hit(x + w - 42, y + 8, 32, 30, A_KEYS_BACK);
+    ui_fill(X(x), Y(y + 45), w * S, S, col(0xFFFFFF, 34));
+    /* the columns: the action, then its two keys or its button */
+    float c1 = x + 470, cw = g_keys == 1 ? 260 : 540, gap = 20;
+    text(FONT_BOLD, 12, x + 18, y + 54, MUTE, tr("keys_action"), 0, 0);
+    if (g_keys == 1) { text(FONT_BOLD, 12, c1, y + 54, MUTE, tr("keys_key"), 0, 0); text(FONT_BOLD, 12, c1 + cw + gap, y + 54, MUTE, tr("keys_key2"), 0, 0); }
+    else text(FONT_BOLD, 12, c1, y + 54, MUTE, tr("keys_button"), 0, 0);
+    float ry = y + 76, rh = 30;
+    for (int r = 0; r < KEY_ROWS && g_keys_top + r < CA_N; r++) {
+        int a = g_keys_top + r;
+        float yy = ry + r * rh;
+        if (r) ui_fill(X(x + 14), Y(yy), (w - 28) * S, S, col(0xFFFFFF, 14));
+        text(FONT_TEXT, 14, x + 18, yy + 6, INK, ui_tr(g_ctl[a].name), c1 - x - 30, 0);
+        for (int s = 0; s < (g_keys == 1 ? 2 : 1); s++) {
+            int slot = g_keys == 1 ? s : 2;
+            float cx = c1 + s * (cw + gap);
+            int asking = g_cap == a && g_cap_slot == slot, hv2 = hover(cx, yy + 3, cw, rh - 6);
+            rrect(cx, yy + 3, cw, rh - 6, 6, asking ? col(0x3A2F10, 255) : hv2 ? col(0x1F3470, 255) : col(0x0E1A3D, 255),
+                  asking ? col(0x3A2F10, 255) : hv2 ? col(0x1F3470, 255) : col(0x0E1A3D, 255));
+            rborder(cx, yy + 3, cw, rh - 6, 6, 1, asking ? GOLD : col(0x2F4277, 255));
+            char n[64];
+            if (asking) snprintf(n, sizeof n, "%s", tr(g_keys == 1 ? "keys_press_key" : g_pad ? "keys_press_button" : "keys_no_pad"));
+            else if (slot < 2) controls_key_label(g_ctl_key[a][slot], n, sizeof n);
+            else controls_pad_name(g_ctl_pad[a], n, sizeof n);
+            text(asking ? FONT_BOLD : FONT_TEXT, 13.5f, cx + cw / 2, yy + 7, asking ? GOLD : !strcmp(n, "-") ? MUTE : INK, ui_tr(n), cw - 12, 1);
+            hit(cx, yy + 3, cw, rh - 6, A_KEYCELL + a * 3 + slot);
+        }
+    }
+    /* the list goes on: a thin bar on the right shows where */
+    float th = KEY_ROWS * rh, bh = th * KEY_ROWS / CA_N, by = ry + th * g_keys_top / CA_N;
+    rrect(x + w - 12, ry, 4, th, 2, col(0x1A2547, 255), col(0x1A2547, 255));
+    rrect(x + w - 12, by, 4, bh, 2, col(0x6A80C0, 255), col(0x6A80C0, 255));
+    ui_fill(X(x), Y(y + h - 46), w * S, S, col(0xFFFFFF, 24));
+    text(FONT_TEXT, 13, x + 18, y + h - 31, MUTE, tr(g_cap >= 0 ? "keys_esc_cancels" : "keys_help"), w - 260, 0);
+    button(x + w - 218, y + h - 38, 200, 30, tr("reset_defaults"), A_KEYS_DEFAULTS, col(0x0E1A3D, 255), col(0x3A4F86, 255), INK);
+}
+static void keys_scroll(int rows) {
+    g_keys_top += rows;
+    if (g_keys_top > CA_N - KEY_ROWS) g_keys_top = CA_N - KEY_ROWS;
+    if (g_keys_top < 0) g_keys_top = 0;
+}
+static void keys_open(int which) {
+    g_keys = which; g_keys_top = 0; g_cap = -1;
+    controls_load();                                     /* controls.ini of this game folder, or the game's defaults */
+    ui_lang_load(g_lang);
+    if (!g_pad) for (int i = 0; i < SDL_NumJoysticks() && !g_pad; i++) if (SDL_IsGameController(i)) g_pad = SDL_GameControllerOpen(i);
+    controls_pad_detect(g_pad);
+}
+static void keys_done(int r) {                           /* after a key or button was pressed for g_cap */
+    g_cap = -1;
+    if (r == KEYS_SET && !keys_save()) { say_failed(tr("err_keys")); controls_load(); }   /* not written: back to the file's */
+}
+
 static void draw(int W, int H) {
     S = (float)W / 1100 < (float)H / 674 ? (float)W / 1100 : (float)H / 674;
     OX = (W - 1100 * S) / 2; OY = (H - 674 * S) / 2;
@@ -289,7 +359,7 @@ static void draw(int W, int H) {
     text(FONT_BOLD, 13, rx + 46, 14 + 8, INK, tr("lang_name"), 80, 1);      /* the name left of the ▾ */
     ui_triangle(X(rx + 84), Y(28), X(rx + 94), Y(28), X(rx + 89), Y(34), INK);   /* ▾: not in the fonts */
     /* middle */
-    if (g_options) draw_options(); else draw_news(&m);
+    if (g_options && g_keys) draw_keys(); else if (g_options) draw_options(); else draw_news(&m);
     /* bottom */
     float by = 492;
     ui_vgrad(X(0) - OX, Y(by), (float)W, (674 - by) * S + OY + 1, col(0x070D22, 242), col(0x050916, 255));
@@ -384,8 +454,10 @@ static void action(int a) {
     case A_GITHUB: open_url(REPO_URL); break;
     case A_NEWS_ALL: open_url(REPO_URL "/releases"); break;
     case A_FOLDER: open_here(""); break;
-    case A_OPTIONS: g_options = !g_options; break;
+    case A_OPTIONS: g_options = !g_options; g_keys = 0; break;
     case A_CLOSE_OPT: g_options = 0; break;
+    case A_KEYS_BACK: g_keys = 0; break;
+    case A_KEYS_DEFAULTS: controls_defaults(); keys_done(KEYS_SET); break;
     case A_CHOOSE_ROM: {
         char path[1024];
         int got = pick_rom(path, sizeof path);
@@ -412,7 +484,8 @@ static void action(int a) {
     case A_CLASSIC: if (settings_set("mode", "classic")) g_classic = 1; work_settings_changed(); break;
     case A_MODERN: if (settings_set("mode", "enhanced")) g_classic = 0; work_settings_changed(); break;
     case A_FULLSCREEN: if (settings_set("fullscreen", g_fullscreen ? "0" : "1")) g_fullscreen = !g_fullscreen; break;
-    case A_KEYS_PAD: case A_KEYS_KB: open_here("controls.ini"); break;
+    case A_KEYS_PAD: keys_open(2); break;
+    case A_KEYS_KB: keys_open(1); break;
     case A_RESET:
         if (settings_set("mode", "enhanced") && settings_set("fullscreen", "0") && settings_set("volume", "100")) {
             g_classic = 0; g_fullscreen = 0; g_volume = 100;
@@ -431,6 +504,7 @@ static void action(int a) {
     }
     default:
         if (a >= A_LANG1 && a <= A_LANG5) set_language(a - A_LANG1 + 1);
+        else if (a >= A_KEYCELL && a < A_KEYCELL + CA_N * 3) { g_cap = (a - A_KEYCELL) / 3; g_cap_slot = (a - A_KEYCELL) % 3; }
     }
 }
 static void volume_from_mouse(int mx) {
@@ -473,6 +547,10 @@ static void demo(const char* d) {
         snprintf(m->in.text, sizeof m->in.text, "%s", tr("dl_waiting")); m->in.frac = 0; m->in.state = 0; m->in.right[0] = 0;
     }
     if (!strncmp(d, "options", 7)) { g_options = 1; if (!strcmp(d, "options-classic")) g_classic = 1; }
+    if (!strncmp(d, "keys", 4)) {                       /* keys, keys-pad, keys-wait */
+        g_options = 1; keys_open(!strcmp(d, "keys-pad") ? 2 : 1);
+        if (!strcmp(d, "keys-wait")) { g_cap = CA_JOURNAL; g_cap_slot = 0; g_keys_top = CA_N - KEY_ROWS; }
+    }
     if (!strcmp(d, "language")) g_lang_menu = 1;
     if (!strcmp(d, "rom")) {                             /* first launch */
         m->st.game_built = 0; m->st.rom_needed = 1; m->st.build = ST_IDLE; m->st.pack = ST_IDLE; m->st.pack_complete = 0;
@@ -655,18 +733,37 @@ int main(int argc, char** argv) {
             if (e.type == SDL_QUIT) run = 0;
             else if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) ui_forget_fonts();
             else if (e.type == SDL_MOUSEMOTION) { g_mx = e.motion.x; g_my = e.motion.y; if (g_drag_volume) volume_from_mouse(g_mx); }
-            else if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+            else if (e.type == SDL_MOUSEWHEEL && g_options && g_keys) keys_scroll(-e.wheel.y * 2);
+            else if (g_cap >= 0 && e.type == SDL_KEYDOWN) {                     /* the key screen asked for a key */
+                if (!e.key.repeat) {
+                    if (g_cap_slot < 2) keys_done(keys_take_key(g_cap, g_cap_slot, e.key.keysym.scancode, e.key.keysym.mod));
+                    else if (e.key.keysym.scancode == SDL_SCANCODE_ESCAPE) keys_done(KEYS_CANCELLED);   /* a button asked: only Esc */
+                }
+            } else if (g_cap >= 0 && e.type == SDL_CONTROLLERBUTTONDOWN) {
+                if (g_cap_slot == 2) keys_done(keys_take_pad(g_cap, e.cbutton.button));
+            } else if (g_cap >= 0 && e.type == SDL_CONTROLLERAXISMOTION) {
+                int t = keys_trigger(e.caxis.axis, e.caxis.value);
+                if (g_cap_slot == 2 && t != CTL_NONE) keys_done(keys_take_pad(g_cap, t));
+            } else if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
                 int a = hit_at(e.button.x, e.button.y);
+                if (g_cap >= 0 && (a < A_KEYCELL || a >= A_KEYCELL + CA_N * 3)) g_cap = -1;   /* a click elsewhere: not changed */
                 if (a == A_NONE) g_lang_menu = 0; else action(a);
                 if (a == A_VOLUME) volume_from_mouse(e.button.x);
             } else if (e.type == SDL_MOUSEBUTTONUP && g_drag_volume) {
                 char v[8]; snprintf(v, sizeof v, "%d", g_volume);
                 if (!settings_set("volume", v)) settings_read();   /* not written: back to the file's */
                 g_drag_volume = 0;
-            } else if (e.type == SDL_CONTROLLERDEVICEADDED) SDL_GameControllerOpen(e.cdevice.which);
+            } else if (e.type == SDL_CONTROLLERDEVICEADDED) {
+                SDL_GameController* p = SDL_GameControllerOpen(e.cdevice.which);
+                if (!g_pad && p) { g_pad = p; controls_pad_detect(p); }    /* the key screen shows its buttons' names */
+            } else if (e.type == SDL_CONTROLLERDEVICEREMOVED && g_pad && SDL_GameControllerFromInstanceID(e.cdevice.which) == g_pad) {
+                SDL_GameControllerClose(g_pad); g_pad = NULL; controls_pad_detect(NULL);
+            }
             else if (e.type == SDL_KEYDOWN || e.type == SDL_CONTROLLERBUTTONDOWN) {
                 int k = e.type == SDL_KEYDOWN ? e.key.keysym.sym : -1, b = e.type == SDL_CONTROLLERBUTTONDOWN ? e.cbutton.button : -1;
-                if (k == SDLK_ESCAPE || b == SDL_CONTROLLER_BUTTON_B) { g_options = 0; g_lang_menu = 0; }
+                if (g_options && g_keys && (k == SDLK_DOWN || k == SDLK_UP || k == SDLK_PAGEDOWN || k == SDLK_PAGEUP))
+                    keys_scroll(k == SDLK_DOWN ? 1 : k == SDLK_UP ? -1 : k == SDLK_PAGEDOWN ? KEY_ROWS : -KEY_ROWS);
+                else if (k == SDLK_ESCAPE || b == SDL_CONTROLLER_BUTTON_B) { if (g_keys) g_keys = 0; else g_options = 0; g_lang_menu = 0; }
                 else if (k == SDLK_RETURN || b == SDL_CONTROLLER_BUTTON_A || b == SDL_CONTROLLER_BUTTON_START) {
                     SDL_LockMutex(g_m.lock); int can = lstate_can_play(&g_m.st) && !g_m.busy; SDL_UnlockMutex(g_m.lock);
                     if (can) action(A_PLAY);

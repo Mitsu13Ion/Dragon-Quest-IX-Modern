@@ -225,7 +225,7 @@ MINGW*|MSYS*) LX=dqix-launcher.exe; LFLAGS="$(sdl2-config --cflags) -lSDL2 -lwin
 *)            LX=dqix-launcher;     LFLAGS="${SDL_CFLAGS:-$(sdl2-config --cflags)} ${SDL_LIBS:-$(sdl2-config --libs)}" ;;
 esac
 # shellcheck disable=SC2086
-if gcc -std=c99 -D_DEFAULT_SOURCE -O2 -I launcher -I runtime -o build/pc/$LX launcher/*.c runtime/update.c $LFLAGS -lm; then
+if gcc -std=c99 -D_DEFAULT_SOURCE -O2 -I launcher -I runtime -o build/pc/$LX launcher/*.c runtime/update.c runtime/controls.c runtime/uitext.c $LFLAGS -lm; then
     if ! cmp -s build/pc/$LX game/$LX; then
         # copied whole first, then two renames (the old one to .old); a failure
         # here (an old .old still locked) never stops the game's build

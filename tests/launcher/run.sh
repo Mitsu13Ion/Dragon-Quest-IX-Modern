@@ -23,7 +23,8 @@ case "$(uname -s)" in
 Linux)
     if command -v sdl2-config >/dev/null; then
         # shellcheck disable=SC2046
-        gcc -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -O1 -I "$ROOT/launcher" -I "$ROOT/runtime" $(sdl2-config --cflags)             -o "$T/t_keys" "$ROOT/tests/launcher/t_keys.c" "$ROOT/launcher/lnch_keys.c" "$ROOT/runtime/controls.c" $(sdl2-config --libs)
+        gcc -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -O1 -I "$ROOT/launcher" -I "$ROOT/runtime" $(sdl2-config --cflags) \
+            -o "$T/t_keys" "$ROOT/tests/launcher/t_keys.c" "$ROOT/launcher/lnch_keys.c" "$ROOT/runtime/controls.c" $(sdl2-config --libs)
         mkdir -p "$T/keys"
         "$T/t_keys" "$T/keys"
     else echo "skip t_keys (no sdl2-config: libsdl2-dev)"; fi ;;

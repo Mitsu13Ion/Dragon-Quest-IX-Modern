@@ -791,9 +791,11 @@ int main(int argc, char** argv) {
                 SDL_GameController* p = SDL_GameControllerOpen(e.cdevice.which);
                 if (!g_pad && p) { g_pad = p; controls_pad_detect(p); }    /* the key screen shows its buttons' names */
             } else if (e.type == SDL_CONTROLLERDEVICEREMOVED && g_pad && SDL_GameControllerFromInstanceID(e.cdevice.which) == g_pad) {
-                SDL_GameControllerClose(g_pad); g_pad = NULL; controls_pad_detect(NULL);
+                SDL_GameControllerClose(g_pad); g_pad = NULL;
+                for (int i = 0; i < SDL_NumJoysticks() && !g_pad; i++) if (SDL_IsGameController(i)) g_pad = SDL_GameControllerOpen(i);
+                controls_pad_detect(g_pad);
             }
-            else if (e.type == SDL_KEYDOWN || e.type == SDL_CONTROLLERBUTTONDOWN) {
+            else if ((e.type == SDL_KEYDOWN && !e.key.repeat) || e.type == SDL_CONTROLLERBUTTONDOWN) {   /* a key held after it was given: not PLAY */
                 int k = e.type == SDL_KEYDOWN ? e.key.keysym.sym : -1, b = e.type == SDL_CONTROLLERBUTTONDOWN ? e.cbutton.button : -1;
                 if (g_options && g_keys && (k == SDLK_DOWN || k == SDLK_UP || k == SDLK_PAGEDOWN || k == SDLK_PAGEUP))
                     keys_scroll(k == SDLK_DOWN ? 1 : k == SDLK_UP ? -1 : k == SDLK_PAGEDOWN ? KEY_ROWS : -KEY_ROWS);

@@ -10,6 +10,8 @@ on:
       - 'runtime/update.c'
       - 'runtime/controls.c'
       - 'runtime/uitext.c'
+      - 'runtime/controls.h'
+      - 'runtime/uitext.h'
       - 'runtime/update.h'
       - '.github/workflows/launcher-windows.yml'
   workflow_dispatch:

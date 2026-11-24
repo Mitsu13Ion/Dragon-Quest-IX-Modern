@@ -25,7 +25,7 @@ jobs:
         with:
           msystem: UCRT64
           install: mingw-w64-ucrt-x86_64-gcc zip
-      - name: SDL2 (libsdl-org's release: the real SDL2, not MSYS2's compatibility one)
+      - name: "SDL2 from libsdl-org's release (the real SDL2, not MSYS2's compatibility one)"
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

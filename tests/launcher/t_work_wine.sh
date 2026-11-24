@@ -1,20 +1,26 @@
 #!/bin/sh
-# The launcher's work (launcher/lnch_work.c) on Windows, under Wine, with
+# The launcher's work (launcher/lnch_work.c) on Windows, with
 # DQIX_LAUNCHER_HEADLESS=1 (no window) and DQIX_UPDATE_SOURCE (no network):
 #   sh tests/launcher/t_work_wine.sh <SDL2 mingw folder: include/SDL2, lib, bin/SDL2.dll>
-# Linux cloud session only (Wine), on folders made by mktemp -d: never on a
-# player's PC. A fake BUILD.bat stands for the build.
+# Under Wine in a Linux cloud session, or on a GitHub Actions Windows runner
+# (MSYS2, DQIX_CI_WINDOWS=1: there tar and robocopy are the real ones). Never on
+# a player's PC. Folders made by mktemp -d; a fake BUILD.bat stands for the build.
 set -eu
-[ "$(uname -s)" = Linux ] || { echo "t_work_wine.sh: Linux cloud session only" >&2; exit 2; }
 SDL=${1:?usage: t_work_wine.sh <SDL2 mingw folder>}
-for t in x86_64-w64-mingw32-gcc wine; do command -v $t >/dev/null || { echo "$t missing" >&2; exit 2; }; done
+case "$(uname -s)" in
+Linux) WINE=wine; GCC=x86_64-w64-mingw32-gcc; winpath() { winepath -w "$1" 2>/dev/null; } ;;
+MINGW*|MSYS*) [ -n "${DQIX_CI_WINDOWS:-}" ] || { echo "t_work_wine.sh: Windows only on a CI runner (DQIX_CI_WINDOWS=1)" >&2; exit 2; }
+              WINE=; GCC=gcc; winpath() { cygpath -w "$1"; } ;;
+*) echo "t_work_wine.sh: Linux (Wine) or a Windows CI runner" >&2; exit 2 ;;
+esac
+for t in $GCC $WINE; do command -v $t >/dev/null || { echo "$t missing" >&2; exit 2; }; done
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 T=$(mktemp -d)
 case "$T" in /tmp/?*) ;; *) echo "unexpected temp folder $T" >&2; exit 2 ;; esac
 trap 'rm -rf -- "$T"' EXIT INT TERM
 export WINEDEBUG=-all
 unset TMPDIR   # Wine 9.0 aborts at start (free(): invalid pointer) with it set in the cloud container
-x86_64-w64-mingw32-gcc -std=c99 -O1 -I "$ROOT/launcher" -I "$ROOT/runtime" -I "$SDL/include/SDL2" -I "$SDL/include" \
+$GCC -std=c99 -O1 -I "$ROOT/launcher" -I "$ROOT/runtime" -I "$SDL/include/SDL2" -I "$SDL/include" \
     -o "$T/dqix-launcher.exe" "$ROOT"/launcher/*.c "$ROOT/runtime/update.c" -L "$SDL/lib" -lSDL2 -lwinhttp -lcomdlg32 -lm
 fails=0
 check() { if [ "$1" = 0 ]; then echo "ok   $2"; else echo "FAIL $2"; sed 's/^/     /' "$T/out.txt"; fails=$((fails + 1)); fi; }
@@ -35,8 +41,8 @@ source_at() {  # the "GitHub" the launcher sees: stable at <version>
     printf '#define X\n#define DQIX_VERSION "%s-nightly1"\n' "$1" > "$S/main/runtime/version.h"
     printf '[{"tag_name":"v3.2","name":"v3.2","draft":false,"prerelease":false,"published_at":"2026-11-22T10:00:00Z"}]' > "$S/releases.json"
 }
-launch() { (cd "$1/game" && DQIX_LAUNCHER_HEADLESS=1 DQIX_UPDATE_SOURCE=$(winepath -w "$2" 2>/dev/null) wine ./dqix-launcher.exe > "$T/out.txt" 2>&1); }
-launch_rom() { (cd "$1/game" && DQIX_LAUNCHER_HEADLESS=1 DQIX_LAUNCHER_ROM="$3" DQIX_UPDATE_SOURCE=$(winepath -w "$2" 2>/dev/null) wine ./dqix-launcher.exe > "$T/out.txt" 2>&1); }
+launch() { (cd "$1/game" && DQIX_LAUNCHER_HEADLESS=1 DQIX_UPDATE_SOURCE=$(winpath "$2") $WINE ./dqix-launcher.exe > "$T/out.txt" 2>&1); }
+launch_rom() { (cd "$1/game" && DQIX_LAUNCHER_HEADLESS=1 DQIX_LAUNCHER_ROM="$3" DQIX_UPDATE_SOURCE=$(winpath "$2") $WINE ./dqix-launcher.exe > "$T/out.txt" 2>&1); }
 
 # not built yet, nothing newer: the build runs, PLAY lights up, the news comes from "GitHub"
 source_at v3.2; project p1 v3.2 0
@@ -63,7 +69,7 @@ mkdir -p "$T/zip/DQIX-PC/runtime"; cp "$T/p1/BUILD.bat" "$T/zip/DQIX-PC/"; print
 (cd "$T/zip" && zip -qr "$T/src-v3.3/stable.zip" DQIX-PC)
 project p4 v3.2 0; echo x > "$T/p4/game/dqix.exe"
 set +e; launch "$T/p4" "$T/src-v3.3"; r=$?; set -e
-if grep -qi "tar\|robocopy" "$T/out.txt" && grep -q "update=failed" "$T/out.txt"; then
+if [ -n "$WINE" ] && grep -qi "tar\|robocopy" "$T/out.txt" && grep -q "update=failed" "$T/out.txt"; then
     echo "skip work_update_then_build (Wine has no tar/robocopy: check on Windows)"
 else
     [ "$r" = 0 ] && grep -q "update=done build=done" "$T/out.txt" && [ -f "$T/p4/update/previous/BUILD.bat" ] && [ -f "$T/p4/update/rollback.bat" ] && grep -q v3.3 "$T/p4/runtime/version.h"
@@ -76,7 +82,7 @@ set +e; launch "$T/p5" "$T/src-v3.2"; r=$?; set -e
 [ "$r" = 1 ] && grep -q "can_play=0" "$T/out.txt" && grep -qi "ROM" "$T/out.txt"
 check $? work_first_launch_waits_for_rom
 mkdir -p "$T/my roms & co"; echo rom > "$T/my roms & co/Dragon Quest IX (E).nds"
-set +e; launch_rom "$T/p5" "$T/src-v3.2" "$(winepath -w "$T/my roms & co/Dragon Quest IX (E).nds" 2>/dev/null)"; r=$?; set -e
+set +e; launch_rom "$T/p5" "$T/src-v3.2" "$(winpath "$T/my roms & co/Dragon Quest IX (E).nds")"; r=$?; set -e
 [ "$r" = 0 ] && grep -q "build=done" "$T/out.txt" && [ -f "$T/p5/rom/dq9-rom.nds" ] && [ -f "$T/p5/game/data/dqix.nds" ] && grep -q 'rom\\dq9-rom.nds' "$T/p5/build-rom-arg.txt"
 check $? work_first_build_from_rom
 

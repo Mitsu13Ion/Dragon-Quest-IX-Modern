@@ -112,4 +112,21 @@ with tempfile.TemporaryDirectory() as tmp:
     for i in (1, 2, 3):
         with zipfile.ZipFile(os.path.join(out4, "hd-pack-textures-%d.zip" % i)) as z:
             assert len(z.infolist()) <= 2
+    make_hd_pack.MAX_ENTRIES = 65535
+
+    # --extra: the launcher's background goes in a textures zip as textures/launcher-back.jpg
+    # (installed as textures/hd-pack/launcher-back.jpg); a name that isn't the one expected is refused
+    back = os.path.join(tmp, "launcher-back.jpg")
+    with open(back, "wb") as f:
+        f.write(bytes([0xFF, 0xD8]) + b" picture")
+    out5 = os.path.join(tmp, "out5")
+    assert make_hd_pack.main([tex, mov, out5, "--extra", back]) == 0
+    with zipfile.ZipFile(os.path.join(out5, "hd-pack-textures-1.zip")) as z:
+        assert z.read("textures/launcher-back.jpg") == bytes([0xFF, 0xD8]) + b" picture", z.namelist()
+    other = os.path.join(tmp, "other.jpg")
+    with open(other, "wb") as f:
+        f.write(b"x")
+    r = subprocess.run([sys.executable, TOOL, tex, mov, os.path.join(tmp, "out6"), "--extra", other],
+                       capture_output=True, text=True)
+    assert r.returncode != 0 and "launcher-back.jpg" in r.stderr, (r.returncode, r.stderr)
 print("OK")

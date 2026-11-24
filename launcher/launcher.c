@@ -353,10 +353,11 @@ static int start_game(void) {
 #ifdef _WIN32
     SetEnvironmentVariableA("DQIX_LAUNCHER", "1");
     wchar_t exe[MAX_PATH + 16];
-    DWORD n = GetModuleFileNameW(NULL, exe, MAX_PATH);
+    DWORD n = GetCurrentDirectoryW(MAX_PATH, exe);
     if (!n || n >= MAX_PATH) return 0;
-    wchar_t* s = wcsrchr(exe, L'\\');
-    if (!s) return 0;
+    wchar_t* s = exe + n;
+    if (s[-1] == L'\\') s--;
+    *s = L'\\';
     wcscpy(s + 1, L"dqix.exe");
     STARTUPINFOW si; memset(&si, 0, sizeof si); si.cb = sizeof si;
     PROCESS_INFORMATION pi;

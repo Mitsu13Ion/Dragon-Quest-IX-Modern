@@ -14,7 +14,8 @@
 
 #define RELEASES_PATH "/repos/" UPDATE_REPO "/releases?per_page=10"
 
-static char g_notes_lang[8];
+static char g_notes_lang[8];               /* written by the main thread under LOCK */
+static char g_work_lang[8];                 /* the worker's copy, taken when it starts */
 static SDL_Thread* g_thread;
 static SDL_atomic_t g_done = {1};          /* the thread has finished (or never ran) */
 static SDL_atomic_t g_restart;              /* the build put a new launcher in place */
@@ -55,6 +56,7 @@ static void scan_local(Model* m) {
     m->st.game_built = exists("dqix") && exists("data/dqix.nds");
 #endif
     m->st.pack_complete = exists("textures/hd-pack/hd-pack.txt");
+    m->st.update_unbuilt = exists("../update/download.zip");     /* deleted only once its build succeeded */
     m->background_ready = exists("textures/hd-pack/launcher-back.jpg");
     local_version(m->st.installed, sizeof m->st.installed);
     settings_wants(&m->st);
@@ -77,7 +79,7 @@ static void step(StepState* s, StepState v) { LOCK; *s = v; UNLOCK; }
 
 /* "610 Mo" / "1,4 Go" in French, "610 MB" / "1.4 GB" otherwise */
 static void size_text(long long b, char* out, size_t n) {
-    int fr = !strcmp(g_notes_lang, "fr");
+    int fr = !strcmp(g_work_lang, "fr");
     if (b >= 1000LL * 1000 * 1000) {
         snprintf(out, n, "%.1f %s", b / 1e9, fr ? "Go" : "GB");
         if (fr) { char* d = strchr(out, '.'); if (d) *d = ','; }
@@ -107,12 +109,12 @@ static void dl_right(long long done, long long total, char* out, size_t n) {
 }
 
 /* ---- the news: GitHub's releases; a title from the notes here when there is one (they are translated) */
-static void news_titles_from_notes(NewsItem* it, int n) {
+static void news_titles_from_notes(NewsItem* it, int n, const char* lang) {
     for (int i = 0; i < n; i++) {
         char p[128], text[4096];
-        const char* langs[2] = {g_notes_lang, ""};
+        const char* langs[2] = {lang, ""};
         for (int k = 0; k < 2; k++) {
-            if (k == 0 && !g_notes_lang[0]) continue;
+            if (k == 0 && !lang[0]) continue;
             if (langs[k][0]) snprintf(p, sizeof p, "notes/%s/%.23s.md", langs[k], it[i].tag); else snprintf(p, sizeof p, "notes/%.23s.md", it[i].tag);
             FILE* f = fopen(p, "rb");
             if (!f) continue;
@@ -141,7 +143,8 @@ static int fetch_news(char** json) {
     LProc* p = proc_start(argv, NULL, NULL);
     if (!p) return 0;
     size_t cap = 1 << 16; len = 0;
-    char* b = malloc(cap); char line[4096]; int r;
+    static char line[1 << 16];                        /* a release's body is one long JSON line */
+    char* b = malloc(cap); int r;
     while (b && (r = proc_read_line(p, line, sizeof line)) != -1) {
         if (r == 0) { SDL_Delay(20); continue; }
         size_t l = strlen(line);
@@ -164,7 +167,7 @@ static int do_news(void) {
     int n = news_from_github(json, it, 3);
     free(json);
     if (n <= 0) return 0;
-    news_titles_from_notes(it, n);
+    news_titles_from_notes(it, n, g_work_lang);
     LOCK; memcpy(g_m.news, it, sizeof it); g_m.nnews = n; g_m.news_offline = 0; UNLOCK;
     return 1;
 }
@@ -178,18 +181,24 @@ static const char APPLY[] =
     "setlocal\r\n"
     "set NoDefaultCurrentDirectoryInExePath=\r\n"
     "cd /d \"%~dp0..\"\r\n"
+    "set \"RC=%SystemRoot%\\System32\\robocopy.exe\"\r\n"
+    "set \"TAR=%SystemRoot%\\System32\\tar.exe\"\r\n"
+    "rem resume: the copy of the version before is already there (it is the one to go back to)\r\n"
+    "if /i \"%~1\"==\"resume\" if exist update\\previous\\BUILD.bat goto unpack\r\n"
     "if exist update\\previous rmdir /s /q update\\previous\r\n"
-    "robocopy . update\\previous /E /NFL /NDL /NJH /NJS /NP /XD game build rom extras update bookmarks reports release .git >nul\r\n"
+    "\"%RC%\" . update\\previous /E /XJ /NFL /NDL /NJH /NJS /NP /XD game build rom extras update bookmarks reports release .git >nul\r\n"
     "if errorlevel 8 (echo FAILED robocopy: keeping a copy of the current version & exit /b 1)\r\n"
+    ":unpack\r\n"
     "if exist update\\new rmdir /s /q update\\new\r\n"
     "mkdir update\\new\r\n"
-    "tar -xf update\\download.zip -C update\\new\r\n"
+    "\"%TAR%\" -xf update\\download.zip -C update\\new\r\n"
     "if errorlevel 1 (echo FAILED tar: unpacking the new version & exit /b 2)\r\n"
     "set \"SRC=\"\r\n"
     "for /d %%d in (update\\new\\*) do if not defined SRC set \"SRC=%%d\"\r\n"
     "if not defined SRC (echo FAILED the download holds no project & exit /b 3)\r\n"
     "if not exist \"%SRC%\\BUILD.bat\" (echo FAILED the download holds no project & exit /b 3)\r\n"
-    "robocopy \"%SRC%\" . /E /NFL /NDL /NJH /NJS /NP >nul\r\n"
+    "rem never over the player's game folder (saves, settings), the build or the ROM\r\n"
+    "\"%RC%\" \"%SRC%\" . /E /XJ /NFL /NDL /NJH /NJS /NP /XD game build rom update .git >nul\r\n"
     "if errorlevel 8 (echo FAILED robocopy: copying the new version & exit /b 4)\r\n"
     "rmdir /s /q update\\new\r\n"
     "exit /b 0\r\n";
@@ -200,6 +209,17 @@ static int write_text(const char* path, const char* t) {
     size_t n = strlen(t);
     int ok = fwrite(t, 1, n, f) == n;
     return fclose(f) == 0 && ok;
+}
+
+/* cmd.exe from System32, never one found in the game or project folder */
+static const char* cmd_exe(void) {
+    static char p[MAX_PATH + 16];
+    if (!p[0]) {
+        UINT n = GetSystemDirectoryA(p, MAX_PATH);
+        if (!n || n >= MAX_PATH) strcpy(p, "C:\\Windows\\System32");
+        strcat(p, "\\cmd.exe");
+    }
+    return p;
 }
 
 /* run a tool and wait: its lines go to on_line; 0 on success, else its exit code (or -1 not started) */
@@ -225,7 +245,9 @@ static void on_dl(long long done, long long total) {
 }
 static void on_apply_line(const char* l, void* u) { if (!strncmp(l, "FAILED ", 7)) snprintf((char*)u, 160, "%.150s", l + 7); }
 
-static int do_update(const char* branch, const char* version) {
+/* the new version's zip into update\\download.zip. A network failure counts as
+ * offline (spec: a complete game can be played): red bar and RETRY, PLAY lit */
+static int do_download(const char* branch, const char* version) {
     char t[200], err[160] = "";
     step(&g_m.st.update, ST_RUNNING);
     snprintf(t, sizeof t, tr("dl_update"), version);
@@ -234,20 +256,27 @@ static int do_update(const char* branch, const char* version) {
     CreateDirectoryA("../update", NULL);
     if (!update_download(branch, "../update/download.zip", on_dl, err, sizeof err)) {
         char t2[200]; snprintf(t2, sizeof t2, tr("err_download"), err);
-        bar(&g_m.dl, t2, "", g_m.dl.frac, 2); step(&g_m.st.update, ST_FAILED); return 0;
+        bar(&g_m.dl, t2, "", g_m.dl.frac, 2);
+        LOCK; g_m.st.online = 0; g_m.st.update = ST_SKIPPED; UNLOCK;
+        return 0;
     }
     LOCK; g_m.dl.frac = 1; g_m.dl.state = 1; UNLOCK;
+    return 1;
+}
+/* download.zip put in place (resume: a run cut before its build finished) */
+static int do_apply(int resume) {
+    char err[160] = "";
+    step(&g_m.st.update, ST_RUNNING);
     bar(&g_m.in, tr("in_copy"), "", 0.05f, 0);
+    write_text("../update/rollback.bat", update_rollback_bat());   /* there before anything is copied */
     if (!write_text("../update/launcher-apply.bat", APPLY)) { bar(&g_m.in, "couldn't write to the update folder", "", 0, 2); step(&g_m.st.update, ST_FAILED); return 0; }
-    const char* argv[] = {"cmd.exe", "/c", "update\\launcher-apply.bat", NULL};
-    err[0] = 0;
+    const char* argv[] = {cmd_exe(), "/c", ".\\update\\launcher-apply.bat", resume ? "resume" : "new", NULL};
     int code = run(argv, NULL, "..", on_apply_line, err);
     if (code != 0) {
         bar(&g_m.in, err[0] ? err : "the update could not be put in place", "", 0.05f, 2);
         step(&g_m.st.update, ST_FAILED);
         return 0;
     }
-    write_text("../update/rollback.bat", update_rollback_bat());
     step(&g_m.st.update, ST_DONE);
     return 1;
 }
@@ -264,10 +293,14 @@ static void on_build_line(const char* l, void* u) {
         bar(&g_m.in, t, r, f, 0);
     } else if (k == 2) snprintf(b->failed, sizeof b->failed, "%s", title);
 }
+static long long file_time(const char* p) {
+    WIN32_FILE_ATTRIBUTE_DATA d;
+    if (!GetFileAttributesExA(p, GetFileExInfoStandard, &d)) return 0;
+    return (long long)d.ftLastWriteTime.dwHighDateTime << 32 | d.ftLastWriteTime.dwLowDateTime;
+}
 static int do_build(void) {
     step(&g_m.st.build, ST_RUNNING);
-    wchar_t wrom[MAX_PATH]; char rom[MAX_PATH * 3];
-    if (!GetFullPathNameW(L"data\\dqix.nds", MAX_PATH, wrom, NULL) || !WideCharToMultiByte(CP_UTF8, 0, wrom, -1, rom, sizeof rom, NULL, NULL) || !exists("data/dqix.nds")) {
+    if (!exists("data/dqix.nds")) {
         bar(&g_m.in, "Your ROM copy (game\\data\\dqix.nds) is missing: run the install again", "", 0, 2);
         step(&g_m.st.build, ST_FAILED);
         return 0;
@@ -275,16 +308,20 @@ static int do_build(void) {
     char t[200]; snprintf(t, sizeof t, tr("in_build"), "...");
     bar(&g_m.in, t, "", 0.01f, 0);
     BuildRun b; memset(&b, 0, sizeof b);
-    const char* argv[] = {"cmd.exe", "/c", "BUILD.bat", "--prepare", rom, NULL};
+    /* a relative ROM path (BUILD.bat makes it whole): the player's folder names
+     * (&, ^, %...) never go through cmd.exe; .\\ for programs that set
+     * NoDefaultCurrentDirectoryInExePath (RecompLauncher) */
+    const char* argv[] = {cmd_exe(), "/c", ".\\BUILD.bat", "--prepare", "game\\data\\dqix.nds", NULL};
     const char* env[] = {"DQIX_NOPAUSE=1", NULL};
+    long long before = file_time("dqix-launcher.exe");
     int code = run(argv, env, "..", on_build_line, &b);
     if (code != 0) {
         bar(&g_m.in, b.failed[0] ? b.failed : "The build stopped: build\\build.log says why", "", g_m.in.frac, 2);
         step(&g_m.st.build, ST_FAILED);
         return 0;
     }
-    remove("../update/download.zip");
-    if (exists("dqix-launcher.old")) SDL_AtomicSet(&g_restart, 1);   /* a new launcher was put in place */
+    remove("../update/download.zip");                 /* the update is whole now */
+    if (file_time("dqix-launcher.exe") != before) SDL_AtomicSet(&g_restart, 1);   /* a new launcher was put in place */
     step(&g_m.st.build, ST_DONE);
     return 1;
 }
@@ -328,9 +365,12 @@ static int do_pack(void) {
     proc_free(p);
     int have = read_status(&s);
     if (code == 0) { step(&g_m.st.pack, ST_DONE); return 1; }
+    /* failed while downloading (or offline): like offline, the game plays without the pack */
+    int net = code == 1 && (!have || s.kind == 'd' || (s.kind == 'f' && !strncmp(s.reason, "offline", 7)));
     const char* why = code == 2 ? "hd-pack.exe is already at work (the game open?)" : have && s.kind == 'f' && s.reason[0] ? s.reason : "The HD pack couldn't be installed: hd-pack.log says why";
     char t[200]; snprintf(t, sizeof t, "HD pack: %s", why);
     if (have && s.kind == 'i') bar(&g_m.in, t, "", g_m.in.frac, 2); else bar(&g_m.dl, t, "", g_m.dl.frac, 2);
+    if (net) { LOCK; g_m.st.online = 0; g_m.st.pack = ST_SKIPPED; UNLOCK; return 1; }
     step(&g_m.st.pack, ST_FAILED);
     return 0;
 }
@@ -339,6 +379,7 @@ static int do_pack(void) {
 static int work_thread(void* arg) {
     (void)arg;
     LOCK;
+    snprintf(g_work_lang, sizeof g_work_lang, "%s", g_notes_lang);
     scan_local(&g_m);
     g_m.st.update = g_m.st.build = g_m.st.pack = ST_IDLE;
     g_m.dl.state = g_m.in.state = 0; g_m.dl.frac = g_m.in.frac = 0; g_m.dl.right[0] = g_m.in.right[0] = 0;
@@ -358,12 +399,13 @@ static int work_thread(void* arg) {
     UNLOCK;
     if (st.online) do_news();
     int updated = 0;
-    if (st.online && st.update_check && st.available[0] && update_newer(st.available, st.installed)) {
-        ok = updated = do_update(branch, st.available);
+    if (st.update_unbuilt) ok = updated = do_apply(1);        /* a run cut before its build: put in place again, then build */
+    else if (st.online && st.update_check && st.available[0] && update_newer(st.available, st.installed)) {
+        if (do_download(branch, st.available)) ok = updated = do_apply(0);
     } else step(&g_m.st.update, ST_SKIPPED);
     if (ok && (updated || !st.game_built)) ok = do_build();
     else if (ok) step(&g_m.st.build, ST_SKIPPED);
-    LOCK; scan_local(&g_m); st = g_m.st; UNLOCK;
+    LOCK; { int on = g_m.st.online; scan_local(&g_m); g_m.st.online = on; } st = g_m.st; UNLOCK;
     if (ok && st.hd_pack_wanted && st.online) ok = do_pack();
     else if (ok) step(&g_m.st.pack, ST_SKIPPED);
 #else
@@ -371,11 +413,15 @@ static int work_thread(void* arg) {
     LOCK; g_m.st.online = online; g_m.st.update = g_m.st.build = g_m.st.pack = ST_SKIPPED; UNLOCK;
 #endif
     LOCK;
-    scan_local(&g_m);
+    { int on = g_m.st.online; scan_local(&g_m); g_m.st.online = on; }
     if (ok) {
         int on = g_m.st.online != 0;
-        snprintf(g_m.dl.text, sizeof g_m.dl.text, "%s", tr(on ? "dl_done" : "st_offline"));
-        g_m.dl.frac = 1; g_m.dl.state = on; g_m.dl.right[0] = 0;
+        if (g_m.dl.state != 2) {                      /* a network failure keeps its red bar and RETRY */
+            snprintf(g_m.dl.text, sizeof g_m.dl.text, "%s", tr(on ? "dl_done" : "st_offline"));
+            g_m.dl.frac = 1; g_m.dl.state = on; g_m.dl.right[0] = 0;
+        }
+        if (on && !g_m.st.update_check && g_m.st.available[0] && update_newer(g_m.st.available, g_m.st.installed))
+            snprintf(g_m.dl.text, sizeof g_m.dl.text, tr("update_available"), g_m.st.available);   /* updates turned off: say so */
         snprintf(g_m.in.text, sizeof g_m.in.text, "%s", tr(lstate_status_key(&g_m.st)));
         snprintf(g_m.in.right, sizeof g_m.in.right, "%s%s%s", g_m.st.installed, g_m.pack_version[0] ? " \xC2\xB7 " : "", g_m.pack_version);
         g_m.in.frac = 1; g_m.in.state = 1;
@@ -416,6 +462,7 @@ void work_poll(void) {
     STARTUPINFOA si; memset(&si, 0, sizeof si); si.cb = sizeof si;
     PROCESS_INFORMATION pi;
     char cmd[] = "\"dqix-launcher.exe\"";
+    SetEnvironmentVariableA("DQIX_LAUNCHER_RESTARTED", "1");     /* it waits for this one to close */
     if (CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
         CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
         SDL_Event q; q.type = SDL_QUIT; SDL_PushEvent(&q);
@@ -429,10 +476,10 @@ void work_stop(void) {
 }
 
 void work_news_language(const char* notes_lang) {
-    snprintf(g_notes_lang, sizeof g_notes_lang, "%s", notes_lang ? notes_lang : "");
     LOCK;
+    snprintf(g_notes_lang, sizeof g_notes_lang, "%s", notes_lang ? notes_lang : "");
     if (g_m.news_offline) g_m.nnews = news_local("notes", g_notes_lang, g_m.news, 3);
-    else news_titles_from_notes(g_m.news, g_m.nnews);
+    else news_titles_from_notes(g_m.news, g_m.nnews, g_notes_lang);
     if (!g_m.busy) {                                 /* the finished bars' texts in the new language */
         int on = g_m.st.online != 0;
         if (g_m.dl.state == 1) snprintf(g_m.dl.text, sizeof g_m.dl.text, "%s", tr(on ? "dl_done" : "st_offline"));

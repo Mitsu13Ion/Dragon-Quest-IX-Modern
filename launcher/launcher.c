@@ -51,11 +51,7 @@ static void settings_read(void) {
     free(t);
 }
 static void settings_set(const char* key, const char* value) {
-    char* t;
-    ini_load("settings.ini", &t);
-    char* n = ini_set(t, key, value);
-    if (n && !ini_save("settings.ini", n)) fprintf(stderr, "launcher: can't write settings.ini\n");
-    free(n); free(t);
+    if (!settings_update("settings.ini", key, value)) fprintf(stderr, "launcher: settings.ini not written (can't read or write it)\n");
 }
 static void set_language(int l) {
     g_lang = l;
@@ -282,9 +278,7 @@ static void draw(int W, int H) {
         rrect(lx, ly, 118, 5 * 32 + 8, 10, col(0x0B1638, 250), col(0x0B1638, 250));
         rborder(lx, ly, 118, 5 * 32 + 8, 10, 1, col(0x3A4F86, 255));
         for (int i = 1; i <= 5; i++) {
-            int keep = g_lang; tr_set_language(i);
-            const char* name = tr("lang_name");
-            tr_set_language(keep);
+            const char* name = tr_in("lang_name", i);      /* each language's own name */
             float iy = ly + 4 + (i - 1) * 32;
             if (hover(lx, iy, 118, 32) || i == g_lang) rrect(lx + 4, iy, 110, 32, 6, col(0x1F3470, 255), col(0x1F3470, 255));
             text(FONT_BOLD, 13, lx + 14, iy + 7, i == g_lang ? GOLD : INK, name, 0, 0);
@@ -405,11 +399,11 @@ static const char* step_name(StepState s) {
     static const char* const N[] = {"idle", "running", "done", "failed", "skipped"};
     return s >= ST_IDLE && s <= ST_SKIPPED ? N[s] : "?";
 }
-static void to_own_folder(void);
 /* tests (DQIX_LAUNCHER_HEADLESS=1): the work without a window, its outcome on
  * stdout; exit 0 if PLAY would light up, 1 if not */
+static int to_own_folder(void);
 static int headless(void) {
-    to_own_folder();
+    if (!to_own_folder()) return 2;
     settings_read();
     tr_set_language(g_lang);
     g_m.lock = SDL_CreateMutex();
@@ -429,18 +423,51 @@ static int headless(void) {
     return can ? 0 : 1;
 }
 
-static void to_own_folder(void) {
+/* the game folder (the launcher's own): every path after this is relative to it */
+static int to_own_folder(void) {
+#ifdef _WIN32
+    wchar_t dir[MAX_PATH];                            /* wide: folders with any letters (C:\\Users\\Hélène...) */
+    DWORD n = GetModuleFileNameW(NULL, dir, MAX_PATH);
+    if (!n || n >= MAX_PATH) return 0;
+    wchar_t* s = wcsrchr(dir, L'\\');
+    if (!s) return 0;
+    *s = 0;
+    return SetCurrentDirectoryW(dir) != 0;
+#else
     char* b = SDL_GetBasePath();
-    if (b && chdir(b) != 0) fprintf(stderr, "launcher: can't go to %s\n", b);
+    int ok = b && chdir(b) == 0;
     SDL_free(b);
+    return ok;
+#endif
+}
+
+/* one launcher per game folder: two would download and build over each other */
+static int single_instance(void) {
+#ifdef _WIN32
+    wchar_t dir[MAX_PATH], name[128];
+    if (!GetCurrentDirectoryW(MAX_PATH, dir)) return 1;
+    unsigned long long h = 0xCBF29CE484222325ull;
+    for (const wchar_t* c = dir; *c; c++) h = (h ^ (unsigned)towlower(*c)) * 0x100000001B3ull;
+    _snwprintf(name, 128, L"Local\\dqix-launcher-%016llx", h);
+    HANDLE m = CreateMutexW(NULL, TRUE, name);
+    if (m && GetLastError() == ERROR_ALREADY_EXISTS) {
+        if (getenv("DQIX_LAUNCHER_RESTARTED") && WaitForSingleObject(m, 10000) != WAIT_TIMEOUT) return 1;   /* the one that restarted us closes */
+        HWND w = FindWindowW(NULL, L"Dragon Quest IX Modern");
+        if (w) { ShowWindow(w, SW_RESTORE); SetForegroundWindow(w); }
+        return 0;
+    }
+#endif
+    return 1;
 }
 
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
     SDL_SetMainReady();
     if (getenv("DQIX_LAUNCHER_HEADLESS")) return headless();
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_GAMECONTROLLER) != 0) { fprintf(stderr, "launcher: SDL: %s\n", SDL_GetError()); return 1; }
-    to_own_folder();
+    if (!to_own_folder()) { fprintf(stderr, "launcher: can't go to its own folder\n"); return start_game() ? 0 : 1; }
+    if (!getenv("DQIX_LAUNCHER_SHOT") && !single_instance()) return 0;
+    /* any failure to show the window: the game starts as before (dqix handed over to us) */
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_GAMECONTROLLER) != 0) { fprintf(stderr, "launcher: SDL: %s\n", SDL_GetError()); return start_game() ? 0 : 1; }
     settings_read();
     tr_set_language(g_lang);
     g_m.lock = SDL_CreateMutex();
@@ -449,11 +476,11 @@ int main(int argc, char** argv) {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
     g_win = SDL_CreateWindow("Dragon Quest IX Modern", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1100, 674,
                              SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | (shot ? SDL_WINDOW_HIDDEN : 0));
-    if (!g_win) { fprintf(stderr, "launcher: window: %s\n", SDL_GetError()); return 1; }
+    if (!g_win) { fprintf(stderr, "launcher: window: %s\n", SDL_GetError()); return start_game() ? 0 : 1; }
     SDL_SetWindowMinimumSize(g_win, 960, 588);
     g_ren = SDL_CreateRenderer(g_win, -1, shot ? SDL_RENDERER_SOFTWARE : SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
-    if (!g_ren || !ui_init(g_ren)) { fprintf(stderr, "launcher: can't draw (fonts/Marcellus.ttf and fonts/Nunito.ttf needed)\n"); return 1; }
+    if (!g_ren || !ui_init(g_ren)) { fprintf(stderr, "launcher: can't draw (fonts/Marcellus.ttf and fonts/Nunito.ttf needed)\n"); return start_game() ? 0 : 1; }
     if (d) { demo(d); g_m.background_ready = 1; }
     else { work_init(NOTES_LANG[g_lang]); work_start(0); }
     int W = 1100, H = 674, frames = 0, run = 1;

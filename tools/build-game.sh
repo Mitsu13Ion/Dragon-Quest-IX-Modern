@@ -227,8 +227,9 @@ esac
 # shellcheck disable=SC2086
 if gcc -std=c99 -D_DEFAULT_SOURCE -O2 -I launcher -I runtime -o build/pc/$LX launcher/*.c runtime/update.c $LFLAGS -lm; then
     if ! cmp -s build/pc/$LX game/$LX; then
+        cp build/pc/$LX game/$LX.new                     # copied whole first: never a moment without a launcher
         [ ! -f game/$LX ] || mv -f game/$LX game/dqix-launcher.old
-        cp build/pc/$LX game/$LX
+        mv -f game/$LX.new game/$LX
     fi
 else
     echo "   $LX: not built (optional: dqix starts the game directly)"

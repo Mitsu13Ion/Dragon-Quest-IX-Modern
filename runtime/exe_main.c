@@ -29,16 +29,19 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 #endif
 
 static void to_own_folder(const char* argv0) {
-    char dir[1024];
 #ifdef _WIN32
-    DWORD n = GetModuleFileNameA(NULL, dir, sizeof dir);
-    if (n == 0 || n >= sizeof dir) return;
-    char* s = strrchr(dir, '\\');
+    wchar_t wd[1024];                                  /* wide: a folder with any letters in its name */
+    DWORD wn = GetModuleFileNameW(NULL, wd, 1024);
+    if (wn == 0 || wn >= 1024) return;
+    wchar_t* ws = wcsrchr(wd, L'\\');
+    if (ws) { *ws = 0; SetCurrentDirectoryW(wd); }
+    (void)argv0;
 #else
+    char dir[1024];
     snprintf(dir, sizeof dir, "%s", argv0);
     char* s = strrchr(dir, '/');
-#endif
     if (s) { *s = 0; chdir(dir); }
+#endif
 }
 
 /* Started with no arguments (a shortcut, RecompLauncher, an old version's

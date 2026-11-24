@@ -8,8 +8,12 @@
  * text (comments, line ends, order) stays byte for byte */
 int   ini_get(const char* text, const char* key, char* out, size_t n);   /* 1 found (the first one) */
 char* ini_set(const char* text, const char* key, const char* value);    /* new text (malloc): replaced in place, or added at the end */
-int   ini_load(const char* path, char** text);                           /* 1 read; 0 missing: *text = "" (malloc) */
+int   ini_load(const char* path, char** text);                           /* 1 read; 0 missing; -1 there but unreadable (*text = "" for both) */
 int   ini_save(const char* path, const char* text);                      /* path.tmp then renamed; 1 ok */
+/* one key of settings.ini: never writes when the file is there but couldn't be
+ * read (a file with only that key would lose the player's settings); a new
+ * file starts with settings_version (the game's SETTINGS_VERSION, 4); 1 ok */
+int   settings_update(const char* path, const char* key, const char* value);
 
 /* ---- what the screen shows and whether PLAY is lit */
 typedef enum { ST_IDLE, ST_RUNNING, ST_DONE, ST_FAILED, ST_SKIPPED } StepState;
@@ -20,6 +24,7 @@ typedef struct {
     int hd_pack_wanted;       /* hd_pack_download != 0 and mode = enhanced */
     int game_built;           /* game/dqix[.exe] and game/data/dqix.nds are there */
     int pack_complete;        /* textures/hd-pack/hd-pack.txt is there (the pack is all or nothing) */
+    int update_unbuilt;       /* ../update/download.zip is there: an update was put in place but its build didn't finish */
     char installed[32], available[32];   /* the local version.h's, the remote one's ("" unknown) */
     StepState update, build, pack;
 } LState;
@@ -49,6 +54,7 @@ int parse_pack_status(const char* line, PackStatus* out);   /* 1 understood */
  * german italian spanish); a key it doesn't know comes back as itself */
 const char* tr(const char* key);
 void        tr_set_language(int lang);
+const char* tr_in(const char* key, int lang);  /* in that language, whatever the current one */
 const char* tr_key(int i);                   /* every key in turn, NULL after the last (tests) */
 int         tr_has(int i, int lang);       /* key i has its own text in lang (not the English fallback) */
 

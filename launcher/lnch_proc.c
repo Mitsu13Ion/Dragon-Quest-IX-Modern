@@ -44,7 +44,7 @@ static wchar_t* wide(const char* s) {
 }
 /* argv as one command line, quoted the way the C runtime reads it back */
 static void quote_arg(char* out, size_t cap, size_t* o, const char* a) {
-    int q = !*a || strpbrk(a, " \t\"") != NULL;
+    int q = !*a || strpbrk(a, " \t\"&|<>^()%!,;=") != NULL;   /* cmd.exe reads these too */
     if (q && *o < cap) out[(*o)++] = '"';
     for (const char* s = a; *s; s++) {
         int bs = 0;

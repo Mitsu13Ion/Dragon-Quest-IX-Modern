@@ -28,7 +28,11 @@ static int parse_version(const char* text, char* out, size_t n) {
     if (!p) return 0;
     p += strlen("\n#define DQIX_VERSION \"");
     size_t i = 0;
-    while (p[i] && p[i] != '"' && i + 1 < n) { out[i] = p[i]; i++; }
+    while (p[i] && p[i] != '"' && i + 1 < n) {
+        char c = p[i];                                   /* it ends up in a command line: letters, digits, . _ - only */
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-')) return 0;
+        out[i] = c; i++;
+    }
     out[i] = 0;
     return i > 1 && out[0] == 'v';
 }
@@ -74,6 +78,7 @@ static int https_fetch(const wchar_t* host, const wchar_t* path, char** out, siz
         n += got;
         if (on_bytes) on_bytes((long long)n, total);
     }
+    if (total >= 0 && (long long)n != total) { snprintf(err, en, "the download broke off (%lld of %lld bytes)", (long long)n, total); free(b); goto done; }
     if (f) { free(b); ok = 1; goto done; }
     b[n] = 0;
     *out = b; *len = n; ok = 1;
@@ -182,7 +187,7 @@ static const char APPLY_BAT[] =
     "for /d %%d in (update\\new\\*) do if not defined SRC set \"SRC=%%d\"\r\n"
     "if not defined SRC goto fail\r\n"
     "if not exist \"%SRC%\\BUILD.bat\" goto fail\r\n"
-    "robocopy \"%SRC%\" . /E /NFL /NDL /NJH /NJS /NP >nul\r\n"
+    "robocopy \"%SRC%\" . /E /XJ /NFL /NDL /NJH /NJS /NP /XD game build rom update .git >nul\r\n"
     "if errorlevel 8 goto fail\r\n"
     "rmdir /s /q update\\new\r\n"
     "echo == Building the game again from your ROM (this can take a while)\r\n"

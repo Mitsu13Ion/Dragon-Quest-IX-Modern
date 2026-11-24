@@ -24,8 +24,9 @@ static void json_string(const char** p, char* out, size_t n) {
 }
 
 int news_from_github(const char* json, NewsItem* out, int max) {
-    int count = 0, depth = 0;
+    int count = 0, depth = 0, in_obj = 0;
     NewsItem cur; int draft = 0, pre = 0;
+    memset(&cur, 0, sizeof cur);
     char key[32] = "";
     int want_value = 0;
     for (const char* p = json ? json : ""; *p && count < max;) {
@@ -46,13 +47,16 @@ int news_from_github(const char* json, NewsItem* out, int max) {
         }
         if (c == '[' || c == '{') {
             depth++;
-            if (depth == 2 && c == '{') { memset(&cur, 0, sizeof cur); draft = pre = 0; want_value = 0; }
+            if (depth == 2 && c == '{') { memset(&cur, 0, sizeof cur); draft = pre = 0; want_value = 0; in_obj = 1; }
             else if (depth == 3) want_value = 0;            /* a nested value: skipped */
         } else if (c == ']' || c == '}') {
-            if (depth == 2 && c == '}' && cur.tag[0] && !draft && !pre) {
+            /* a version tag only ("v3.2"): it is also part of a file name (notes/<tag>.md) */
+            int tag_ok = cur.tag[0] == 'v' && !strpbrk(cur.tag, "/\\:") && !strstr(cur.tag, "..");
+            if (depth == 2 && c == '}' && in_obj && tag_ok && !draft && !pre) {
                 if (!cur.title[0]) snprintf(cur.title, sizeof cur.title, "%s", cur.tag);
                 out[count++] = cur;
             }
+            if (depth == 2) in_obj = 0;
             depth--;
         } else if (c == ':' && depth == 2) {
             want_value = 1;

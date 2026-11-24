@@ -69,6 +69,9 @@ static const char* const T[][6] = {
     {"month", "JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC", "JAN FÉV MAR AVR MAI JUN JUL AOÛ SEP OCT NOV DÉC",
      "JAN FEB MÄR APR MAI JUN JUL AUG SEP OKT NOV DEZ", "GEN FEB MAR APR MAG GIU LUG AGO SET OTT NOV DIC",
      "ENE FEB MAR ABR MAY JUN JUL AGO SEP OCT NOV DIC"},
+    {"update_available", "Version %s is out (updates are off in the settings)", "La version %s est sortie (mises à jour désactivées dans les réglages)",
+     "Version %s ist da (Updates sind in den Einstellungen aus)", "La versione %s è uscita (aggiornamenti disattivati nelle impostazioni)",
+     "La versión %s ya salió (actualizaciones desactivadas en los ajustes)"},
     {"err_download", "Download failed: %s", "Téléchargement impossible : %s", "Download fehlgeschlagen: %s", "Download non riuscito: %s", "Descarga fallida: %s"},
     {"err_github", "GitHub didn't answer (are you online?)", "GitHub ne répond pas (êtes-vous en ligne ?)", "GitHub antwortet nicht (bist du online?)",
      "GitHub non risponde (sei online?)", "GitHub no responde (¿estás conectado?)"},
@@ -104,6 +107,12 @@ const char* tr_key(int i) { return i >= 0 && i < NT ? T[i][0] : NULL; }
 static int g_lang = 1;
 void tr_set_language(int lang) { g_lang = lang >= 1 && lang <= 5 ? lang : 1; }
 
+const char* tr_in(const char* key, int lang) {
+    if (lang < 1 || lang > 5) lang = 1;
+    for (int i = 0; i < NT; i++)
+        if (!strcmp(T[i][0], key)) return T[i][lang] && T[i][lang][0] ? T[i][lang] : T[i][1];
+    return key;
+}
 const char* tr(const char* key) {
     for (int i = 0; i < NT; i++)
         if (!strcmp(T[i][0], key)) return T[i][g_lang] && T[i][g_lang][0] ? T[i][g_lang] : T[i][1];

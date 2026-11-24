@@ -39,10 +39,13 @@ static void ini_set_does_not_touch_longer_key(void) {
     CHECK(t && !strcmp(t, "modern = 1\nmode = enhanced\n"));
     free(t);
 }
-static void ini_get_first_of_duplicates(void) {
-    char v[32];
+static void ini_get_last_of_duplicates(void) {
+    char v[32];                                     /* the game's settings_load: the last one wins */
     CHECK(ini_get("mode = classic\nmode = enhanced\n", "mode", v, sizeof v) == 1);
-    CHECK(!strcmp(v, "classic"));
+    CHECK(!strcmp(v, "enhanced"));
+    char* t = ini_set("mode = classic\nvolume = 1\nmode = enhanced\n", "mode", "classic");
+    CHECK(t && !strcmp(t, "mode = classic\nvolume = 1\nmode = classic\n"));
+    free(t);
     CHECK(ini_get("  volume=55  \r\n", "volume", v, sizeof v) == 1 && !strcmp(v, "55"));
     CHECK(ini_get("# mode = x\n", "mode", v, sizeof v) == 0);
 }
@@ -52,6 +55,34 @@ static void ini_ignores_line_without_equals(void) {
     char* t = ini_set("mode\nvolume = 1\n", "mode", "enhanced");
     CHECK(t && !strcmp(t, "mode\nvolume = 1\nmode = enhanced\n"));
     free(t);
+}
+static void settings_update_new_file_has_version(void) {
+    char p[1024]; snprintf(p, sizeof p, "%s/new-settings.ini", g_tmp);
+    remove(p);
+    CHECK(settings_update(p, "mode", "classic") == 1);      /* a new file: the game must not read it as a legacy one */
+    char* t = NULL;
+    CHECK(ini_load(p, &t) == 1 && !strcmp(t, "settings_version = 4\nmode = classic\n"));
+    free(t);
+}
+static void settings_update_keeps_others(void) {
+    char p[1024]; snprintf(p, sizeof p, "%s/old-settings.ini", g_tmp);
+    CHECK(ini_save(p, "settings_version = 4\r\nvolume = 30\r\nmode = enhanced\r\n") == 1);
+    CHECK(settings_update(p, "mode", "classic") == 1);
+    char* t = NULL;
+    CHECK(ini_load(p, &t) == 1 && !strcmp(t, "settings_version = 4\r\nvolume = 30\r\nmode = classic\r\n"));
+    free(t);
+}
+static void settings_update_refuses_unreadable(void) {
+    char p[1024]; snprintf(p, sizeof p, "%s/locked.ini", g_tmp);   /* there but can't be read: a folder stands for it */
+#ifdef _WIN32
+    char cmd[1100]; snprintf(cmd, sizeof cmd, "mkdir \"%s\" 2>nul", p); system(cmd);
+#else
+    char cmd[1100]; snprintf(cmd, sizeof cmd, "mkdir -p '%s'", p); if (system(cmd)) {}
+#endif
+    char* t = NULL;
+    CHECK(ini_load(p, &t) == -1);
+    free(t);
+    CHECK(settings_update(p, "mode", "classic") == 0);      /* never a file with only our key */
 }
 static void ini_load_missing_is_empty(void) {
     char p[1024]; snprintf(p, sizeof p, "%s/nothing-here.ini", g_tmp);
@@ -141,6 +172,14 @@ static void state_linux_no_updates(void) {
     CHECK(lstate_can_play(&s));
     CHECK(!strcmp(lstate_status_key(&s), "st_no_updates_here"));
 }
+static void state_unbuilt_update_cannot_play(void) {
+    LState s = ready();                    /* update\download.zip still there: the build after it didn't finish */
+    s.update_unbuilt = 1;
+    CHECK(!lstate_can_play(&s));
+    CHECK(!strcmp(lstate_status_key(&s), "st_building"));
+    s.online = 0;                          /* offline changes nothing: the tree here is half new */
+    CHECK(!lstate_can_play(&s));
+}
 static void branch_nightly_stays_main(void) {
     CHECK(!strcmp(lstate_branch("v3.3-nightly2"), "main"));
     CHECK(!strcmp(lstate_branch("v3.2"), "stable"));
@@ -162,6 +201,8 @@ static void news_github_three_latest(void) {
     CHECK(!strcmp(n[1].tag, "v3.1") && !strcmp(n[2].tag, "v3"));
     CHECK(news_from_github("{\"message\":\"API rate limit exceeded\"}", n, 3) == 0);
     CHECK(news_from_github("", n, 3) == 0);
+    CHECK(news_from_github("[[}", n, 3) == 0);                 /* no object: nothing, nothing read uninitialized */
+    CHECK(news_from_github("[{\"tag_name\":\"../../x\",\"name\":\"x\",\"draft\":false,\"prerelease\":false}]", n, 3) == 0);   /* a tag that is no version: left out */
 }
 static void news_title_strips_prefix(void) {
     char t[160];
@@ -298,11 +339,11 @@ int main(int argc, char** argv) {
     if (argc < 2) { printf("usage: t_launcher <temp folder>\n"); return 2; }
     g_tmp = argv[1];
     RUN(ini_set_keeps_comments_and_crlf); RUN(ini_set_appends_missing_key); RUN(ini_set_does_not_touch_longer_key);
-    RUN(ini_get_first_of_duplicates); RUN(ini_ignores_line_without_equals); RUN(ini_load_missing_is_empty); RUN(ini_save_then_load);
+    RUN(ini_get_last_of_duplicates); RUN(settings_update_new_file_has_version); RUN(settings_update_keeps_others); RUN(settings_update_refuses_unreadable); RUN(ini_ignores_line_without_equals); RUN(ini_load_missing_is_empty); RUN(ini_save_then_load);
     RUN(state_ready_can_play); RUN(state_offline_complete_can_play); RUN(state_offline_pack_incomplete_plays_without_it);
     RUN(state_pack_incomplete_online_cannot_play); RUN(state_pack_not_wanted_can_play); RUN(state_classic_does_not_wait_pack);
     RUN(state_failed_cannot_play); RUN(state_resume_after_kill); RUN(state_update_pending_cannot_play);
-    RUN(state_not_built_cannot_play); RUN(state_linux_no_updates); RUN(branch_nightly_stays_main);
+    RUN(state_not_built_cannot_play); RUN(state_linux_no_updates); RUN(branch_nightly_stays_main); RUN(state_unbuilt_update_cannot_play);
     RUN(news_github_three_latest); RUN(news_title_strips_prefix); RUN(news_local_sorted_newest_first);
     RUN(progress_build_line); RUN(progress_build_failed_line); RUN(pack_status_download);
     RUN(pack_status_failed_reason); RUN(pack_status_garbage_is_zero); RUN(proc_runs_echo);

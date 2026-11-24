@@ -18,7 +18,7 @@ typedef struct {
 extern Model g_m;
 
 void work_init(const char* notes_lang);   /* the local state and news, at once (no network) */
-void work_start(int verify);              /* the thread: check, update, build, pack (verify: VERIFY or RETRY pressed) */
+void work_start(void);                    /* the thread: check, update, build, pack (start, VERIFY, RETRY) */
 void work_poll(void);                     /* from the main loop */
 void work_stop(void);
 void work_news_language(const char* notes_lang);

@@ -346,7 +346,6 @@ static int start_game(void) {
 
 static void action(int a) {
     if (a != A_LANG && g_lang_menu) { g_lang_menu = 0; if (a < A_LANG1 || a > A_LANG5) return; }
-    char v[16];
     switch (a) {
     case A_LANG: g_lang_menu = !g_lang_menu; break;
     case A_DISCORD: open_url(DISCORD_URL); break;
@@ -364,7 +363,7 @@ static void action(int a) {
         else { SDL_LockMutex(g_m.lock); snprintf(g_m.in.text, sizeof g_m.in.text, "%s", tr("rom_bad")); g_m.in.state = 2; SDL_UnlockMutex(g_m.lock); }
         break;
     }
-    case A_VERIFY: case A_RETRY: work_start(1); break;
+    case A_VERIFY: case A_RETRY: work_start(); break;
     case A_PLAY:
         if (start_game()) { SDL_Event q; q.type = SDL_QUIT; SDL_PushEvent(&q); }
         else {                                            /* antivirus, a path too long...: said, the launcher stays */
@@ -393,7 +392,6 @@ static void action(int a) {
     default:
         if (a >= A_LANG1 && a <= A_LANG5) set_language(a - A_LANG1 + 1);
     }
-    (void)v;
 }
 static void volume_from_mouse(int mx) {
     float x = 22 + 18 + (1056 - 36 - 30) / 2 + 30, colw = (1056 - 36 - 30) / 2;
@@ -458,7 +456,7 @@ static int headless(void) {
     g_m.lock = SDL_CreateMutex();
     work_init(NOTES_LANG[g_lang]);
     const char* rom = getenv("DQIX_LAUNCHER_ROM");      /* tests: the ROM "chosen" on the first launch */
-    if (rom && *rom) work_set_rom(rom); else work_start(0);
+    if (rom && *rom) work_set_rom(rom); else work_start();
     for (;;) {
         SDL_LockMutex(g_m.lock); int busy = g_m.busy; SDL_UnlockMutex(g_m.lock);
         if (!busy) break;
@@ -598,7 +596,7 @@ int main(int argc, char** argv) {
     if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
     if (!g_ren || !ui_init(g_ren)) { fprintf(stderr, "launcher: can't draw (fonts/Marcellus.ttf and fonts/Nunito.ttf needed)\n"); return start_game() ? 0 : 1; }
     if (d) { demo(d); g_m.background_ready = 1; }
-    else { work_init(NOTES_LANG[g_lang]); work_start(0); if (g_settings_unreadable) say_failed(tr("err_settings_read")); }
+    else { work_init(NOTES_LANG[g_lang]); work_start(); if (g_settings_unreadable) say_failed(tr("err_settings_read")); }
     int W = 1100, H = 674, frames = 0, run = 1;
     while (run) {
         SDL_Event e;

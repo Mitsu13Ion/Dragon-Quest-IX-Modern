@@ -252,7 +252,7 @@ static int rom_for_build(char* rel, size_t n) {
 /* cmd.exe from System32 (declared here for do_build) */
 static const char* cmd_exe(void);
 #endif
-typedef struct { char failed[200]; int steps; } BuildRun;
+typedef struct { char failed[200]; } BuildRun;
 static void on_build_line(const char* l, void* u) {
     BuildRun* b = u;
     float f; char title[160];
@@ -508,7 +508,7 @@ static int work_thread(void* arg) {
         char rom[64]; int r = rom_for_build(rom, sizeof rom);
         if (r > 0) ok = do_build(rom);
         else if (r < 0) ok = 0;                       /* the ROM couldn't be copied: said on the bar */
-        else { ok = 0; LOCK; g_m.st.rom_needed = 1; UNLOCK; }   /* first launch: wait for the ROM */
+        else ok = 0;                                  /* first launch: wait for the ROM (rom_needed is set) */
     } else if (ok) step(&g_m.st.build, ST_SKIPPED);
     LOCK; { int on = g_m.st.online; scan_local(&g_m); g_m.st.online = on; } st = g_m.st; UNLOCK;
     if (ok && st.hd_pack_wanted && st.online) ok = do_pack();
@@ -559,8 +559,7 @@ void work_init(const char* notes_lang) {
     UNLOCK;
 }
 
-void work_start(int verify) {
-    (void)verify;                                    /* every run checks everything again */
+void work_start(void) {                              /* every run checks everything again */
     if (!SDL_AtomicGet(&g_done)) return;
     if (g_thread) { SDL_WaitThread(g_thread, NULL); g_thread = NULL; }
     SDL_AtomicSet(&g_done, 0);
@@ -610,7 +609,7 @@ void work_news_language(const char* notes_lang) {
 
 void work_set_rom(const char* path) {
     LOCK; snprintf(g_rom_src, sizeof g_rom_src, "%s", path); UNLOCK;
-    work_start(1);
+    work_start();
 }
 
 void work_settings_changed(void) {
@@ -618,5 +617,5 @@ void work_settings_changed(void) {
     settings_wants(&g_m.st);
     int need = g_m.st.platform_updates && g_m.st.hd_pack_wanted && !g_m.st.pack_complete && !g_m.busy;
     UNLOCK;
-    if (need) work_start(0);                         /* back to Modern: the HD pack is wanted again */
+    if (need) work_start();                         /* back to Modern: the HD pack is wanted again */
 }

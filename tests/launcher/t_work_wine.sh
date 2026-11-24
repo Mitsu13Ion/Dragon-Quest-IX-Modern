@@ -93,6 +93,21 @@ else
     check $? work_damaged_update_zip_recovers
 fi
 
+# a run cut after the copy-over, before its build: the next one puts the update in place again
+# ("resume") without making a new backup: update/previous stays the version to go back to
+project p7 v3.2 0; echo x > "$T/p7/game/dqix.exe"; mkdir -p "$T/p7/update/previous"
+cp "$T/src-v3.3/stable.zip" "$T/p7/update/download.zip"
+echo "The copy of the version before this update is whole." > "$T/p7/update/previous/backup-whole.txt"
+echo "the version before" > "$T/p7/update/previous/marker.txt"
+launch "$T/p7" "$T/src-v3.3"; r=$?
+if [ -n "$WINE" ] && grep -qi "robocopy\|tar" "$T/out.txt" && grep -q "update=failed" "$T/out.txt"; then
+    echo "skip work_resume_keeps_the_rollback_copy (Wine has no tar/robocopy: check on Windows)"
+else
+    [ "$r" = 0 ] && grep -q "update=done build=done" "$T/out.txt" && grep -q "the version before" "$T/p7/update/previous/marker.txt" \
+        && [ ! -f "$T/p7/update/download.zip" ] && grep -q v3.3 "$T/p7/runtime/version.h"
+    check $? work_resume_keeps_the_rollback_copy
+fi
+
 # first launch: no ROM copy yet: it waits for one (PLAY off), then builds from the chosen file
 project p5 v3.2 0; rm -f "$T/p5/game/data/dqix.nds"
 set +e; launch "$T/p5" "$T/src-v3.2"; r=$?

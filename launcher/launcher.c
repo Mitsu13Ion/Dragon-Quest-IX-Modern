@@ -244,9 +244,9 @@ static void draw(int W, int H) {
     rrect(rx + 11, 25.5f, 18, 13, 2, GOLD, col(0xB8892F, 255));
     rx -= 90; button(rx, 14, 82, 34, "GitHub", A_GITHUB, col(0x0B1430, 170), col(0x2F4277, 255), INK);
     rx -= 102; button(rx, 14, 94, 34, "Discord", A_DISCORD, col(0x3B4BB8, 255), col(0x7E8CFF, 255), INK);
-    rx -= 126; button(rx, 14, 104, 34, tr("lang_name"), A_LANG, col(0x0B1430, 170), col(0x2F4277, 255), INK);
-    hit(rx, 14, 118, 34, A_LANG);
-    ui_triangle(X(rx + 93), Y(28), X(rx + 103), Y(28), X(rx + 98), Y(34), INK);   /* ▾: not in the fonts */
+    rx -= 126; button(rx, 14, 118, 34, "", A_LANG, col(0x0B1430, 170), col(0x2F4277, 255), INK);
+    text(FONT_BOLD, 13, rx + 46, 14 + 8, INK, tr("lang_name"), 80, 1);      /* the name left of the ▾ */
+    ui_triangle(X(rx + 84), Y(28), X(rx + 94), Y(28), X(rx + 89), Y(34), INK);   /* ▾: not in the fonts */
     /* middle */
     if (g_options) draw_options(); else draw_news(&m);
     /* bottom */

@@ -91,6 +91,10 @@ int news_title_from_notes(const char* md, char* out, size_t n) {
         size_t len = (size_t)(end - p);
         if (len >= n) len = n - 1;
         memcpy(out, p, len); out[len] = 0;
+        /* a capital first, like a title: a-z, and the accented Latin-1 lower case (UTF-8 C3 A0-BE, not the ÷ B7) */
+        unsigned char* u = (unsigned char*)out;
+        if (u[0] >= 'a' && u[0] <= 'z') u[0] -= 32;
+        else if (u[0] == 0xC3 && u[1] >= 0xA0 && u[1] <= 0xBE && u[1] != 0xB7) u[1] -= 0x20;
         return 1;
     }
 }

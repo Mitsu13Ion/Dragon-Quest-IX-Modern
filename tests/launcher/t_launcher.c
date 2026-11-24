@@ -223,11 +223,15 @@ static void news_github_three_latest(void) {
 static void news_title_strips_prefix(void) {
     char t[160];
     CHECK(news_title_from_notes("\n\nDragon Quest IX Modern v3.2: installing works again.\n\nmore", t, sizeof t) == 1);
-    CHECK(!strcmp(t, "installing works again."));
+    CHECK(!strcmp(t, "Installing works again."));
     CHECK(news_title_from_notes("Dragon Quest IX Modern v3.2 : l'installation remarche.\r\n", t, sizeof t) == 1);
-    CHECK(!strcmp(t, "l'installation remarche."));
+    CHECK(!strcmp(t, "L'installation remarche."));
     CHECK(news_title_from_notes("Just a line\n", t, sizeof t) == 1 && !strcmp(t, "Just a line"));
     CHECK(news_title_from_notes("   \n", t, sizeof t) == 0);
+    /* a title starts with a capital, like the others (the notes' sentence goes on after the version) */
+    CHECK(news_title_from_notes("Dragon Quest IX Modern v3.2 : l'installation remarche.\n", t, sizeof t) == 1 && !strcmp(t, "L'installation remarche."));
+    CHECK(news_title_from_notes("Dragon Quest IX Modern v3: die Installation\n", t, sizeof t) == 1 && !strcmp(t, "Die Installation"));
+    CHECK(news_title_from_notes("Dragon Quest IX Modern v3: \xC3\xA9t\xC3\xA9\n", t, sizeof t) == 1 && !strcmp(t, "\xC3\x89t\xC3\xA9"));
 }
 static void news_local_sorted_newest_first(void) {
     char d[1024]; snprintf(d, sizeof d, "%s/notes", g_tmp);
@@ -244,9 +248,9 @@ static void news_local_sorted_newest_first(void) {
     NewsItem n[3];
     CHECK(news_local(d, "", n, 3) == 3);
     CHECK(!strcmp(n[0].tag, "v3.2") && !strcmp(n[1].tag, "v3.1") && !strcmp(n[2].tag, "v3"));
-    CHECK(!strcmp(n[0].title, "install again.") && n[0].date[0] == 0);
+    CHECK(!strcmp(n[0].title, "Install again.") && n[0].date[0] == 0);
     CHECK(news_local(d, "fr", n, 3) == 3);             /* the language's notes, English where it has none */
-    CHECK(!strcmp(n[0].title, "l'installation remarche.") && !strcmp(n[1].title, "fixes."));
+    CHECK(!strcmp(n[0].title, "L'installation remarche.") && !strcmp(n[1].title, "Fixes."));
 }
 
 /* ---- tools and their progress */

@@ -12,6 +12,7 @@
 #include <windows.h>
 #else
 #include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 #define RELEASES_PATH "/repos/" UPDATE_REPO "/releases?per_page=10"
@@ -257,7 +258,7 @@ static long long file_time(const char* p) {
  * first time), so no folder name of the player's goes through a shell */
 static int do_build(const char* rom) {
     step(&g_m.st.build, ST_RUNNING);
-    char t[200]; snprintf(t, sizeof t, tr("in_build"), "...");
+    char t[200]; snprintf(t, sizeof t, "%s", tr("st_building"));
     bar(&g_m.in, t, "", 0.01f, 0);
     BuildRun b; memset(&b, 0, sizeof b);
     /* a relative ROM path (BUILD.bat makes it whole): the player's folder names

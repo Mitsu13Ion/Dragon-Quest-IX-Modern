@@ -61,7 +61,7 @@ static const char* const T[][6] = {
     {"dl_done", "Everything is downloaded", "Tout est téléchargé", "Alles ist heruntergeladen", "Tutto è scaricato", "Todo está descargado"},
     {"in_copy", "Putting the new version in place", "Mise en place de la nouvelle version", "Neue Version wird eingerichtet",
      "Installazione della nuova versione", "Instalando la nueva versión"},
-    {"in_build", "Building: %s", "Compilation : %s", "Erstellung: %s", "Compilazione: %s", "Compilando: %s"},
+    {"in_build", "%s", "%s", "%s", "%s", "%s"},   /* the build's step title alone (translated below) */
     {"in_pack", "HD pack: %d/%d", "Pack HD : %d/%d", "HD-Paket: %d/%d", "Pacchetto HD: %d/%d", "Paquete HD: %d/%d"},
     {"in_done", "Everything is installed", "Tout est installé", "Alles ist installiert", "Tutto è installato", "Todo está instalado"},
     {"offline_news", "Offline: the notes of this version", "Hors ligne : les notes de cette version",

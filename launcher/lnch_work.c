@@ -72,7 +72,13 @@ static void scan_local(Model* m) {
 /* ---- writing what the screen shows */
 #define LOCK SDL_LockMutex(g_m.lock)
 #define UNLOCK SDL_UnlockMutex(g_m.lock)
+/* the INSTALL bar: one bar for the whole run (copy-over, build, HD pack); each
+ * step fills its share [g_in_lo, g_in_hi] and only the end of the run fills it */
+static float g_in_lo, g_in_hi = 1;
+enum { W_APPLY = 1, W_BUILD = 6, W_PACK = 3 };   /* about how long each takes */
+static void in_step(int w, int rest) { install_share(g_in_hi < 1 ? g_in_hi : g_in_lo, w, rest, &g_in_lo, &g_in_hi); }
 static void bar(Bar* b, const char* text, const char* right, float frac, int state) {
+    if (b == &g_m.in && state == 0) frac = install_frac(g_in_lo, g_in_hi, frac);
     LOCK;
     snprintf(b->text, sizeof b->text, "%.199s", text ? text : "");
     snprintf(b->right, sizeof b->right, "%.79s", right ? right : "");
@@ -260,7 +266,7 @@ static void on_build_line(const char* l, void* u) {
     if (k == 1) {
         char t[200], r[16];
         snprintf(t, sizeof t, tr("in_build"), tr(title));     /* the step's title, translated when known */
-        snprintf(r, sizeof r, "%d%%", (int)(f * 100));
+        snprintf(r, sizeof r, "%d%%", (int)(install_frac(g_in_lo, g_in_hi, f) * 100));   /* of the whole install */
         bar(&g_m.in, t, r, f, 0);
     } else if (k == 2) snprintf(b->failed, sizeof b->failed, "%s", title);
 }
@@ -482,6 +488,7 @@ static int work_thread(void* arg) {
     g_m.st.update = g_m.st.build = g_m.st.pack = ST_IDLE;
     g_m.st.download_failed = 0;                       /* RETRY / VERIFY try again */
     g_m.dl.state = g_m.in.state = 0; g_m.dl.frac = g_m.in.frac = 0; g_m.dl.right[0] = g_m.in.right[0] = 0;
+    g_in_lo = g_in_hi = 0;                            /* a new run: the INSTALL bar starts empty */
     snprintf(g_m.dl.text, sizeof g_m.dl.text, "%s", tr("dl_waiting"));
     snprintf(g_m.in.text, sizeof g_m.in.text, "%s", tr("dl_waiting"));
     UNLOCK;
@@ -500,25 +507,28 @@ static int work_thread(void* arg) {
     if (st.online) do_news();
     int updated = 0;
     if (st.update_unbuilt) {                                 /* a run cut before its build: put in place again, then build */
+        in_step(W_APPLY, W_BUILD + (st.hd_pack_wanted && st.online ? W_PACK : 0));
         int a = do_apply(1);
         ok = a != 0; updated = a == 1;
     }
     else if (st.online && st.update_check && st.available[0] && update_newer(st.available, st.installed)) {
-        if (do_download(branch, st.available)) { int a = do_apply(0); ok = a != 0; updated = a == 1; }
+        if (do_download(branch, st.available)) { in_step(W_APPLY, W_BUILD + (st.hd_pack_wanted ? W_PACK : 0)); int a = do_apply(0); ok = a != 0; updated = a == 1; }
     } else step(&g_m.st.update, ST_SKIPPED);
     if (ok && (updated || !st.game_built)) {
+        in_step(W_BUILD, st.hd_pack_wanted && st.online ? W_PACK : 0);
         char rom[64]; int r = rom_for_build(rom, sizeof rom);
         if (r > 0) ok = do_build(rom);
         else if (r < 0) ok = 0;                       /* the ROM couldn't be copied: said on the bar */
         else ok = 0;                                  /* first launch: wait for the ROM (rom_needed is set) */
     } else if (ok) step(&g_m.st.build, ST_SKIPPED);
     LOCK; { int on = g_m.st.online; scan_local(&g_m); g_m.st.online = on; } st = g_m.st; UNLOCK;
-    if (ok && st.hd_pack_wanted && st.online) ok = do_pack();
+    if (ok && st.hd_pack_wanted && st.online) { in_step(W_PACK, 0); ok = do_pack(); }
     else if (ok) step(&g_m.st.pack, ST_SKIPPED);
 #else
     int online = do_news();
     LOCK; g_m.st.online = online; g_m.st.update = g_m.st.pack = ST_SKIPPED; LState st = g_m.st; UNLOCK;
     if (!st.game_built) {                              /* first launch here too: the build from the chosen ROM */
+        in_step(W_BUILD, 0);
         char rom[64]; int r = rom_for_build(rom, sizeof rom);
         if (r > 0) ok = do_build(rom);
         else ok = 0;

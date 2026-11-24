@@ -206,6 +206,22 @@ static void state_download_failed_modern_cannot_play(void) {
     s.modern = 0; s.hd_pack_wanted = 0;
     CHECK(lstate_can_play(&s));
 }
+/* the INSTALL bar covers every step of the run: full only when the last one is */
+static void install_bar_covers_every_step(void) {
+    float lo, hi;
+    install_share(0, 1, 9, &lo, &hi);                          /* copy-over, then build and pack to come */
+    CHECK(lo == 0 && hi > 0.05f && hi < 0.15f);
+    float f = install_frac(lo, hi, 1);                         /* the copy-over done: not the bar's end */
+    CHECK(f < 0.15f);
+    install_share(f, 6, 3, &lo, &hi);                          /* the build, the pack to come */
+    CHECK(lo == f && hi > 0.65f && hi < 0.75f);
+    CHECK(install_frac(lo, hi, 1) < 1 && install_frac(lo, hi, 0.5f) > lo);
+    install_share(hi, 3, 0, &lo, &hi);                         /* the pack: the last step */
+    CHECK(hi == 1 && install_frac(lo, hi, 1) == 1);
+    install_share(0, 6, 0, &lo, &hi);                          /* only a build */
+    CHECK(lo == 0 && hi == 1);
+    CHECK(install_frac(0.2f, 0.6f, -1) == 0.2f && install_frac(0.2f, 0.6f, 2) == 0.6f);
+}
 static void settings_decide_what_play_waits_for(void) {
     LState s; memset(&s, 0, sizeof s);
     lstate_settings("", &s);                                   /* no settings.ini: Modern, pack wanted, updates on */
@@ -410,7 +426,7 @@ int main(int argc, char** argv) {
     RUN(state_ready_can_play); RUN(state_offline_complete_can_play); RUN(state_offline_pack_incomplete_plays_without_it);
     RUN(state_pack_incomplete_online_cannot_play); RUN(state_pack_not_wanted_can_play); RUN(state_classic_does_not_wait_pack);
     RUN(state_failed_cannot_play); RUN(state_resume_after_kill); RUN(state_update_pending_cannot_play);
-    RUN(state_not_built_cannot_play); RUN(state_linux_no_updates); RUN(branch_nightly_stays_main); RUN(state_unbuilt_update_cannot_play); RUN(state_rom_needed_cannot_play); RUN(state_download_failed_modern_cannot_play); RUN(settings_decide_what_play_waits_for); RUN(pack_outcome_rules); RUN(update_never_goes_back); RUN(rom_kind_ok_extensions);
+    RUN(state_not_built_cannot_play); RUN(state_linux_no_updates); RUN(branch_nightly_stays_main); RUN(state_unbuilt_update_cannot_play); RUN(state_rom_needed_cannot_play); RUN(state_download_failed_modern_cannot_play); RUN(settings_decide_what_play_waits_for); RUN(install_bar_covers_every_step); RUN(pack_outcome_rules); RUN(update_never_goes_back); RUN(rom_kind_ok_extensions);
     RUN(news_github_three_latest); RUN(news_title_strips_prefix); RUN(news_local_sorted_newest_first);
     RUN(progress_build_line); RUN(progress_build_failed_line); RUN(pack_status_download);
     RUN(pack_status_failed_reason); RUN(pack_status_garbage_is_zero); RUN(proc_runs_echo);

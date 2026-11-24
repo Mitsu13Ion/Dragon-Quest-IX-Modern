@@ -6,7 +6,7 @@
 
 /* ---- settings.ini: only the keys the launcher sets change, the rest of the
  * text (comments, line ends, order) stays byte for byte */
-int   ini_get(const char* text, const char* key, char* out, size_t n);   /* 1 found (the first one) */
+int   ini_get(const char* text, const char* key, char* out, size_t n);   /* 1 found (the last one, as the game's settings_load reads it) */
 char* ini_set(const char* text, const char* key, const char* value);    /* new text (malloc): replaced in place, or added at the end */
 int   ini_load(const char* path, char** text);                           /* 1 read; 0 missing; -1 there but unreadable (*text = "" for both) */
 int   ini_save(const char* path, const char* text);                      /* path.tmp then renamed; 1 ok */
@@ -35,6 +35,8 @@ int         lstate_can_play(const LState* s);
 const char* lstate_status_key(const LState* s);    /* a text key (lnch_text.c) for the status line */
 const char* lstate_branch(const char* installed);  /* "main" for a nightly, else "stable" */
 int         rom_kind_ok(const char* path);         /* a .nds, or a .zip holding it (any letter case) */
+/* settings.ini's choices that decide what PLAY waits for: mode, hd_pack_download, update_check */
+void        lstate_settings(const char* ini_text, LState* s);
 
 /* ---- news */
 typedef struct { char tag[24]; char date[11]; char title[160]; } NewsItem;  /* date "YYYY-MM-DD" or "" */
@@ -53,6 +55,9 @@ int parse_build_line(const char* line, float* frac, char* title, size_t n);
 /* hd-pack-status.txt (tools/hd-pack.c) */
 typedef struct { int kind; long long done, total; int i, n; char reason[161]; } PackStatus;  /* kind 'd' download, 'i' install, 'u' up to date, 'D' done, 'f' failed */
 int parse_pack_status(const char* line, PackStatus* out);   /* 1 understood */
+/* how hd-pack.exe ended (exe_found, its exit code, its status line if any) */
+enum { PACK_DONE, PACK_NET, PACK_FAILED, PACK_BUSY, PACK_MISSING };
+int         pack_outcome(int exe_found, int code, int have_status, const PackStatus* s);
 
 /* ---- texts (lnch_text.c): lang 1-5 in LANGUAGE_KEY's order (english french
  * german italian spanish); a key it doesn't know comes back as itself */

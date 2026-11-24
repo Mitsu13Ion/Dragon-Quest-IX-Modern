@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #define SDL_MAIN_HANDLED                 /* our own main(): no SDL2main to link */
 #include <SDL.h>
 #include "lnch.h"
@@ -41,9 +42,17 @@ static int g_options, g_lang_menu, g_drag_volume;
 static float S = 1, OX, OY;              /* logical 1100x674 -> pixels */
 
 /* ---- settings.ini */
+static int g_settings_unreadable;
+/* a red line on the INSTALL bar (what failed, when nothing else says it) */
+static void say_failed(const char* text) {
+    SDL_LockMutex(g_m.lock);
+    snprintf(g_m.in.text, sizeof g_m.in.text, "%.199s", text);
+    g_m.in.state = 2;
+    SDL_UnlockMutex(g_m.lock);
+}
 static void settings_read(void) {
     char* t; char v[64];
-    ini_load("settings.ini", &t);
+    g_settings_unreadable = ini_load("settings.ini", &t) < 0;   /* shown on screen once the window is there */
     g_lang = 1;
     if (ini_get(t, "menu_language", v, sizeof v)) for (int i = 1; i <= 5; i++) if (!strcmp(v, LANGUAGE_KEY[i])) g_lang = i;
     if (g_lang == 1 && ini_get(t, "language", v, sizeof v)) for (int i = 1; i <= 5; i++) if (!strcmp(v, LANGUAGE_KEY[i])) g_lang = i;
@@ -53,8 +62,11 @@ static void settings_read(void) {
     if (g_volume < 0 || g_volume > 100) g_volume = 100;
     free(t);
 }
-static void settings_set(const char* key, const char* value) {
-    if (!settings_update("settings.ini", key, value)) fprintf(stderr, "launcher: settings.ini not written (can't read or write it)\n");
+/* 0 if settings.ini couldn't be written: the caller puts the old choice back, the screen says why */
+static int settings_set(const char* key, const char* value) {
+    if (settings_update("settings.ini", key, value)) return 1;
+    say_failed(tr("err_settings"));
+    return 0;
 }
 static void set_language(int l) {
     g_lang = l;
@@ -345,20 +357,36 @@ static void action(int a) {
     case A_CLOSE_OPT: g_options = 0; break;
     case A_CHOOSE_ROM: {
         char path[1024];
-        if (!pick_rom(path, sizeof path)) break;          /* cancelled */
+        int got = pick_rom(path, sizeof path);
+        if (got < 0) { say_failed(tr("err_picker")); break; }   /* no file window there */
+        if (!got) break;                                  /* cancelled */
         if (rom_kind_ok(path)) work_set_rom(path);
         else { SDL_LockMutex(g_m.lock); snprintf(g_m.in.text, sizeof g_m.in.text, "%s", tr("rom_bad")); g_m.in.state = 2; SDL_UnlockMutex(g_m.lock); }
         break;
     }
     case A_VERIFY: case A_RETRY: work_start(1); break;
-    case A_PLAY: if (start_game()) { SDL_Event q; q.type = SDL_QUIT; SDL_PushEvent(&q); } break;
-    case A_CLASSIC: g_classic = 1; settings_set("mode", "classic"); work_settings_changed(); break;
-    case A_MODERN: g_classic = 0; settings_set("mode", "enhanced"); work_settings_changed(); break;
-    case A_FULLSCREEN: g_fullscreen = !g_fullscreen; settings_set("fullscreen", g_fullscreen ? "1" : "0"); break;
+    case A_PLAY:
+        if (start_game()) { SDL_Event q; q.type = SDL_QUIT; SDL_PushEvent(&q); }
+        else {                                            /* antivirus, a path too long...: said, the launcher stays */
+            char why[32], t[200];
+#ifdef _WIN32
+            snprintf(why, sizeof why, "error %lu", GetLastError());
+#else
+            snprintf(why, sizeof why, "error %d", errno);
+#endif
+            snprintf(t, sizeof t, tr("err_play"), why);
+            say_failed(t);
+        }
+        break;
+    case A_CLASSIC: if (settings_set("mode", "classic")) g_classic = 1; work_settings_changed(); break;
+    case A_MODERN: if (settings_set("mode", "enhanced")) g_classic = 0; work_settings_changed(); break;
+    case A_FULLSCREEN: if (settings_set("fullscreen", g_fullscreen ? "0" : "1")) g_fullscreen = !g_fullscreen; break;
     case A_KEYS_PAD: case A_KEYS_KB: open_here("controls.ini"); break;
     case A_RESET:
-        g_classic = 0; g_fullscreen = 0; g_volume = 100;
-        settings_set("mode", "enhanced"); settings_set("fullscreen", "0"); settings_set("volume", "100");
+        if (settings_set("mode", "enhanced") && settings_set("fullscreen", "0") && settings_set("volume", "100")) {
+            g_classic = 0; g_fullscreen = 0; g_volume = 100;
+        }
+        settings_read();                                  /* what the file says now, whatever got written */
         work_settings_changed();
         break;
     case A_VOLUME: g_drag_volume = 1; break;
@@ -420,7 +448,8 @@ static const char* step_name(StepState s) {
     return s >= ST_IDLE && s <= ST_SKIPPED ? N[s] : "?";
 }
 /* tests (DQIX_LAUNCHER_HEADLESS=1): the work without a window, its outcome on
- * stdout; exit 0 if PLAY would light up, 1 if not */
+ * stdout; exit 0 if PLAY would light up, 1 if not, 2 if it couldn't start there
+ * or the game folder's launcher took over */
 static int to_own_folder(void);
 static int headless(void) {
     if (to_own_folder() != 1) return 2;
@@ -483,13 +512,16 @@ static int to_own_folder(void) {
 #else
     mkdir("game", 0755);
     if (chdir("game") != 0) return 0;
-    if (file_here(LAUNCHER_EXE) && fork() == 0) { setsid(); execl("./" LAUNCHER_EXE, "./" LAUNCHER_EXE, (char*)NULL); _exit(127); }
-    if (file_here(LAUNCHER_EXE)) return 2;
+    if (file_here(LAUNCHER_EXE)) {
+        pid_t pid = fork();
+        if (pid == 0) { setsid(); execl("./" LAUNCHER_EXE, "./" LAUNCHER_EXE, (char*)NULL); _exit(127); }
+        if (pid > 0) return 2;                          /* no fork: this one works here instead */
+    }
 #endif
     return 1;
 }
 
-/* the ROM, chosen in the system's own file window; 0 if cancelled */
+/* the ROM, chosen in the system's own file window; 0 if cancelled, -1 if no window could open */
 static int pick_rom(char* out, size_t n) {
 #ifdef _WIN32
     wchar_t file[1024] = L"", title[128];
@@ -501,7 +533,7 @@ static int pick_rom(char* out, size_t n) {
     o.lpstrFile = file; o.nMaxFile = 1024;
     o.lpstrTitle = title;
     o.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
-    if (!GetOpenFileNameW(&o)) return 0;
+    if (!GetOpenFileNameW(&o)) return CommDlgExtendedError() ? -1 : 0;
     return WideCharToMultiByte(CP_UTF8, 0, file, -1, out, (int)n, NULL, NULL) > 0;
 #else
     /* the desktop's own file window: zenity (GNOME, SteamOS), else kdialog (KDE) */
@@ -516,13 +548,14 @@ static int pick_rom(char* out, size_t n) {
         int code = proc_exit_code(p);
         proc_free(p);
         if (code == 127) continue;                       /* not installed: the other one */
+        if (code != 0 && code != 1) return -1;          /* 1: cancelled; anything else: the window failed */
         return got && code == 0;
     }
-    return 0;
+    return -1;                                         /* neither zenity nor kdialog */
 #endif
 }
 
-/* one launcher per game folder: two would download and build over each other */
+/* one launcher per game folder (Windows): two would download and build over each other */
 static int single_instance(void) {
 #ifdef _WIN32
     wchar_t dir[MAX_PATH], name[128];
@@ -565,7 +598,7 @@ int main(int argc, char** argv) {
     if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
     if (!g_ren || !ui_init(g_ren)) { fprintf(stderr, "launcher: can't draw (fonts/Marcellus.ttf and fonts/Nunito.ttf needed)\n"); return start_game() ? 0 : 1; }
     if (d) { demo(d); g_m.background_ready = 1; }
-    else { work_init(NOTES_LANG[g_lang]); work_start(0); }
+    else { work_init(NOTES_LANG[g_lang]); work_start(0); if (g_settings_unreadable) say_failed(tr("err_settings_read")); }
     int W = 1100, H = 674, frames = 0, run = 1;
     while (run) {
         SDL_Event e;
@@ -579,7 +612,8 @@ int main(int argc, char** argv) {
                 if (a == A_VOLUME) volume_from_mouse(e.button.x);
             } else if (e.type == SDL_MOUSEBUTTONUP && g_drag_volume) {
                 char v[8]; snprintf(v, sizeof v, "%d", g_volume);
-                settings_set("volume", v); g_drag_volume = 0;
+                if (!settings_set("volume", v)) settings_read();   /* not written: back to the file's */
+                g_drag_volume = 0;
             } else if (e.type == SDL_CONTROLLERDEVICEADDED) SDL_GameControllerOpen(e.cdevice.which);
             else if (e.type == SDL_KEYDOWN || e.type == SDL_CONTROLLERBUTTONDOWN) {
                 int k = e.type == SDL_KEYDOWN ? e.key.keysym.sym : -1, b = e.type == SDL_CONTROLLERBUTTONDOWN ? e.cbutton.button : -1;

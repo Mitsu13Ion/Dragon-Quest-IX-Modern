@@ -76,7 +76,7 @@ LProc* proc_start(const char* const* argv, const char* const* env_add, const cha
     char cmd[8192]; size_t o = 0;
     for (int i = 0; argv[i]; i++) { if (i && o < sizeof cmd) cmd[o++] = ' '; quote_arg(cmd, sizeof cmd - 1, &o, argv[i]); }
     cmd[o < sizeof cmd ? o : sizeof cmd - 1] = 0;
-    /* the environment: ours plus env_add (a name given twice: the first wins, so ours goes after) */
+    /* the environment: env_add first, then ours without the names env_add sets (compared without case) */
     size_t cap = 1 << 16, n = 0;
     wchar_t* env = malloc(cap * sizeof *env);
     if (!env) return NULL;

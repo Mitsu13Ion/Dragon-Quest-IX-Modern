@@ -66,15 +66,31 @@ check $? work_offline_complete_can_play
 # a newer stable: downloaded and put in place (update\launcher-apply.bat: robocopy and tar,
 # which Wine may not have: then the test says so instead of failing)
 source_at v3.3
-mkdir -p "$T/zip/DQIX-PC/runtime"; cp "$T/p1/BUILD.bat" "$T/zip/DQIX-PC/"; printf '#define DQIX_VERSION "v3.3"\n' > "$T/zip/DQIX-PC/runtime/version.h"
+mkdir -p "$T/zip/DQIX-PC/runtime" "$T/zip/DQIX-PC/game"; cp "$T/p1/BUILD.bat" "$T/zip/DQIX-PC/"; printf '#define DQIX_VERSION "v3.3"\n' > "$T/zip/DQIX-PC/runtime/version.h"
+echo "settings from the update: must never land" > "$T/zip/DQIX-PC/game/settings.ini"   # a commit that ships game/ files
 (cd "$T/zip" && zip -qr "$T/src-v3.3/stable.zip" DQIX-PC)
 project p4 v3.2 0; echo x > "$T/p4/game/dqix.exe"
+echo "the player's save" > "$T/p4/game/dqix.sav"; cp "$T/p4/game/settings.ini" "$T/settings-before.ini"
 set +e; launch "$T/p4" "$T/src-v3.3"; r=$?
 if [ -n "$WINE" ] && grep -qi "tar\|robocopy" "$T/out.txt" && grep -q "update=failed" "$T/out.txt"; then
     echo "skip work_update_then_build (Wine has no tar/robocopy: check on Windows)"
 else
     [ "$r" = 0 ] && grep -q "update=done build=done" "$T/out.txt" && [ -f "$T/p4/update/previous/BUILD.bat" ] && [ -f "$T/p4/update/rollback.bat" ] && grep -q v3.3 "$T/p4/runtime/version.h"
     check $? work_update_then_build
+    # the player's save and settings: untouched by the update (robocopy /XD game)
+    cmp -s "$T/p4/game/settings.ini" "$T/settings-before.ini" && grep -q "the player's save" "$T/p4/game/dqix.sav"
+    check $? work_update_keeps_saves_and_settings
+fi
+
+# an update download cut short (launcher closed, power cut) left a damaged zip: it goes, and the
+# next run plays (a broken download blocks Modern for that run, like a network failure)
+project p6 v3.2 0; echo x > "$T/p6/game/dqix.exe"; mkdir -p "$T/p6/update"; printf 'PK\003\004cut' > "$T/p6/update/download.zip"
+set +e; launch "$T/p6" "$T/src-v3.2"; r1=$?; launch "$T/p6" "$T/src-v3.2"; r2=$?
+if [ -n "$WINE" ] && grep -qi "robocopy\|tar" "$T/out.txt" && [ -f "$T/p6/update/download.zip" ]; then
+    echo "skip work_damaged_update_zip_recovers (Wine has no tar/robocopy: check on Windows)"
+else
+    [ ! -f "$T/p6/update/download.zip" ] && [ "$r2" = 0 ] && grep -q "can_play=1" "$T/out.txt"
+    check $? work_damaged_update_zip_recovers
 fi
 
 # first launch: no ROM copy yet: it waits for one (PLAY off), then builds from the chosen file

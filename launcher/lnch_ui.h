@@ -8,7 +8,7 @@ static inline Col col(unsigned rgb, Uint8 a) { Col c = {(Uint8)(rgb >> 16), (Uin
 
 enum { FONT_TITLE, FONT_TEXT, FONT_BOLD, FONT_COUNT };   /* Marcellus; Nunito (its variable font, regular weight) */
 
-int   ui_init(SDL_Renderer* r);                 /* 0 if a font is missing (fonts/Marcellus.ttf, fonts/Nunito.ttf) */
+int   ui_init(SDL_Renderer* r);                 /* 0 if a font is missing (fonts/Marcellus.ttf, fonts/Nunito.ttf, or the project's ../fonts/) */
 void  ui_forget_fonts(void);                    /* after a resize: glyphs made again at the new sizes */
 float ui_text_width(int font, float px, const char* s);
 /* align 0 left, 1 centre, 2 right of x; a text wider than maxw (> 0) ends in "…"; returns its width */

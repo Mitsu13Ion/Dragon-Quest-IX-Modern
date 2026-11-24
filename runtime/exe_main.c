@@ -2,7 +2,8 @@
  * code can also run as a library (hosting.c).
  *
  * Started with no arguments (dqix.exe double-clicked, or a shortcut to it), it
- * plays the game in its own folder like play.bat does. On Windows the console
+ * hands over to the launcher next to it (hand_over_to_launcher), or plays the
+ * game in its own folder like play.bat does. On Windows the console
  * window that would open with it is closed, and what the game prints goes to
  * last-run.log instead. */
 #include <stdio.h>
@@ -15,6 +16,7 @@
 #else
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #endif
 
 int dqix_main(int argc, char** argv);
@@ -47,7 +49,8 @@ static void to_own_folder(const char* argv0) {
 /* Started with no arguments (a shortcut, RecompLauncher, an old version's
  * updater) next to the launcher: the launcher brings the game and its HD
  * pack up to date, then starts us again with DQIX_LAUNCHER set. 1 if it was
- * started (we then quit); 0 if there is none or it didn't start: play. */
+ * started (we then quit); 0 if there is none, it didn't start, or it ended
+ * with an error within 3 s (a broken launcher never leaves no game): play. */
 static int hand_over_to_launcher(void) {
     const char* e = getenv("DQIX_LAUNCHER");
     if (e && *e) return 0;
@@ -57,13 +60,23 @@ static int hand_over_to_launcher(void) {
     STARTUPINFOA si; memset(&si, 0, sizeof si); si.cb = sizeof si;
     PROCESS_INFORMATION pi;
     if (!CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) return 0;
-    CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
-    return 1;
+    CloseHandle(pi.hThread);
+    DWORD code = 0;
+    int died = WaitForSingleObject(pi.hProcess, 3000) == WAIT_OBJECT_0 && GetExitCodeProcess(pi.hProcess, &code) && code != 0;
+    CloseHandle(pi.hProcess);
+    return !died;
 #else
     if (access("dqix-launcher", X_OK) != 0) return 0;
     pid_t pid = fork();
     if (pid < 0) return 0;
     if (pid == 0) { setsid(); execl("./dqix-launcher", "./dqix-launcher", (char*)NULL); _exit(127); }
+    for (int i = 0; i < 30; i++) {                      /* 3 s: an exec that failed, or a launcher that died at once */
+        int st = 0;
+        pid_t r = waitpid(pid, &st, WNOHANG);
+        if (r == pid) return !(WIFEXITED(st) && WEXITSTATUS(st) != 0) && !WIFSIGNALED(st);
+        if (r < 0) break;
+        usleep(100000);
+    }
     return 1;
 #endif
 }

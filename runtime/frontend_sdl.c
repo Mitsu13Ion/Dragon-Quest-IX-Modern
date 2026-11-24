@@ -3731,7 +3731,7 @@ static int try_gl(void) {
     gl_textures_hd_start();                                       /* HD textures still to make (a PC turned off before the end): on with them */
     if (getenv("DQIX_INPUT_FILE")) g_hdpack = 0;                  /* a scripted run (tests) never downloads it */
     if (getenv("DQIX_HD_PACK")) g_hdpack = atoi(getenv("DQIX_HD_PACK")) != 0;   /* tests */
-    hdpack_start(g_hdpack && !getenv("DQIX_LAUNCHER"));          /* the HD pack: hd-pack.exe in the background (the launcher got it already), it does nothing once it is there */
+    hdpack_start(g_hdpack && !getenv("DQIX_LAUNCHER"));          /* the HD pack: hd-pack.exe in the background (the launcher's job when it started us), it does nothing once it is there */
     if (getenv("DQIX_HD_TEXT")) g_hdtext = atoi(getenv("DQIX_HD_TEXT")) != 0;
     if (getenv("DQIX_HD_MOVIES")) g_hdmovie = atoi(getenv("DQIX_HD_MOVIES")) != 0;   /* tests */
     if (getenv("DQIX_HD_FONT")) snprintf(g_hdfont, sizeof g_hdfont, "%s", getenv("DQIX_HD_FONT"));

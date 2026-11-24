@@ -1,7 +1,8 @@
 /* See lnch_work.h. Paths are relative to the game folder (the launcher's
  * own, where main() goes first); the project is the folder above it.
  * Order (spec): check for an update, install it and build, then the HD pack.
- * Linux: the news only (the updater and hd-pack.exe are Windows' for now). */
+ * Linux: the news and the first build from the chosen ROM (no updater or
+ * hd-pack.exe there yet). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,10 +15,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
+#include <dirent.h>
+#include <errno.h>
 
 #define RELEASES_PATH "/repos/" UPDATE_REPO "/releases?per_page=10"
 
-static char g_notes_lang[8];               /* written by the main thread under LOCK */
+static char g_notes_lang[8];               /* written by the main thread, under LOCK once the worker can run */
 static char g_work_lang[8];                 /* the worker's copy, taken when it starts */
 static SDL_Thread* g_thread;
 static SDL_atomic_t g_done = {1};          /* the thread has finished (or never ran) */
@@ -41,13 +44,9 @@ static void local_version(char* out, size_t n) {
 }
 
 static void settings_wants(LState* s) {
-    char* t; char v[32];
-    ini_load("settings.ini", &t);
-    int classic = ini_get(t, "mode", v, sizeof v) && strcmp(v, "enhanced") != 0;
-    int pack = !ini_get(t, "hd_pack_download", v, sizeof v) || atoi(v) != 0;
-    s->hd_pack_wanted = pack && !classic;
-    s->modern = !classic;
-    s->update_check = !ini_get(t, "update_check", v, sizeof v) || atoi(v) != 0;
+    char* t;
+    ini_load("settings.ini", &t);                     /* unreadable: the defaults (launcher.c says so on screen) */
+    lstate_settings(t, s);
     free(t);
 }
 
@@ -60,8 +59,8 @@ static void scan_local(Model* m) {
     m->st.game_built = exists("dqix") && exists("data/dqix.nds");
 #endif
     m->st.pack_complete = exists("textures/hd-pack/hd-pack.txt");
-    m->st.update_unbuilt = exists("../update/download.zip");
-    m->st.rom_needed = !exists("data/dqix.nds");     /* deleted only once its build succeeded */
+    m->st.update_unbuilt = exists("../update/download.zip");   /* whole (renamed from .part), deleted after a good build */
+    m->st.rom_needed = !exists("data/dqix.nds");     /* the build writes it from the chosen ROM: none yet = first launch */
     m->background_ready = exists("textures/hd-pack/launcher-back.jpg");
     local_version(m->st.installed, sizeof m->st.installed);
     settings_wants(&m->st);
@@ -75,7 +74,7 @@ static void scan_local(Model* m) {
 #define UNLOCK SDL_UnlockMutex(g_m.lock)
 static void bar(Bar* b, const char* text, const char* right, float frac, int state) {
     LOCK;
-    snprintf(b->text, sizeof b->text, "%s", text ? text : "");
+    snprintf(b->text, sizeof b->text, "%.199s", text ? text : "");
     snprintf(b->right, sizeof b->right, "%.79s", right ? right : "");
     b->frac = frac; b->state = state;
     UNLOCK;
@@ -194,9 +193,26 @@ static int run(const char* const* argv, const char* const* env, const char* cwd,
 /* the ROM the player chose (UTF-8, set by the main thread under LOCK), copied
  * into the project's rom/ under a plain name before the first build */
 static char g_rom_src[1024];
+static long g_copy_error;                    /* why the last ROM copy failed (GetLastError / errno) */
+/* no ROM chosen: the first .nds or .zip the player put in the project's rom/
+ * (Linux without zenity or kdialog; the README's way), copied like a chosen one */
+static void rom_in_rom_folder(char* src, size_t n) {
+    DIR* d = opendir("../rom");
+    if (!d) return;
+    struct dirent* e;
+    while ((e = readdir(d))) {
+        if (!rom_kind_ok(e->d_name) || !strncmp(e->d_name, "dq9-rom.", 8)) continue;
+        snprintf(src, n, "../rom/%s", e->d_name);
+        break;
+    }
+    closedir(d);
+}
 static int copy_rom(char* rel, size_t n) {
     char src[1024];
     LOCK; snprintf(src, sizeof src, "%s", g_rom_src); UNLOCK;
+    if (!src[0]) { if (exists("../rom/dq9-rom.nds")) snprintf(src, sizeof src, "../rom/dq9-rom.nds"); else if (exists("../rom/dq9-rom.zip")) snprintf(src, sizeof src, "../rom/dq9-rom.zip"); }
+    if (src[0] && !strncmp(src, "../rom/dq9-rom.", 15)) { snprintf(rel, n, "%.60s", src + 3); return 1; }   /* copied by an earlier run */
+    if (!src[0]) rom_in_rom_folder(src, sizeof src);
     if (!src[0]) return 0;
     const char* ext = strlen(src) > 4 ? src + strlen(src) - 4 : ".nds";
     int zip = (ext[1] | 32) == 'z';
@@ -207,7 +223,7 @@ static int copy_rom(char* rel, size_t n) {
     CreateDirectoryA("../rom", NULL);
     wchar_t ws[1024], wd[96];
     if (!MultiByteToWideChar(CP_UTF8, 0, src, -1, ws, 1024) || !MultiByteToWideChar(CP_UTF8, 0, dst, -1, wd, 96)) return -1;
-    if (!CopyFileW(ws, wd, FALSE)) return -1;
+    if (!CopyFileW(ws, wd, FALSE)) { g_copy_error = (long)GetLastError(); return -1; }
 #else
     mkdir("../rom", 0755);
     FILE* in = fopen(src, "rb"); FILE* out = in ? fopen(dst, "wb") : NULL;
@@ -216,15 +232,19 @@ static int copy_rom(char* rel, size_t n) {
     while (ok && (got = fread(b, 1, sizeof b, in)) > 0) ok = fwrite(b, 1, got, out) == got;
     if (in) fclose(in);
     if (out && fclose(out) != 0) ok = 0;
-    if (!ok) { remove(dst); return -1; }
+    if (!ok) { g_copy_error = errno; remove(dst); return -1; }
 #endif
     return 1;
 }
-/* the ROM the build gets: the last build's copy, else the chosen one copied; 0 none yet */
+/* the ROM the build gets: the last build's copy, else the chosen one (or one in rom/) copied; 0 none yet */
 static int rom_for_build(char* rel, size_t n) {
     if (exists("data/dqix.nds")) { snprintf(rel, n, "game/data/dqix.nds"); return 1; }
     int r = copy_rom(rel, n);
-    if (r < 0) { bar(&g_m.in, tr("rom_bad"), "", 0, 2); step(&g_m.st.build, ST_FAILED); }
+    if (r < 0) {                                      /* the copy failed (disk full, drive removed...): not the ROM's fault */
+        char why[24], t[200]; snprintf(why, sizeof why, "error %ld", g_copy_error);
+        snprintf(t, sizeof t, tr("err_rom_copy"), why);
+        bar(&g_m.in, t, "", 0, 2); step(&g_m.st.build, ST_FAILED);
+    }
     return r;
 }
 
@@ -255,8 +275,8 @@ static long long file_time(const char* p) {
 #endif
 }
 /* the build, from the project folder; rom: the ROM relative to it
- * ("game/data/dqix.nds", the copy the last build made, or "rom/dq9-rom.nds" the
- * first time), so no folder name of the player's goes through a shell */
+ * ("game/data/dqix.nds", the copy the last build made, or "rom/dq9-rom.nds|zip"
+ * the first time), so no folder name of the player's goes through a shell */
 static int do_build(const char* rom) {
     step(&g_m.st.build, ST_RUNNING);
     char t[200]; snprintf(t, sizeof t, "%s", tr("st_building"));
@@ -278,12 +298,16 @@ static int do_build(const char* rom) {
     long long before = file_time(me);
     int code = run(argv, env, "..", on_build_line, &b);
     if (code != 0) {
-        bar(&g_m.in, b.failed[0] ? b.failed : tr("err_build"), "", g_m.in.frac, 2);
+        char t2[260];
+        const char* why = code == -1 ? tr("err_build_start") : b.failed[0] ? b.failed : tr("err_build");
+        if (exists("../update/download.zip") && exists("../update/rollback.bat")) snprintf(t2, sizeof t2, tr("err_build_rollback"), why);   /* after an update: the way back */
+        else snprintf(t2, sizeof t2, "%s", why);
+        bar(&g_m.in, t2, "", g_m.in.frac, 2);
         step(&g_m.st.build, ST_FAILED);
         return 0;
     }
     remove("../update/download.zip");                 /* the update is whole now */
-    if (file_time(me) != before) SDL_AtomicSet(&g_restart, 1);   /* new, or the first one (the root launcher hands over) */   /* a new launcher was put in place */
+    if (file_time(me) != before) SDL_AtomicSet(&g_restart, 1);   /* a new launcher was put in place, or the first one (the root launcher hands over) */
     step(&g_m.st.build, ST_DONE);
     return 1;
 }
@@ -300,15 +324,17 @@ static const char APPLY[] =
     "set \"RC=%SystemRoot%\\System32\\robocopy.exe\"\r\n"
     "set \"TAR=%SystemRoot%\\System32\\tar.exe\"\r\n"
     "rem resume: the copy of the version before is already there (it is the one to go back to)\r\n"
-    "if /i \"%~1\"==\"resume\" if exist update\\previous\\BUILD.bat goto unpack\r\n"
+    "if /i \"%~1\"==\"resume\" if exist update\\previous\\backup-whole.txt goto unpack\r\n"
     "if exist update\\previous rmdir /s /q update\\previous\r\n"
     "\"%RC%\" . update\\previous /E /XJ /NFL /NDL /NJH /NJS /NP /XD game build rom extras update bookmarks reports release .git >nul\r\n"
     "if errorlevel 8 (echo FAILED robocopy: keeping a copy of the current version & exit /b 1)\r\n"
+    "echo The copy of the version before this update is whole.> update\\previous\\backup-whole.txt\r\n"
     ":unpack\r\n"
     "if exist update\\new rmdir /s /q update\\new\r\n"
     "mkdir update\\new\r\n"
     "\"%TAR%\" -xf update\\download.zip -C update\\new\r\n"
-    "if errorlevel 1 (echo FAILED tar: unpacking the new version & exit /b 2)\r\n"
+    "rem a damaged download: nothing was copied yet, so it goes (downloaded again next time)\r\n"
+    "if errorlevel 1 (del update\\download.zip >nul 2>&1 & echo FAILED tar: unpacking the new version & exit /b 2)\r\n"
     "set \"SRC=\"\r\n"
     "for /d %%d in (update\\new\\*) do if not defined SRC set \"SRC=%%d\"\r\n"
     "if not defined SRC (echo FAILED the download holds no project & exit /b 3)\r\n"
@@ -348,8 +374,8 @@ static void on_dl(long long done, long long total) {
 }
 static void on_apply_line(const char* l, void* u) { if (!strncmp(l, "FAILED ", 7)) snprintf((char*)u, 160, "%.150s", l + 7); }
 
-/* the new version's zip into update\\download.zip. A network failure counts as
- * offline (spec: a complete game can be played): red bar and RETRY, PLAY lit */
+/* the new version's zip into update\\download.zip. A network failure: red bar and
+ * RETRY; PLAY lights in Classic only (lnch_state.c, spec "Téléchargement qui échoue") */
 static int do_download(const char* branch, const char* version) {
     char t[200], err[160] = "";
     step(&g_m.st.update, ST_RUNNING);
@@ -372,11 +398,17 @@ static int do_apply(int resume) {
     step(&g_m.st.update, ST_RUNNING);
     bar(&g_m.in, tr("in_copy"), "", 0.05f, 0);
     write_text("../update/rollback.bat", update_rollback_bat());   /* there before anything is copied */
-    if (!write_text("../update/launcher-apply.bat", APPLY)) { bar(&g_m.in, "couldn't write to the update folder", "", 0, 2); step(&g_m.st.update, ST_FAILED); return 0; }
+    if (!write_text("../update/launcher-apply.bat", APPLY)) { bar(&g_m.in, tr("err_build_start"), "", 0, 2); step(&g_m.st.update, ST_FAILED); return 0; }
     const char* argv[] = {cmd_exe(), "/c", ".\\update\\launcher-apply.bat", resume ? "resume" : "new", NULL};
     int code = run(argv, NULL, "..", on_apply_line, err);
+    if (code == 2) {                                  /* a damaged zip, deleted by the bat: the game here is untouched */
+        bar(&g_m.dl, tr("err_update_damaged"), "", 1, 2);
+        bar(&g_m.in, "", "", 0, 0);
+        LOCK; g_m.st.update = ST_SKIPPED; g_m.st.update_unbuilt = 0; g_m.st.download_failed = 1; UNLOCK;
+        return 2;
+    }
     if (code != 0) {
-        bar(&g_m.in, err[0] ? err : "the update could not be put in place", "", 0.05f, 2);
+        bar(&g_m.in, err[0] ? err : tr("err_build_start"), "", 0.05f, 2);
         step(&g_m.st.update, ST_FAILED);
         return 0;
     }
@@ -406,13 +438,16 @@ static void show_pack_status(const PackStatus* s) {
     }
 }
 static int do_pack(void) {
-    if (!exists("hd-pack.exe")) { bar(&g_m.dl, "hd-pack.exe is missing: build the game again", "", 0, 2); step(&g_m.st.pack, ST_FAILED); return 0; }
+    PackStatus none; memset(&none, 0, sizeof none);
+    if (pack_outcome(exists("hd-pack.exe"), 0, 0, &none) == PACK_MISSING) {   /* optional in the build: Classic plays without it */
+        bar(&g_m.dl, tr("err_hdpack_missing"), "", 0, 2); step(&g_m.st.pack, ST_FAILED); return 0;
+    }
     step(&g_m.st.pack, ST_RUNNING);
     remove("hd-pack-status.txt");
     g_dl_t0 = 0;
     const char* argv[] = {"hd-pack.exe", "--foreground", NULL};
     LProc* p = proc_start(argv, NULL, NULL);
-    if (!p) { bar(&g_m.dl, "hd-pack.exe didn't start", "", 0, 2); step(&g_m.st.pack, ST_FAILED); return 0; }
+    if (!p) { bar(&g_m.dl, tr("err_hdpack_local"), "", 0, 2); step(&g_m.st.pack, ST_FAILED); return 0; }
     char line[512]; int r; Uint64 last = 0;
     PackStatus s; memset(&s, 0, sizeof s);
     while ((r = proc_read_line(p, line, sizeof line)) != -1) {
@@ -423,13 +458,15 @@ static int do_pack(void) {
     int code = proc_exit_code(p);
     proc_free(p);
     int have = read_status(&s);
-    if (code == 0) { step(&g_m.st.pack, ST_DONE); return 1; }
-    /* failed while downloading (or offline): like offline, the game plays without the pack */
-    int net = code == 1 && (!have || s.kind == 'd' || (s.kind == 'f' && !strncmp(s.reason, "offline", 7)));
-    const char* why = code == 2 ? "hd-pack.exe is already at work (the game open?)" : have && s.kind == 'f' && s.reason[0] ? s.reason : "The HD pack couldn't be installed: hd-pack.log says why";
-    char t[200]; snprintf(t, sizeof t, "HD pack: %s", why);
+    int out = pack_outcome(1, code, have, &s);
+    if (out == PACK_DONE) { step(&g_m.st.pack, ST_DONE); return 1; }
+    /* a broken download: red bar and RETRY, Modern waits (spec); anything else is a failure */
+    char t[200];
+    if (out == PACK_BUSY) snprintf(t, sizeof t, "%s", tr("err_hdpack_busy"));
+    else if (out == PACK_NET || (have && s.kind == 'f' && s.reason[0])) snprintf(t, sizeof t, tr("err_hdpack"), have && s.kind == 'f' ? s.reason : tr("err_github"));
+    else snprintf(t, sizeof t, "%s", tr("err_hdpack_local"));
     if (have && s.kind == 'i') bar(&g_m.in, t, "", g_m.in.frac, 2); else bar(&g_m.dl, t, "", g_m.dl.frac, 2);
-    if (net) { LOCK; g_m.st.online = 0; g_m.st.pack = ST_SKIPPED; g_m.st.download_failed = 1; UNLOCK; return 1; }
+    if (out == PACK_NET) { LOCK; g_m.st.online = 0; g_m.st.pack = ST_SKIPPED; g_m.st.download_failed = 1; UNLOCK; return 1; }
     step(&g_m.st.pack, ST_FAILED);
     return 0;
 }
@@ -454,14 +491,18 @@ static int work_thread(void* arg) {
     const char* branch = lstate_branch(st.installed);
     LOCK;
     g_m.st.online = u.ok ? 1 : 0;
+    if (!u.ok && u.error[0]) snprintf(g_m.dl.right, sizeof g_m.dl.right, "%.79s", u.error);   /* why: offline, or GitHub said no (403, 429...) */
     snprintf(g_m.st.available, sizeof g_m.st.available, "%s", u.ok ? (strcmp(branch, "main") ? u.stable : u.nightly) : "");
     st = g_m.st;
     UNLOCK;
     if (st.online) do_news();
     int updated = 0;
-    if (st.update_unbuilt) ok = updated = do_apply(1);        /* a run cut before its build: put in place again, then build */
+    if (st.update_unbuilt) {                                 /* a run cut before its build: put in place again, then build */
+        int a = do_apply(1);
+        ok = a != 0; updated = a == 1;
+    }
     else if (st.online && st.update_check && st.available[0] && update_newer(st.available, st.installed)) {
-        if (do_download(branch, st.available)) ok = updated = do_apply(0);
+        if (do_download(branch, st.available)) { int a = do_apply(0); ok = a != 0; updated = a == 1; }
     } else step(&g_m.st.update, ST_SKIPPED);
     if (ok && (updated || !st.game_built)) {
         char rom[64]; int r = rom_for_build(rom, sizeof rom);
@@ -525,7 +566,7 @@ void work_start(int verify) {
     SDL_AtomicSet(&g_done, 0);
     LOCK; g_m.busy = 1; UNLOCK;
     g_thread = SDL_CreateThread(work_thread, "work", NULL);
-    if (!g_thread) { SDL_AtomicSet(&g_done, 1); LOCK; g_m.busy = 0; UNLOCK; }
+    if (!g_thread) { SDL_AtomicSet(&g_done, 1); LOCK; g_m.busy = 0; snprintf(g_m.in.text, sizeof g_m.in.text, "%s", tr("err_thread")); g_m.in.state = 2; UNLOCK; }
 }
 
 void work_poll(void) {
@@ -542,13 +583,15 @@ void work_poll(void) {
     }
 #else
     setenv("DQIX_LAUNCHER_RESTARTED", "1", 1);
-    if (fork() == 0) { setsid(); execl("./dqix-launcher", "./dqix-launcher", (char*)NULL); _exit(127); }
-    SDL_Event q; q.type = SDL_QUIT; SDL_PushEvent(&q);
+    pid_t pid = fork();
+    if (pid == 0) { setsid(); execl("./dqix-launcher", "./dqix-launcher", (char*)NULL); _exit(127); }
+    if (pid > 0) { SDL_Event q; q.type = SDL_QUIT; SDL_PushEvent(&q); }   /* no fork: this one goes on */
 #endif
 }
 
 void work_stop(void) {
-    /* the tools still at work end with the launcher (lnch_proc.c's job); the thread with the process */
+    /* Windows: the tools still at work end with the launcher (lnch_proc.c's job); on Linux they run on.
+     * The thread ends with the process */
     if (g_thread && SDL_AtomicGet(&g_done)) { SDL_WaitThread(g_thread, NULL); g_thread = NULL; }
 }
 

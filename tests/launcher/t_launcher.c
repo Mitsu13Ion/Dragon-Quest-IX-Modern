@@ -1,5 +1,5 @@
 /* Tests of the launcher's logic without a window (launcher/lnch.h).
- *   sh tests/launcher/run.sh <temp folder>      (run.sh builds and runs this)
+ *   t_launcher <temp folder>      (built and run by: sh tests/launcher/run.sh)
  * Writes only inside the temp folder given as argv[1]. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -206,6 +206,43 @@ static void state_download_failed_modern_cannot_play(void) {
     s.modern = 0; s.hd_pack_wanted = 0;
     CHECK(lstate_can_play(&s));
 }
+static void settings_decide_what_play_waits_for(void) {
+    LState s; memset(&s, 0, sizeof s);
+    lstate_settings("", &s);                                   /* no settings.ini: Modern, pack wanted, updates on */
+    CHECK(s.modern && s.hd_pack_wanted && s.update_check);
+    lstate_settings("mode = classic\n", &s);
+    CHECK(!s.modern && !s.hd_pack_wanted && s.update_check);
+    lstate_settings("mode = enhanced\r\nhd_pack_download = 0\r\nupdate_check = 0\r\n", &s);
+    CHECK(s.modern && !s.hd_pack_wanted && !s.update_check);
+    lstate_settings("mode = classic\nmode = enhanced\n", &s);  /* the last one wins, as in the game */
+    CHECK(s.modern);
+}
+static void pack_outcome_rules(void) {
+    PackStatus st; memset(&st, 0, sizeof st);
+    CHECK(pack_outcome(0, 0, 0, &st) == PACK_MISSING);
+    CHECK(pack_outcome(1, 0, 0, &st) == PACK_DONE);
+    CHECK(pack_outcome(1, 2, 0, &st) == PACK_BUSY);
+    CHECK(pack_outcome(1, 1, 0, &st) == PACK_FAILED);          /* no status line: an early local fault, not the network */
+    parse_pack_status("failed offline: the HD pack can't be downloaded now", &st);
+    CHECK(pack_outcome(1, 1, 1, &st) == PACK_NET);
+    parse_pack_status("failed download: hd-pack-textures-1.zip: connection lost", &st);
+    CHECK(pack_outcome(1, 1, 1, &st) == PACK_NET);
+    parse_pack_status("download 5 10 1 2", &st);
+    CHECK(pack_outcome(1, 1, 1, &st) == PACK_NET);
+    parse_pack_status("failed install failed: undoing 3 move(s)", &st);
+    CHECK(pack_outcome(1, 1, 1, &st) == PACK_FAILED);
+    parse_pack_status("install 2 3", &st);
+    CHECK(pack_outcome(1, 1, 1, &st) == PACK_FAILED);
+}
+static void update_never_goes_back(void) {
+    CHECK(update_newer("v3.3", "v3.2"));
+    CHECK(!update_newer("v3.2", "v3.3"));                      /* stable older than installed: no update */
+    CHECK(update_newer("v3.10", "v3.9"));
+    CHECK(!update_newer("v3.2", "v3.2"));
+    CHECK(update_newer("v3.3-nightly2", "v3.3-nightly1"));
+    CHECK(update_newer("v3.3", "v3.3-nightly9"));             /* the release after its nightlies */
+    CHECK(!update_newer("garbage", "v3.2"));
+}
 static void branch_nightly_stays_main(void) {
     CHECK(!strcmp(lstate_branch("v3.3-nightly2"), "main"));
     CHECK(!strcmp(lstate_branch("v3.2"), "stable"));
@@ -373,7 +410,7 @@ int main(int argc, char** argv) {
     RUN(state_ready_can_play); RUN(state_offline_complete_can_play); RUN(state_offline_pack_incomplete_plays_without_it);
     RUN(state_pack_incomplete_online_cannot_play); RUN(state_pack_not_wanted_can_play); RUN(state_classic_does_not_wait_pack);
     RUN(state_failed_cannot_play); RUN(state_resume_after_kill); RUN(state_update_pending_cannot_play);
-    RUN(state_not_built_cannot_play); RUN(state_linux_no_updates); RUN(branch_nightly_stays_main); RUN(state_unbuilt_update_cannot_play); RUN(state_rom_needed_cannot_play); RUN(state_download_failed_modern_cannot_play); RUN(rom_kind_ok_extensions);
+    RUN(state_not_built_cannot_play); RUN(state_linux_no_updates); RUN(branch_nightly_stays_main); RUN(state_unbuilt_update_cannot_play); RUN(state_rom_needed_cannot_play); RUN(state_download_failed_modern_cannot_play); RUN(settings_decide_what_play_waits_for); RUN(pack_outcome_rules); RUN(update_never_goes_back); RUN(rom_kind_ok_extensions);
     RUN(news_github_three_latest); RUN(news_title_strips_prefix); RUN(news_local_sorted_newest_first);
     RUN(progress_build_line); RUN(progress_build_failed_line); RUN(pack_status_download);
     RUN(pack_status_failed_reason); RUN(pack_status_garbage_is_zero); RUN(proc_runs_echo);

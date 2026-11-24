@@ -243,7 +243,11 @@ int update_https_get(const char* host, const char* path, char** out, size_t* len
 
 int update_download(const char* branch, const char* zip_path, void (*on_bytes)(long long done, long long total), char* err, size_t en) {
     const char* src = getenv("DQIX_UPDATE_SOURCE");       /* tests: <folder>/<branch>.zip */
-    FILE* f = fopen(zip_path, "wb");
+    /* into <zip>.part, renamed when whole and checked: a cut download (launcher
+     * closed, power cut) never leaves a zip the launcher would take as an update */
+    char part[MAX_PATH + 8];
+    if (snprintf(part, sizeof part, "%s.part", zip_path) >= (int)sizeof part) { snprintf(err, en, "path too long"); return 0; }
+    FILE* f = fopen(part, "wb");
     if (!f) { snprintf(err, en, "couldn't write to the update folder"); return 0; }
     int ok;
     if (src && *src) {
@@ -252,7 +256,10 @@ int update_download(const char* branch, const char* zip_path, void (*on_bytes)(l
         ok = in != NULL;
         if (!in) snprintf(err, en, "can't reach GitHub (test source)");
         char b[65536]; size_t got; long long n = 0;
-        while (in && (got = fread(b, 1, sizeof b, in)) > 0) { fwrite(b, 1, got, f); n += (long long)got; if (on_bytes) on_bytes(n, -1); }
+        while (in && (got = fread(b, 1, sizeof b, in)) > 0) {
+            if (fwrite(b, 1, got, f) != got) { snprintf(err, en, "couldn't write the download (disk full?)"); ok = 0; break; }
+            n += (long long)got; if (on_bytes) on_bytes(n, -1);
+        }
         if (in) fclose(in);
     } else {
         wchar_t path[256];
@@ -261,11 +268,12 @@ int update_download(const char* branch, const char* zip_path, void (*on_bytes)(l
     }
     if (fclose(f) != 0 && ok) { snprintf(err, en, "couldn't write the download (disk full?)"); ok = 0; }
     if (ok) {                                             /* a zip, or nothing */
-        FILE* z = fopen(zip_path, "rb"); char pk[2] = {0, 0};
+        FILE* z = fopen(part, "rb"); char pk[2] = {0, 0};
         if (!z || fread(pk, 1, 2, z) != 2 || memcmp(pk, "PK", 2)) { snprintf(err, en, "GitHub didn't send a zip file"); ok = 0; }
         if (z) fclose(z);
     }
-    if (!ok) remove(zip_path);
+    if (ok && !MoveFileExA(part, zip_path, MOVEFILE_REPLACE_EXISTING)) { snprintf(err, en, "couldn't write to the update folder (%lu)", GetLastError()); ok = 0; }
+    if (!ok) remove(part);
     return ok;
 }
 

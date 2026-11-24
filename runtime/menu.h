@@ -41,6 +41,7 @@ enum {
     MI_BSPEED1 = 350,                                                   /* battle speed: normal, 2x, 3x (+0..2) */
     MI_BSPEED4 = 410, MI_BSPEED_TURN, MI_BVICTORY,                      /* ...4x; only while the turn plays out; the victory's messages by themselves */
     MI_SAVEBAK = 360,                                                   /* keep a copy of every save (card.c) */
+    MI_SLOT0 = 900, MI_SLOT_RENAME = 910,                               /* Game > Saves: slot 1..10 (+0..9, card.c backup_slot_path); rename the active one */
     MI_AUTOSAVE = 365,                                                  /* Modern > Save by itself every 10 minutes (autosave.c) */
     MI_CHEATS_HELP = 370,
     MI_NAME_TYPING = 800,                                               /* Modern > Type the name with the keyboard (the character's creation) */

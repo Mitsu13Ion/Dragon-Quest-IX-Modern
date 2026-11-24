@@ -39,6 +39,7 @@ static SDL_Renderer* g_ren;
 static SDL_Texture* g_back; static int g_back_w, g_back_h;
 static int g_lang = 1, g_classic, g_fullscreen, g_volume = 100;
 static int g_options, g_lang_menu, g_drag_volume;
+static int g_size;                       /* the window: 100, 125 or 150 % of 1100x674; 0 = fit the screen */
 static float S = 1, OX, OY;              /* logical 1100x674 -> pixels */
 
 /* ---- settings.ini */
@@ -68,6 +69,28 @@ static int settings_set(const char* key, const char* value) {
     say_failed(tr("err_settings"));
     return 0;
 }
+static int size_read(void) {
+    char* t; char v[16];
+    ini_load("launcher.ini", &t);
+    int s = ini_get(t, "size", v, sizeof v) ? atoi(v) : 0;
+    free(t);
+    return s == 100 || s == 125 || s == 150 ? s : 0;
+}
+/* the size asked, or the biggest that leaves room around it on this screen */
+static int size_fit(int asked) {
+    SDL_Rect u;
+    if (SDL_GetDisplayUsableBounds(g_win ? SDL_GetWindowDisplayIndex(g_win) : 0, &u) != 0) return asked ? asked : 100;
+    static const int SZ[] = {150, 125, 100};
+    for (int i = 0; i < 3; i++)
+        if ((!asked || SZ[i] <= asked) && 1100 * SZ[i] <= u.w * 85 && 674 * SZ[i] <= u.h * 92) return SZ[i];
+    return 100;
+}
+static void size_apply(void) {
+    if (SDL_GetWindowFlags(g_win) & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) return;
+    int s = size_fit(g_size);
+    SDL_SetWindowSize(g_win, 1100 * s / 100, 674 * s / 100);
+    SDL_SetWindowPosition(g_win, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+}
 static void set_language(int l) {
     g_lang = l;
     tr_set_language(l);
@@ -78,7 +101,7 @@ static void set_language(int l) {
 
 /* ---- hit areas, made again every frame */
 enum { A_NONE, A_LANG, A_LANG1, A_LANG5 = A_LANG1 + 4, A_DISCORD, A_GITHUB, A_FOLDER, A_NEWS_ALL, A_VERIFY, A_OPTIONS,
-       A_PLAY, A_RETRY, A_CLASSIC, A_MODERN, A_FULLSCREEN, A_VOLUME, A_KEYS_PAD, A_KEYS_KB, A_RESET, A_CLOSE_OPT, A_CHOOSE_ROM };
+       A_PLAY, A_RETRY, A_CLASSIC, A_MODERN, A_FULLSCREEN, A_VOLUME, A_KEYS_PAD, A_KEYS_KB, A_RESET, A_CLOSE_OPT, A_CHOOSE_ROM, A_SIZE };
 typedef struct { float x, y, w, h; int id; } Hit;
 static Hit g_hits[64]; static int g_nhits;
 static int g_mx = -1, g_my = -1;
@@ -142,7 +165,7 @@ static void draw_news(const Model* m) {
         }
         if (day[0]) {
             text(FONT_BOLD, 21, x + 39, iy + 12, INK, day, 0, 1);
-            text(FONT_BOLD, 11, x + 39, iy + 40, MUTE, mon, 0, 1);
+            text(FONT_BOLD, 12, x + 39, iy + 40, MUTE, mon, 0, 1);
         }
         float tx = x + 76;
         float tw = text(FONT_BOLD, 10, 0, -100, GOLD, n->tag, 0, 0) + 12;      /* measured off screen */
@@ -151,7 +174,7 @@ static void draw_news(const Model* m) {
         text(FONT_BOLD, 14, tx + tw + 8, iy + 13, INK, n->title, w - (tx - x) - tw - 26, 0);
         if (i + 1 < m->nnews) ui_fill(X(x), Y(iy + 71), w * S, S, col(0xFFFFFF, 20));
     }
-    if (m->news_offline) text(FONT_TEXT, 11, x + 18, y + h + 6, MUTE, tr("offline_news"), 0, 0);
+    if (m->news_offline) text(FONT_TEXT, 12, x + 18, y + h + 6, MUTE, tr("offline_news"), 0, 0);
 }
 
 static void draw_bar(float x, float y, float w, const char* label, const Bar* b, int blue) {
@@ -161,7 +184,7 @@ static void draw_bar(float x, float y, float w, const char* label, const Bar* b,
     text(FONT_BOLD, 13.5f, x + lw, y, tc, b->text, w - lw - rw - (b->state == 2 ? 110 : 0), 0);
     if (rw) text(FONT_TEXT, 12.5f, x + w, y + 1, MUTE, b->right, 0, 2);
     float by = y + 24;
-    text(FONT_BOLD, 11, x, by - 5, GOLD, label, lw - 8, 0);
+    text(FONT_BOLD, 12, x, by - 6, GOLD, label, lw - 8, 0);
     rrect(x + lw, by, w - lw, 9, 5, col(0x1A2547, 255), col(0x1A2547, 255));
     float f = b->frac < 0 ? 0 : b->frac > 1 ? 1 : b->frac;
     if (f > 0) {
@@ -177,10 +200,10 @@ static void draw_bar(float x, float y, float w, const char* label, const Bar* b,
 }
 
 static void draw_options(void) {
-    float x = 22, y = 72, w = 1056, h = 400;
+    float x = 22, y = 72, w = 1056, h = 382;
     frame(x, y, w, h);
     text(FONT_TITLE, 15, x + 18, y + 14, GOLD, tr("options_title"), 0, 0);
-    text(FONT_TEXT, 12, x + w - 52, y + 17, MUTE, tr("options_note"), 0, 2);
+    text(FONT_TEXT, 13, x + w - 52, y + 16, MUTE, tr("options_note"), 0, 2);
     int hv = hover(x + w - 42, y + 8, 32, 30);
     text(FONT_BOLD, 18, x + w - 26, y + 9, hv ? GOLD : INK, "\xC3\x97", 0, 1);   /* × closes */
     hit(x + w - 42, y + 8, 32, 30, A_CLOSE_OPT);
@@ -201,7 +224,7 @@ static void draw_options(void) {
     }
     /* below: window, volume, keys */
     float ry = y + 176, colw = (w - 36 - 30) / 2;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         float rx = x + 18 + (i % 2) * (colw + 30), yy = ry + (i / 2) * 46;
         ui_fill(X(rx), Y(yy + 40), colw * S, S, col(0xFFFFFF, 16));
         if (i == 0) {
@@ -218,6 +241,11 @@ static void draw_options(void) {
             char v[8]; snprintf(v, sizeof v, "%d", g_volume);
             text(FONT_BOLD, 13, rx + colw, yy + 11, GOLD, v, 0, 2);
             hit(sx - 8, yy + 5, sw + 16, 30, A_VOLUME);
+        } else if (i == 4) {
+            text(FONT_TEXT, 14, rx, yy + 10, INK, tr("launcher_size"), 0, 0);
+            char v[32]; snprintf(v, sizeof v, "\xE2\x80\xB9  %d %%  \xE2\x80\xBA", g_size ? g_size : size_fit(0));
+            text(FONT_BOLD, 14, rx + colw, yy + 10, GOLD, v, 0, 2);
+            hit(rx + colw - 220, yy, 220, 40, A_SIZE);
         } else {
             text(FONT_TEXT, 14, rx, yy + 10, INK, tr(i == 2 ? "keys_pad" : "keys_keyboard"), 0, 0);
             int h2 = hover(rx + colw - 220, yy, 220, 40);
@@ -226,7 +254,7 @@ static void draw_options(void) {
         }
     }
     ui_fill(X(x), Y(y + h - 46), w * S, S, col(0xFFFFFF, 24));
-    text(FONT_TEXT, 12, x + 18, y + h - 30, MUTE, tr("mode_note"), w - 260, 0);
+    text(FONT_TEXT, 13, x + 18, y + h - 31, MUTE, tr("mode_note"), w - 260, 0);
     button(x + w - 218, y + h - 38, 200, 30, tr("reset_defaults"), A_RESET, col(0x0E1A3D, 255), col(0x3A4F86, 255), INK);
 }
 
@@ -289,7 +317,7 @@ static void draw(int W, int H) {
     }
     char ver[96]; snprintf(ver, sizeof ver, "%s%s", m.st.installed[0] ? m.st.installed : "", m.pack_version[0] ? "  \xC2\xB7  " : "");
     if (m.pack_version[0]) strncat(ver, m.pack_version, sizeof ver - strlen(ver) - 1);
-    text(FONT_TEXT, 11, 1090, 658, col(0x5C6A92, 255), ver, 0, 2);
+    text(FONT_TEXT, 12, 1090, 656, col(0x5C6A92, 255), ver, 0, 2);
     /* the language list, over everything */
     if (g_lang_menu) {
         float lx = 1078 - 40 - 90 - 102 - 126, ly = 52;
@@ -318,7 +346,9 @@ static void open_here(const char* rel) {
     open_url(u);
 }
 
-/* the game, then the launcher closes; DQIX_LAUNCHER tells dqix not to come back here */
+/* the game, then the launcher closes; DQIX_LAUNCHER tells dqix not to come back here.
+ * The game folder is the current one (to_own_folder): the release zip's launcher
+ * sits one folder up, in the project, and works in game/ */
 static int start_game(void) {
 #ifdef _WIN32
     SetEnvironmentVariableA("DQIX_LAUNCHER", "1");
@@ -389,6 +419,14 @@ static void action(int a) {
         work_settings_changed();
         break;
     case A_VOLUME: g_drag_volume = 1; break;
+    case A_SIZE: {
+        int s = g_size ? g_size : size_fit(0);
+        s = s == 100 ? 125 : s == 125 ? 150 : 100;
+        char v[8]; snprintf(v, sizeof v, "%d", s);
+        if (settings_update("launcher.ini", "size", v)) { g_size = s; size_apply(); }
+        else say_failed(tr("err_settings"));
+        break;
+    }
     default:
         if (a >= A_LANG1 && a <= A_LANG5) set_language(a - A_LANG1 + 1);
     }
@@ -447,7 +485,7 @@ static const char* step_name(StepState s) {
 }
 /* tests (DQIX_LAUNCHER_HEADLESS=1): the work without a window, its outcome on
  * stdout; exit 0 if PLAY would light up, 1 if not, 2 if it couldn't start there
- * or the game folder's launcher took over */
+ * or the game folder's launcher took over. DQIX_LAUNCHER_PLAY=1: then PLAY is pressed */
 static int to_own_folder(void);
 static int headless(void) {
     if (to_own_folder() != 1) return 2;
@@ -468,6 +506,14 @@ static int headless(void) {
     printf("update=%s build=%s pack=%s online=%d can_play=%d\n", step_name(m.st.update), step_name(m.st.build), step_name(m.st.pack), m.st.online, can);
     printf("download: %s | %s\ninstall: %s | %s\n", m.dl.text, m.dl.right, m.in.text, m.in.right);
     for (int i = 0; i < m.nnews; i++) printf("news: %s %s %s\n", m.news[i].tag, m.news[i].date, m.news[i].title);
+    if (can && getenv("DQIX_LAUNCHER_PLAY")) {
+        int ok = start_game();
+#ifdef _WIN32
+        printf("play=%s %lu\n", ok ? "started" : "failed", ok ? 0ul : GetLastError());
+#else
+        printf("play=%s %d\n", ok ? "started" : "failed", ok ? 0 : errno);
+#endif
+    }
     return can ? 0 : 1;
 }
 
@@ -592,8 +638,12 @@ int main(int argc, char** argv) {
                              SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | (shot ? SDL_WINDOW_HIDDEN : 0));
     if (!g_win) { fprintf(stderr, "launcher: window: %s\n", SDL_GetError()); return start_game() ? 0 : 1; }
     SDL_SetWindowMinimumSize(g_win, 960, 588);
+    g_size = size_read();
+    if (!shot) size_apply();
     g_ren = SDL_CreateRenderer(g_win, -1, shot ? SDL_RENDERER_SOFTWARE : SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
+    SDL_RendererInfo ri;
+    int vsync = g_ren && SDL_GetRendererInfo(g_ren, &ri) == 0 && (ri.flags & SDL_RENDERER_PRESENTVSYNC);
     if (!g_ren || !ui_init(g_ren)) { fprintf(stderr, "launcher: can't draw (fonts/Marcellus.ttf and fonts/Nunito.ttf needed)\n"); return start_game() ? 0 : 1; }
     if (d) { demo(d); g_m.background_ready = 1; }
     else { work_init(NOTES_LANG[g_lang]); work_start(); if (g_settings_unreadable) say_failed(tr("err_settings_read")); }
@@ -631,7 +681,7 @@ int main(int argc, char** argv) {
         }
         SDL_RenderPresent(g_ren);
         if (shot) continue;
-        SDL_Delay(16);
+        if (!vsync) SDL_Delay(16);                       /* vsync already waits for the screen: 60 images a second */
     }
     work_stop();
     SDL_Quit();

@@ -187,6 +187,9 @@ int backup_unlock_dlc(void);              /* downloadable quests + special guest
 extern uint64_t g_backup_written;         /* the frame the game last wrote to its save chip */
 int backup_slot_valid(const uint8_t* slot);   /* a 32 KB save slot with its name and three CRC-32s right */
 void backup_store(uint32_t off, const uint8_t* p, uint32_t n);   /* write to the save chip; backup_flush writes the file (autosave.c) */
+int backup_slot_path(int slot, char* out, size_t n);   /* Game > Saves: slot 1..10's file (savefile.h) */
+void backup_use_slot(int slot);           /* load the save chip from that slot (at start, before the game reads it) */
+int backup_busy(void);                    /* 1 while the game is writing its save */
 void math_div(void);
 void math_sqrt(void);
 

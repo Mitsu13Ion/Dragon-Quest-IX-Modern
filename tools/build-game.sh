@@ -221,11 +221,11 @@ esac
 # becomes dqix-launcher.old and the new one is put in its place.
 mkdir -p build/pc
 case "$(uname -s)" in
-MINGW*|MSYS*) LX=dqix-launcher.exe; LFLAGS="$(sdl2-config --cflags) -lSDL2 -lwinhttp -lcomdlg32 -mwindows" ;;
+MINGW*|MSYS*) LX=dqix-launcher.exe; LFLAGS="$(sdl2-config --cflags) -lSDL2 -lwinhttp -lcomdlg32 -mwindows ${RES:-}" ;;   # RES: the game's icon (make_icon)
 *)            LX=dqix-launcher;     LFLAGS="${SDL_CFLAGS:-$(sdl2-config --cflags)} ${SDL_LIBS:-$(sdl2-config --libs)}" ;;
 esac
 # shellcheck disable=SC2086
-if gcc -std=c99 -D_DEFAULT_SOURCE -O2 -I launcher -I runtime -o build/pc/$LX launcher/*.c runtime/update.c $LFLAGS -lm; then
+if gcc -std=c99 -D_DEFAULT_SOURCE -O2 -I launcher -I runtime -o build/pc/$LX launcher/*.c runtime/update.c runtime/controls.c runtime/uitext.c $LFLAGS -lm; then
     if ! cmp -s build/pc/$LX game/$LX; then
         # copied whole first, then two renames (the old one to .old); a failure
         # here (an old .old still locked) never stops the game's build

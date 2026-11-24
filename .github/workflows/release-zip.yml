@@ -50,14 +50,14 @@ jobs:
           S=sdl/SDL2-2.30.9/x86_64-w64-mingw32
           mkdir -p stage/win/DQIX-PC
           x86_64-w64-mingw32-gcc -std=c99 -D_DEFAULT_SOURCE -O2 -I launcher -I runtime -I "$S/include/SDL2" \
-              -o "stage/win/DQIX-PC/DQIX Launcher.exe" launcher/*.c runtime/update.c \
+              -o "stage/win/DQIX-PC/DQIX Launcher.exe" launcher/*.c runtime/update.c runtime/controls.c runtime/uitext.c \
               -L "$S/lib" -lSDL2 -lwinhttp -lcomdlg32 -mwindows -lm -static-libgcc
           cp "$S/bin/SDL2.dll" stage/win/DQIX-PC/
       - name: Linux launcher
         run: |
           mkdir -p stage/linux/DQIX-PC
           gcc -std=c99 -D_DEFAULT_SOURCE -O2 -I launcher -I runtime $(sdl2-config --cflags) \
-              -o stage/linux/DQIX-PC/dqix-launcher launcher/*.c runtime/update.c $(sdl2-config --libs) -lm
+              -o stage/linux/DQIX-PC/dqix-launcher launcher/*.c runtime/update.c runtime/controls.c runtime/uitext.c $(sdl2-config --libs) -lm
           chmod +x stage/linux/DQIX-PC/dqix-launcher
       - name: Attach it to the release
         env:

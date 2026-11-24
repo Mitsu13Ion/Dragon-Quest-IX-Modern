@@ -323,6 +323,8 @@ static const char APPLY[] =
     "cd /d \"%~dp0..\"\r\n"
     "set \"RC=%SystemRoot%\\System32\\robocopy.exe\"\r\n"
     "set \"TAR=%SystemRoot%\\System32\\tar.exe\"\r\n"
+    "rem no tar.exe (Windows 10 before 1803): said as such, the download kept (never taken for a damaged one)\r\n"
+    "if not exist \"%TAR%\" (echo FAILED tar: Windows' tar.exe is missing ^(Windows 10 version 1803 or later is needed^) & exit /b 5)\r\n"
     "rem resume: the copy of the version before is already there (it is the one to go back to)\r\n"
     "if /i \"%~1\"==\"resume\" if exist update\\previous\\backup-whole.txt goto unpack\r\n"
     "if exist update\\previous rmdir /s /q update\\previous\r\n"

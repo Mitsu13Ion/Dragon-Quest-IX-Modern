@@ -23,13 +23,14 @@ unset TMPDIR   # Wine 9.0 aborts at start (free(): invalid pointer) with it set 
 $GCC -std=c99 -O1 -I "$ROOT/launcher" -I "$ROOT/runtime" -I "$SDL/include/SDL2" -I "$SDL/include" \
     -o "$T/dqix-launcher.exe" "$ROOT"/launcher/*.c "$ROOT/runtime/update.c" -L "$SDL/lib" -lSDL2 -lwinhttp -lcomdlg32 -lm
 fails=0
+set +e   # every case runs and is counted, even under a shell whose set -e stops at a failed && list
 check() { if [ "$1" = 0 ]; then echo "ok   $2"; else echo "FAIL $2"; sed 's/^/     /' "$T/out.txt"; fails=$((fails + 1)); fi; }
 
 # a project: runtime/version.h, BUILD.bat (fake), game/ with the launcher
 project() {   # project <name> <local version> <BUILD.bat exit code>
     P="$T/$1"; mkdir -p "$P/runtime" "$P/game/data" "$P/game/notes"
     printf '#pragma once\n#define DQIX_VERSION "%s"\n' "$2" > "$P/runtime/version.h"
-    printf '@echo off\r\necho %%2> build-rom-arg.txt\r\nif not exist "%%~2" (echo BUILD FAILED (rom): no ROM at %%2& exit /b 2)\r\necho progress 0.1 Checking the ROM\r\necho progress 0.5 Compiling\r\nif "%s"=="0" (echo x> game\\dqix.exe& if not exist game\\data\\dqix.nds copy /y "%%~2" game\\data\\dqix.nds >nul& echo progress 1 Done& exit /b 0)\r\necho BUILD FAILED (compiling): gcc missing\r\nexit /b 1\r\n' "$3" > "$P/BUILD.bat"
+    printf '@echo off\r\necho %%2> build-rom-arg.txt\r\nif not exist "%%~2" (echo BUILD FAILED ^(rom^): no ROM at %%2& exit /b 2)\r\necho progress 0.1 Checking the ROM\r\necho progress 0.5 Compiling\r\nif "%s"=="0" (echo x> game\\dqix.exe& if not exist game\\data\\dqix.nds copy /y "%%~2" game\\data\\dqix.nds >nul& echo progress 1 Done& exit /b 0)\r\necho BUILD FAILED (compiling): gcc missing\r\nexit /b 1\r\n' "$3" > "$P/BUILD.bat"
     cp "$T/dqix-launcher.exe" "$SDL/bin/SDL2.dll" "$P/game/"
     echo rom > "$P/game/data/dqix.nds"
     printf 'hd_pack_download = 0\r\n' > "$P/game/settings.ini"

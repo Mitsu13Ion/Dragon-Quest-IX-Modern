@@ -240,9 +240,9 @@ void ui_hgrad(float x, float y, float w, float h, Col l, Col r) { quad(x, y, w, 
 void ui_vgrad(float x, float y, float w, float h, Col t, Col b) { quad(x, y, w, h, t, t, b, b); }
 void ui_fill(float x, float y, float w, float h, Col c) { quad(x, y, w, h, c, c, c, c); }
 
-SDL_Texture* ui_load_picture(const char* path, int* w, int* h) {
+SDL_Texture* ui_load_picture_mem(const unsigned char* data, int size, int* w, int* h) {
     int n;
-    unsigned char* px = stbi_load(path, w, h, &n, 4);
+    unsigned char* px = stbi_load_from_memory(data, size, w, h, &n, 4);
     if (!px) return NULL;
     SDL_Texture* t = SDL_CreateTexture(R, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, *w, *h);
     if (t) { SDL_UpdateTexture(t, NULL, px, *w * 4); SDL_SetTextureScaleMode(t, SDL_ScaleModeBest); }

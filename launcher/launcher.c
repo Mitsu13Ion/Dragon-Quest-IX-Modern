@@ -40,6 +40,7 @@ Model g_m;                               /* shared with lnch_work.c under g_m.lo
 static SDL_Window* g_win;
 static SDL_Renderer* g_ren;
 static SDL_Texture* g_back; static int g_back_w, g_back_h;
+extern const unsigned char LAUNCHER_BACK[]; extern const unsigned int LAUNCHER_BACK_SIZE;   /* back_jpg.c: built in */
 static int g_lang = 1, g_classic, g_fullscreen, g_volume = 100;
 static int g_options, g_lang_menu, g_drag_volume;
 /* the key screen (in the options): 1 keyboard, 2 controller; the action whose
@@ -341,7 +342,7 @@ static void draw(int W, int H) {
     Model m = g_m;                                       /* a copy: the work thread goes on meanwhile */
     m.lock = NULL;
     SDL_UnlockMutex(g_m.lock);
-    if (!g_back && m.background_ready) g_back = ui_load_picture("movies/launcher-back.jpg", &g_back_w, &g_back_h);
+    if (!g_back) g_back = ui_load_picture_mem(LAUNCHER_BACK, (int)LAUNCHER_BACK_SIZE, &g_back_w, &g_back_h);
     /* the background: the HD picture, or the night sky; never a tint over the picture */
     if (g_back) {
         ui_picture_cover(g_back, g_back_w, g_back_h, 0, 0, (float)W, (float)H);
@@ -407,6 +408,36 @@ static void draw(int W, int H) {
 }
 
 static int pick_rom(char* out, size_t n);
+
+/* the window's icon: the game's own, the one the DS menu shows, read from the
+ * ROM copy of the last build (as the game does, runtime/frontend_sdl.c window_icon_for):
+ * nothing from the game is kept in the launcher. Before the first build: none */
+static void window_icon(void) {
+    FILE* f = fopen("data/dqix.nds", "rb");
+    if (!f) return;
+    unsigned char head[0x6C], b[0x240];
+    unsigned off = 0;
+    int ok = fread(head, 1, sizeof head, f) == sizeof head;
+    if (ok) off = head[0x68] | head[0x69] << 8 | head[0x6A] << 16 | (unsigned)head[0x6B] << 24;
+    ok = ok && off && fseek(f, (long)off, SEEK_SET) == 0 && fread(b, 1, sizeof b, f) == sizeof b;
+    fclose(f);
+    if (!ok) return;
+    Uint32 pal[16];
+    for (int i = 0; i < 16; i++) {                       /* BGR555; colour 0 is see-through */
+        unsigned c = b[0x220 + i * 2] | b[0x221 + i * 2] << 8, r = c & 31, g = (c >> 5) & 31, bl = (c >> 10) & 31;
+        pal[i] = (i ? 0xFF000000u : 0) | ((r << 3 | r >> 2) << 16) | ((g << 3 | g >> 2) << 8) | (bl << 3 | bl >> 2);
+    }
+    enum { N = 64 };                                     /* 32x32 doubled, sharp pixels */
+    static Uint32 px[N * N];
+    for (int y = 0; y < N; y++)
+        for (int x = 0; x < N; x++) {
+            int sx = x / 2, sy = y / 2, t = (sy / 8) * 4 + sx / 8;
+            unsigned char v = b[0x20 + t * 32 + (sy & 7) * 4 + (sx & 7) / 2];
+            px[y * N + x] = pal[(sx & 1) ? v >> 4 : v & 15];
+        }
+    SDL_Surface* s = SDL_CreateRGBSurfaceWithFormatFrom(px, N, N, 32, N * 4, SDL_PIXELFORMAT_ARGB8888);
+    if (s) { SDL_SetWindowIcon(g_win, s); SDL_FreeSurface(s); }
+}
 
 /* ---- actions */
 static void open_url(const char* u) { if (SDL_OpenURL(u)) fprintf(stderr, "launcher: can't open %s\n", u); }
@@ -720,12 +751,13 @@ int main(int argc, char** argv) {
                              SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | (shot ? SDL_WINDOW_HIDDEN : 0));
     if (!g_win) { fprintf(stderr, "launcher: window: %s\n", SDL_GetError()); return start_game() ? 0 : 1; }
     SDL_SetWindowMinimumSize(g_win, 960, 588);
+    window_icon();
     g_size = size_read();
     if (!shot) size_apply();
     g_ren = SDL_CreateRenderer(g_win, -1, shot ? SDL_RENDERER_SOFTWARE : SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
     if (!g_ren || !ui_init(g_ren)) { fprintf(stderr, "launcher: can't draw (fonts/Marcellus.ttf and fonts/Nunito.ttf needed)\n"); return start_game() ? 0 : 1; }
-    if (d) { demo(d); g_m.background_ready = 1; }
+    if (d) demo(d);
     else { work_init(NOTES_LANG[g_lang]); work_start(); if (g_settings_unreadable) say_failed(tr("err_settings_read")); }
     int W = 1100, H = 674, frames = 0, run = 1;
     while (run) {

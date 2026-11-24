@@ -12,7 +12,6 @@ typedef struct {
     Bar dl, in;                   /* the DOWNLOAD and INSTALL bars */
     NewsItem news[3]; int nnews, news_offline;
     int busy;                     /* the thread is at work: PLAY stays off */
-    int background_ready;         /* movies/launcher-back.jpg can be loaded */
     char pack_version[32];        /* "hd-pack-2", "" none */
 } Model;
 extern Model g_m;

@@ -19,7 +19,7 @@ void  ui_triangle(float x1, float y1, float x2, float y2, float x3, float y3, Co
 void  ui_hgrad(float x, float y, float w, float h, Col left, Col right);
 void  ui_vgrad(float x, float y, float w, float h, Col top, Col bottom);
 void  ui_fill(float x, float y, float w, float h, Col c);
-SDL_Texture* ui_load_picture(const char* path, int* w, int* h);   /* NULL if missing or unreadable */
+SDL_Texture* ui_load_picture_mem(const unsigned char* data, int size, int* w, int* h);   /* a JPEG/PNG in memory; NULL if unreadable */
 void  ui_picture_cover(SDL_Texture* t, int tw, int th, float x, float y, float w, float h);
 void  ui_stars(float x, float y, float w, float h);                /* the night sky without the picture */
 int   ui_save_png(const char* path, int w, int h);                 /* the window as it is now */

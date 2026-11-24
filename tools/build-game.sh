@@ -221,7 +221,7 @@ esac
 # becomes dqix-launcher.old and the new one is put in its place.
 mkdir -p build/pc
 case "$(uname -s)" in
-MINGW*|MSYS*) LX=dqix-launcher.exe; LFLAGS="$(sdl2-config --cflags) -lSDL2 -lwinhttp -lcomdlg32 -mwindows" ;;
+MINGW*|MSYS*) LX=dqix-launcher.exe; LFLAGS="$(sdl2-config --cflags) -lSDL2 -lwinhttp -lcomdlg32 -mwindows ${RES:-}" ;;   # RES: the game's icon (make_icon)
 *)            LX=dqix-launcher;     LFLAGS="${SDL_CFLAGS:-$(sdl2-config --cflags)} ${SDL_LIBS:-$(sdl2-config --libs)}" ;;
 esac
 # shellcheck disable=SC2086

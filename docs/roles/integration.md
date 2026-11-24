@@ -73,6 +73,10 @@ devient la release suivante.
    corrections seulement, mêmes noms d'options que `lang/*.txt`. Le jeu coupe la
    fin du fichier anglais à `**How to install**` (ou à
    `<!-- in-game notes end here -->`) ; une langue sans fichier montre l'anglais.
+   Ajouter aussi les nouveautés de vX au `README.md`, en anglais (« Done so far »)
+   et en français (« Travaux réalisés ») : RecompLauncher affiche ce README, c'est
+   là que les joueurs voient ce que le jeu sait faire (Romuald, 2026-11-24).
+   `check` refuse la release si `README.md` n'a pas changé depuis le dernier tag.
    Commit et push de la branche.
 3. Test cloud sur le commit exact de la branche (`dqix-testeur`). Rapport :
    branche `tests/release-vX` de `romusan495/dqix-test-prive`

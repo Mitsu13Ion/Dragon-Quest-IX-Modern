@@ -11,7 +11,7 @@ Tu es le release manager (rôle Intégration, voir `docs/roles/integration.md`).
 
 ## Procédure avec `tools/release.py` (option `--dry-run` disponible)
 0. Crée d'abord un worktree : `git -C J:\DQIX-Enhanced-repo worktree add J:\DQIX-wt\integ-release-vX origin/main` (`prepare` refuse de tourner dans le clone principal, qui reste sur `main`) et lance tout dedans.
-1. `prepare` : branche, `version.h` (la ligne de commentaire `#define DQIX_VERSION "v48 (vX)"` reste la **première** ligne `DQIX_VERSION`), notes `release-notes/vX.md` et traductions.
+1. `prepare` : branche, `version.h` (la ligne de commentaire `#define DQIX_VERSION "v48 (vX)"` reste la **première** ligne `DQIX_VERSION`), notes `release-notes/vX.md` et traductions, nouveautés ajoutées au `README.md` (« Done so far » et « Travaux réalisés », lu par RecompLauncher ; `check` refuse sinon).
 2. Test cloud (agent `dqix-testeur`) PASS sur la tête de la branche de release, puis pré-version de test `publish vX-rcN --prerelease --title "vX-rcN : ..."` ; **`stable` n'est jamais déplacée pour un test**.
 3. `check` : refuse si le rapport cloud porte un autre commit que la tête de la branche, si la branche ne contient pas `origin/main`, ou si une vérification échoue.
 4. `publish vX --title "vX : ..."` : fusion, tag `vX`, `stable` en avance rapide (`git push origin origin/main:stable`, commit de fusion de même arbre que le commit testé, sans `--force` ; si le push échoue, rien n'est publié), `gh release create ... --latest` (obligatoire, sinon RecompLauncher garde l'ancienne). Le workflow de zips a un délai de 15 min ; en cas d'échec, la release reste publiée et le rapport le dit, sans nouvelle tentative silencieuse.

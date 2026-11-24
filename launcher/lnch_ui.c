@@ -153,16 +153,23 @@ float ui_text(int font, float px, float x, float y, Col c, const char* s, float 
     float cx = align == 1 ? x - w / 2 : align == 2 ? x - w : x, cy = y + f->ascent;
     SDL_SetTextureColorMod(f->tex, c.r, c.g, c.b);
     SDL_SetTextureAlphaMod(f->tex, c.a);
-    while (*s) {
-        stbtt_aligned_quad q;
-        stbtt_packedchar* g = glyph(f, utf8_next(&s));
-        int idx = (int)(g - (g >= f->extra ? f->extra : f->latin));
-        stbtt_GetPackedQuad(g >= f->extra && g < f->extra + NEXTRA ? f->extra : f->latin, ATLAS, ATLAS, idx, &cx, &cy, &q, 0);
-        SDL_Rect src = {(int)(q.s0 * ATLAS), (int)(q.t0 * ATLAS), (int)((q.s1 - q.s0) * ATLAS + 0.5f), (int)((q.t1 - q.t0) * ATLAS + 0.5f)};
-        SDL_FRect dst = {q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0};
-        if (src.w > 0 && src.h > 0) SDL_RenderCopyF(R, f->tex, &src, &dst);
+    /* FONT_BOLD: Nunito is a variable font and stb_truetype draws only its regular
+     * weight, so bold is the same letters drawn again a little to the right */
+    float bold = font == FONT_BOLD ? (f->px / 26.0f < 0.6f ? 0.6f : f->px / 26.0f) : 0;
+    for (int pass = 0; pass < (bold > 0 ? 2 : 1); pass++) {
+        const char* p = s;
+        float px = cx + pass * bold, py = cy;
+        while (*p) {
+            stbtt_aligned_quad q;
+            stbtt_packedchar* g = glyph(f, utf8_next(&p));
+            int idx = (int)(g - (g >= f->extra ? f->extra : f->latin));
+            stbtt_GetPackedQuad(g >= f->extra && g < f->extra + NEXTRA ? f->extra : f->latin, ATLAS, ATLAS, idx, &px, &py, &q, 0);
+            SDL_Rect src = {(int)(q.s0 * ATLAS), (int)(q.t0 * ATLAS), (int)((q.s1 - q.s0) * ATLAS + 0.5f), (int)((q.t1 - q.t0) * ATLAS + 0.5f)};
+            SDL_FRect dst = {q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0};
+            if (src.w > 0 && src.h > 0) SDL_RenderCopyF(R, f->tex, &src, &dst);
+        }
     }
-    return w;
+    return w + bold;
 }
 
 static SDL_Color sc(Col c) { SDL_Color s = {c.r, c.g, c.b, c.a}; return s; }
@@ -221,6 +228,10 @@ static void quad(float x, float y, float w, float h, Col c00, Col c10, Col c01, 
         {{x, y + h}, sc(c01), {0, 0}}, {{x + w, y + h}, sc(c11), {0, 0}}};
     int idx[6] = {0, 1, 2, 2, 1, 3};
     SDL_RenderGeometry(R, NULL, v, 4, idx, 6);
+}
+void ui_triangle(float x1, float y1, float x2, float y2, float x3, float y3, Col c) {
+    SDL_Vertex v[3] = {{{x1, y1}, sc(c), {0, 0}}, {{x2, y2}, sc(c), {0, 0}}, {{x3, y3}, sc(c), {0, 0}}};
+    SDL_RenderGeometry(R, NULL, v, 3, NULL, 0);
 }
 void ui_hgrad(float x, float y, float w, float h, Col l, Col r) { quad(x, y, w, h, l, r, l, r); }
 void ui_vgrad(float x, float y, float w, float h, Col t, Col b) { quad(x, y, w, h, t, t, b, b); }

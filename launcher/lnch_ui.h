@@ -15,6 +15,7 @@ float ui_text_width(int font, float px, const char* s);
 float ui_text(int font, float px, float x, float y, Col c, const char* s, float maxw, int align);
 void  ui_round_rect(float x, float y, float w, float h, float rad, Col top, Col bottom);
 void  ui_round_border(float x, float y, float w, float h, float rad, float t, Col c);
+void  ui_triangle(float x1, float y1, float x2, float y2, float x3, float y3, Col c);
 void  ui_hgrad(float x, float y, float w, float h, Col left, Col right);
 void  ui_vgrad(float x, float y, float w, float h, Col top, Col bottom);
 void  ui_fill(float x, float y, float w, float h, Col c);

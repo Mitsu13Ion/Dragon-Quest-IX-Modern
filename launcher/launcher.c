@@ -3,7 +3,7 @@
  * Spec: docs/superpowers/specs/2026-11-23-launcher-design.md; the work itself
  * (update, build, pack) is lnch_work.c, the drawing lnch_ui.c.
  *
- * Tests and pictures: DQIX_LAUNCHER_DEMO=download|build|ready|failed|options|options-classic
+ * Tests and pictures: DQIX_LAUNCHER_DEMO=download|build|ready|failed|options|options-classic|language
  * shows a fixed state (no network, nothing run); DQIX_LAUNCHER_SHOT=<file.png>
  * saves the window and quits; DQIX_LAUNCHER_HEADLESS=1 does the work without
  * a window and prints how it ended. */
@@ -240,11 +240,14 @@ static void draw(int W, int H) {
     text(FONT_TITLE, 24, 22, 12, GOLD, "DRAGON QUEST IX", 0, 0);
     text(FONT_BOLD, 10, 24, 42, col(0xCFE3FF, 255), "M  O  D  E  R  N", 0, 0);
     float rx = 1078;
-    rx -= 40; button(rx, 14, 40, 34, "\xE2\x80\xA2\xE2\x80\xA2\xE2\x80\xA2", A_FOLDER, col(0x0B1430, 170), col(0x2F4277, 255), INK);
+    rx -= 40; button(rx, 14, 40, 34, "", A_FOLDER, col(0x0B1430, 170), col(0x2F4277, 255), INK);
+    rrect(rx + 11, 23, 8, 5, 1.5f, GOLD, GOLD);                 /* a folder: its tab, then its body */
+    rrect(rx + 11, 25.5f, 18, 13, 2, GOLD, col(0xB8892F, 255));
     rx -= 90; button(rx, 14, 82, 34, "GitHub", A_GITHUB, col(0x0B1430, 170), col(0x2F4277, 255), INK);
     rx -= 102; button(rx, 14, 94, 34, "Discord", A_DISCORD, col(0x3B4BB8, 255), col(0x7E8CFF, 255), INK);
-    char ln[48]; snprintf(ln, sizeof ln, "%s \xE2\x96\xBE", tr("lang_name"));
-    rx -= 126; button(rx, 14, 118, 34, ln, A_LANG, col(0x0B1430, 170), col(0x2F4277, 255), INK);
+    rx -= 126; button(rx, 14, 104, 34, tr("lang_name"), A_LANG, col(0x0B1430, 170), col(0x2F4277, 255), INK);
+    hit(rx, 14, 118, 34, A_LANG);
+    ui_triangle(X(rx + 93), Y(28), X(rx + 103), Y(28), X(rx + 98), Y(34), INK);   /* ▾: not in the fonts */
     /* middle */
     if (g_options) draw_options(); else draw_news(&m);
     /* bottom */
@@ -372,25 +375,30 @@ static void demo(const char* d) {
                                   {"v3.1", "2026-11-21", "Install fixes: the build tools checked first"},
                                   {"v3", "2026-11-20", "The HD pack: textures and movies downloaded"}};
     memcpy(m->news, N, sizeof N); m->nnews = 3;
+    NewsItem loc[3];                                     /* the notes of the build here, in the language, when there */
+    int nl = news_local("notes", NOTES_LANG[g_lang], loc, 3);
+    for (int i = 0; i < nl && i < 3; i++) for (int k = 0; k < 3; k++) if (!strcmp(loc[i].tag, m->news[k].tag)) strcpy(m->news[k].title, loc[i].title);
+    int fr = g_lang == 2;                                /* the units as lnch_work.c writes them */
     snprintf(m->dl.text, sizeof m->dl.text, "%s", tr("dl_done")); m->dl.frac = 1; m->dl.state = 1;
     snprintf(m->in.text, sizeof m->in.text, "%s", tr("st_ready")); m->in.frac = 1; m->in.state = 1;
     snprintf(m->in.right, sizeof m->in.right, "v3.2 \xC2\xB7 hd-pack-2");
     if (!strcmp(d, "download") || !strncmp(d, "options", 7)) {
         m->st.pack_complete = 0; m->st.pack = ST_RUNNING;
         snprintf(m->dl.text, sizeof m->dl.text, tr("dl_pack"), 2, 3); m->dl.frac = 0.44f; m->dl.state = 0;
-        snprintf(m->dl.right, sizeof m->dl.right, "610 Mo / 1,4 Go \xC2\xB7 8,2 Mo/s \xC2\xB7 1 min 40");
-        snprintf(m->in.text, sizeof m->in.text, tr("in_pack"), 4812, 4812); m->in.state = 0; m->in.right[0] = 0;
+        snprintf(m->dl.right, sizeof m->dl.right, fr ? "610 Mo / 1,4 Go \xC2\xB7 8 Mo/s \xC2\xB7 1 min 40" : "610 MB / 1.4 GB \xC2\xB7 8 MB/s \xC2\xB7 1 min 40");
+        snprintf(m->in.text, sizeof m->in.text, "%s", tr("dl_waiting")); m->in.frac = 0; m->in.state = 0; m->in.right[0] = 0;
     } else if (!strcmp(d, "build")) {
         strcpy(m->st.available, "v3.3"); m->st.update = ST_DONE; m->st.build = ST_RUNNING;
-        snprintf(m->dl.text, sizeof m->dl.text, tr("dl_update"), "v3.3"); snprintf(m->dl.right, sizeof m->dl.right, "12 Mo");
-        snprintf(m->in.text, sizeof m->in.text, tr("in_build"), "Compiling (the first time takes a while)"); m->in.frac = 0.38f; m->in.state = 0;
-        snprintf(m->in.right, sizeof m->in.right, "4/9");
+        snprintf(m->dl.text, sizeof m->dl.text, tr("dl_update"), "v3.3"); snprintf(m->dl.right, sizeof m->dl.right, fr ? "12 Mo" : "12 MB");
+        snprintf(m->in.text, sizeof m->in.text, tr("in_build"), tr("Compiling (the first time takes a while; later builds only redo what changed)")); m->in.frac = 0.38f; m->in.state = 0;
+        snprintf(m->in.right, sizeof m->in.right, "38%%");
     } else if (!strcmp(d, "failed")) {
         m->st.pack_complete = 0; m->st.pack = ST_FAILED;
-        snprintf(m->dl.text, sizeof m->dl.text, "GitHub didn't answer (are you online?)"); m->dl.frac = 0.44f; m->dl.state = 2; m->dl.right[0] = 0;
+        snprintf(m->dl.text, sizeof m->dl.text, tr("err_download"), tr("err_github")); m->dl.frac = 0.44f; m->dl.state = 2; m->dl.right[0] = 0;
         snprintf(m->in.text, sizeof m->in.text, "%s", tr("dl_waiting")); m->in.frac = 0; m->in.state = 0; m->in.right[0] = 0;
     }
     if (!strncmp(d, "options", 7)) { g_options = 1; if (!strcmp(d, "options-classic")) g_classic = 1; }
+    if (!strcmp(d, "language")) g_lang_menu = 1;
 }
 
 static const char* step_name(StepState s) {

@@ -6,7 +6,7 @@
 
 static const char* const T[][6] = {
     {"news", "NEWS", "NOUVEAUTÉS", "NEUIGKEITEN", "NOVITÀ", "NOVEDADES"},
-    {"nav_all", "see all →", "tout voir →", "alle ansehen →", "vedi tutto →", "ver todo →"},
+    {"nav_all", "see all ›", "tout voir ›", "alle ansehen ›", "vedi tutto ›", "ver todo ›"},
     {"verify", "VERIFY", "VÉRIFIER", "PRÜFEN", "VERIFICA", "VERIFICAR"},
     {"options", "OPTIONS", "OPTIONS", "OPTIONEN", "OPZIONI", "OPCIONES"},
     {"play", "PLAY", "JOUER", "SPIELEN", "GIOCA", "JUGAR"},
@@ -46,13 +46,13 @@ static const char* const T[][6] = {
     {"mode_note", "The mode sets the whole look of the game at once", "Le mode règle tout l'aspect du jeu d'un coup",
      "Der Modus stellt das ganze Aussehen des Spiels auf einmal ein", "La modalità imposta tutto l'aspetto del gioco in un colpo solo",
      "El modo ajusta todo el aspecto del juego de una vez"},
-    {"window", "Window", "Fenêtre", "Fenster", "Finestra", "Ventana"},
+    {"window", "Display", "Affichage", "Anzeige", "Schermo", "Pantalla"},
     {"fullscreen", "Full screen", "Plein écran", "Vollbild", "Schermo intero", "Pantalla completa"},
     {"windowed", "Window", "Fenêtre", "Fenster", "Finestra", "Ventana"},
     {"volume", "Volume", "Volume", "Lautstärke", "Volume", "Volumen"},
     {"keys_pad", "Controller buttons", "Touches de la manette", "Controller-Tasten", "Tasti del controller", "Botones del mando"},
     {"keys_keyboard", "Keyboard keys", "Touches du clavier", "Tastatur", "Tasti della tastiera", "Teclas del teclado"},
-    {"configure", "Set up… →", "Configurer… →", "Einrichten… →", "Configura… →", "Configurar… →"},
+    {"configure", "Set up… ›", "Configurer… ›", "Einrichten… ›", "Configura… ›", "Configurar… ›"},
     {"reset_defaults", "Reset to defaults", "Rétablir par défaut", "Standard wiederherstellen", "Ripristina predefiniti", "Restablecer valores"},
     {"lang_name", "English", "Français", "Deutsch", "Italiano", "Español"},
     {"dl_waiting", "Waiting", "En attente", "Wartet", "In attesa", "En espera"},
@@ -69,6 +69,33 @@ static const char* const T[][6] = {
     {"month", "JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC", "JAN FÉV MAR AVR MAI JUN JUL AOÛ SEP OCT NOV DÉC",
      "JAN FEB MÄR APR MAI JUN JUL AUG SEP OKT NOV DEZ", "GEN FEB MAR APR MAG GIU LUG AGO SET OTT NOV DIC",
      "ENE FEB MAR ABR MAY JUN JUL AGO SEP OCT NOV DIC"},
+    {"err_download", "Download failed: %s", "Téléchargement impossible : %s", "Download fehlgeschlagen: %s", "Download non riuscito: %s", "Descarga fallida: %s"},
+    {"err_github", "GitHub didn't answer (are you online?)", "GitHub ne répond pas (êtes-vous en ligne ?)", "GitHub antwortet nicht (bist du online?)",
+     "GitHub non risponde (sei online?)", "GitHub no responde (¿estás conectado?)"},
+    /* the build's step titles (tools/build-game.sh step, BUILD.bat progress): the key is the English text */
+    {"Checking the ROM", "Checking the ROM", "Vérification de la ROM", "ROM wird geprüft", "Verifica della ROM", "Comprobando la ROM"},
+    {"Checking your ROM", "Checking your ROM", "Vérification de votre ROM", "Dein ROM wird geprüft", "Verifica della tua ROM", "Comprobando tu ROM"},
+    {"Extracting the game's code", "Extracting the game's code", "Extraction du code du jeu", "Spielcode wird entpackt", "Estrazione del codice del gioco", "Extrayendo el código del juego"},
+    {"Recompiling it to C (about a minute)", "Recompiling it to C (about a minute)", "Recompilation en C (environ une minute)",
+     "Umwandlung in C (etwa eine Minute)", "Ricompilazione in C (circa un minuto)", "Recompilando a C (alrededor de un minuto)"},
+    {"Compiling (the first time takes a while; later builds only redo what changed)", "Compiling (the first time takes a while; later builds only redo what changed)",
+     "Compilation (longue la première fois, ensuite seul ce qui a changé est refait)",
+     "Kompilieren (beim ersten Mal dauert es, danach nur das Geänderte)",
+     "Compilazione (la prima volta è lunga, poi solo ciò che è cambiato)",
+     "Compilando (la primera vez tarda, después solo lo que cambió)"},
+    {"Putting the game folder together", "Putting the game folder together", "Assemblage du dossier du jeu", "Spielordner wird zusammengestellt",
+     "Preparazione della cartella del gioco", "Preparando la carpeta del juego"},
+    {"Installing the build tools (MSYS2, one time)", "Installing the build tools (MSYS2, one time)", "Installation des outils de compilation (MSYS2, une seule fois)",
+     "Build-Werkzeuge werden installiert (MSYS2, einmalig)", "Installazione degli strumenti di compilazione (MSYS2, una volta sola)",
+     "Instalando las herramientas de compilación (MSYS2, una sola vez)"},
+    {"Checking the build tools", "Checking the build tools", "Vérification des outils de compilation", "Build-Werkzeuge werden geprüft",
+     "Verifica degli strumenti di compilazione", "Comprobando las herramientas de compilación"},
+    {"Checking the build tools (the first time may download some)", "Checking the build tools (the first time may download some)",
+     "Vérification des outils de compilation (la première fois, certains sont téléchargés)",
+     "Build-Werkzeuge werden geprüft (beim ersten Mal wird einiges geladen)",
+     "Verifica degli strumenti di compilazione (la prima volta ne scarica alcuni)",
+     "Comprobando las herramientas de compilación (la primera vez se descargan algunas)"},
+    {"Done", "Done", "Terminé", "Fertig", "Fatto", "Hecho"},
 };
 #define NT (int)(sizeof T / sizeof T[0])
 
@@ -82,3 +109,5 @@ const char* tr(const char* key) {
         if (!strcmp(T[i][0], key)) return T[i][g_lang] && T[i][g_lang][0] ? T[i][g_lang] : T[i][1];
     return key;
 }
+
+int tr_has(int i, int lang) { return i >= 0 && i < NT && lang >= 1 && lang <= 5 && T[i][lang] && T[i][lang][0]; }

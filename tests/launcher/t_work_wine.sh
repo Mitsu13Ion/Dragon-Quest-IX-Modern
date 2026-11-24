@@ -13,6 +13,7 @@ T=$(mktemp -d)
 case "$T" in /tmp/?*) ;; *) echo "unexpected temp folder $T" >&2; exit 2 ;; esac
 trap 'rm -rf -- "$T"' EXIT INT TERM
 export WINEDEBUG=-all
+unset TMPDIR   # Wine 9.0 aborts at start (free(): invalid pointer) with it set in the cloud container
 x86_64-w64-mingw32-gcc -std=c99 -O1 -I "$ROOT/launcher" -I "$ROOT/runtime" -I "$SDL/include/SDL2" -I "$SDL/include" \
     -o "$T/dqix-launcher.exe" "$ROOT"/launcher/*.c "$ROOT/runtime/update.c" -L "$SDL/lib" -lSDL2 -lwinhttp -lm
 fails=0

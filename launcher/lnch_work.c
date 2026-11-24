@@ -180,17 +180,17 @@ static const char APPLY[] =
     "cd /d \"%~dp0..\"\r\n"
     "if exist update\\previous rmdir /s /q update\\previous\r\n"
     "robocopy . update\\previous /E /NFL /NDL /NJH /NJS /NP /XD game build rom extras update bookmarks reports release .git >nul\r\n"
-    "if errorlevel 8 (echo FAILED keeping a copy of the current version & exit /b 1)\r\n"
+    "if errorlevel 8 (echo FAILED robocopy: keeping a copy of the current version & exit /b 1)\r\n"
     "if exist update\\new rmdir /s /q update\\new\r\n"
     "mkdir update\\new\r\n"
     "tar -xf update\\download.zip -C update\\new\r\n"
-    "if errorlevel 1 (echo FAILED unpacking the new version & exit /b 2)\r\n"
+    "if errorlevel 1 (echo FAILED tar: unpacking the new version & exit /b 2)\r\n"
     "set \"SRC=\"\r\n"
     "for /d %%d in (update\\new\\*) do if not defined SRC set \"SRC=%%d\"\r\n"
     "if not defined SRC (echo FAILED the download holds no project & exit /b 3)\r\n"
     "if not exist \"%SRC%\\BUILD.bat\" (echo FAILED the download holds no project & exit /b 3)\r\n"
     "robocopy \"%SRC%\" . /E /NFL /NDL /NJH /NJS /NP >nul\r\n"
-    "if errorlevel 8 (echo FAILED copying the new version & exit /b 4)\r\n"
+    "if errorlevel 8 (echo FAILED robocopy: copying the new version & exit /b 4)\r\n"
     "rmdir /s /q update\\new\r\n"
     "exit /b 0\r\n";
 
@@ -233,7 +233,8 @@ static int do_update(const char* branch, const char* version) {
     g_dl_t0 = 0;
     CreateDirectoryA("../update", NULL);
     if (!update_download(branch, "../update/download.zip", on_dl, err, sizeof err)) {
-        bar(&g_m.dl, err, "", g_m.dl.frac, 2); step(&g_m.st.update, ST_FAILED); return 0;
+        char t2[200]; snprintf(t2, sizeof t2, tr("err_download"), err);
+        bar(&g_m.dl, t2, "", g_m.dl.frac, 2); step(&g_m.st.update, ST_FAILED); return 0;
     }
     LOCK; g_m.dl.frac = 1; g_m.dl.state = 1; UNLOCK;
     bar(&g_m.in, tr("in_copy"), "", 0.05f, 0);
@@ -258,7 +259,7 @@ static void on_build_line(const char* l, void* u) {
     int k = parse_build_line(l, &f, title, sizeof title);
     if (k == 1) {
         char t[200], r[16];
-        snprintf(t, sizeof t, tr("in_build"), title);
+        snprintf(t, sizeof t, tr("in_build"), tr(title));     /* the step's title, translated when known */
         snprintf(r, sizeof r, "%d%%", (int)(f * 100));
         bar(&g_m.in, t, r, f, 0);
     } else if (k == 2) snprintf(b->failed, sizeof b->failed, "%s", title);

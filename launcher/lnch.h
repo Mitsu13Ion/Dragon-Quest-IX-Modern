@@ -50,6 +50,7 @@ int parse_pack_status(const char* line, PackStatus* out);   /* 1 understood */
 const char* tr(const char* key);
 void        tr_set_language(int lang);
 const char* tr_key(int i);                   /* every key in turn, NULL after the last (tests) */
+int         tr_has(int i, int lang);       /* key i has its own text in lang (not the English fallback) */
 
 /* from runtime/update.c */
 int update_newer(const char* a, const char* b);

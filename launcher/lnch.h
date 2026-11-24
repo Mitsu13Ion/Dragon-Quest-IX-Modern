@@ -24,6 +24,7 @@ typedef struct {
     int hd_pack_wanted;       /* hd_pack_download != 0 and mode = enhanced */
     int game_built;           /* game/dqix[.exe] and game/data/dqix.nds are there */
     int pack_complete;        /* textures/hd-pack/hd-pack.txt is there (the pack is all or nothing) */
+    int rom_needed;           /* no data/dqix.nds: the player must choose the ROM (first launch) */
     int update_unbuilt;       /* ../update/download.zip is there: an update was put in place but its build didn't finish */
     char installed[32], available[32];   /* the local version.h's, the remote one's ("" unknown) */
     StepState update, build, pack;
@@ -31,6 +32,7 @@ typedef struct {
 int         lstate_can_play(const LState* s);
 const char* lstate_status_key(const LState* s);    /* a text key (lnch_text.c) for the status line */
 const char* lstate_branch(const char* installed);  /* "main" for a nightly, else "stable" */
+int         rom_kind_ok(const char* path);         /* a .nds, or a .zip holding it (any letter case) */
 
 /* ---- news */
 typedef struct { char tag[24]; char date[11]; char title[160]; } NewsItem;  /* date "YYYY-MM-DD" or "" */

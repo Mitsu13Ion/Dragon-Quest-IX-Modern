@@ -15,7 +15,7 @@ trap 'rm -rf -- "$T"' EXIT INT TERM
 export WINEDEBUG=-all
 unset TMPDIR   # Wine 9.0 aborts at start (free(): invalid pointer) with it set in the cloud container
 x86_64-w64-mingw32-gcc -std=c99 -O1 -I "$ROOT/launcher" -I "$ROOT/runtime" -I "$SDL/include/SDL2" -I "$SDL/include" \
-    -o "$T/dqix-launcher.exe" "$ROOT"/launcher/*.c "$ROOT/runtime/update.c" -L "$SDL/lib" -lSDL2 -lwinhttp -lm
+    -o "$T/dqix-launcher.exe" "$ROOT"/launcher/*.c "$ROOT/runtime/update.c" -L "$SDL/lib" -lSDL2 -lwinhttp -lcomdlg32 -lm
 fails=0
 check() { if [ "$1" = 0 ]; then echo "ok   $2"; else echo "FAIL $2"; sed 's/^/     /' "$T/out.txt"; fails=$((fails + 1)); fi; }
 
@@ -23,7 +23,7 @@ check() { if [ "$1" = 0 ]; then echo "ok   $2"; else echo "FAIL $2"; sed 's/^/  
 project() {   # project <name> <local version> <BUILD.bat exit code>
     P="$T/$1"; mkdir -p "$P/runtime" "$P/game/data" "$P/game/notes"
     printf '#pragma once\n#define DQIX_VERSION "%s"\n' "$2" > "$P/runtime/version.h"
-    printf '@echo off\r\necho progress 0.1 Checking the ROM\r\necho progress 0.5 Compiling\r\nif "%s"=="0" (echo x> game\\dqix.exe& echo progress 1 Done& exit /b 0)\r\necho BUILD FAILED (compiling): gcc missing\r\nexit /b 1\r\n' "$3" > "$P/BUILD.bat"
+    printf '@echo off\r\necho %%2> build-rom-arg.txt\r\nif not exist "%%~2" (echo BUILD FAILED (rom): no ROM at %%2& exit /b 2)\r\necho progress 0.1 Checking the ROM\r\necho progress 0.5 Compiling\r\nif "%s"=="0" (echo x> game\\dqix.exe& if not exist game\\data\\dqix.nds copy /y "%%~2" game\\data\\dqix.nds >nul& echo progress 1 Done& exit /b 0)\r\necho BUILD FAILED (compiling): gcc missing\r\nexit /b 1\r\n' "$3" > "$P/BUILD.bat"
     cp "$T/dqix-launcher.exe" "$SDL/bin/SDL2.dll" "$P/game/"
     echo rom > "$P/game/data/dqix.nds"
     printf 'hd_pack_download = 0\r\n' > "$P/game/settings.ini"
@@ -36,6 +36,7 @@ source_at() {  # the "GitHub" the launcher sees: stable at <version>
     printf '[{"tag_name":"v3.2","name":"v3.2","draft":false,"prerelease":false,"published_at":"2026-11-22T10:00:00Z"}]' > "$S/releases.json"
 }
 launch() { (cd "$1/game" && DQIX_LAUNCHER_HEADLESS=1 DQIX_UPDATE_SOURCE=$(winepath -w "$2" 2>/dev/null) wine ./dqix-launcher.exe > "$T/out.txt" 2>&1); }
+launch_rom() { (cd "$1/game" && DQIX_LAUNCHER_HEADLESS=1 DQIX_LAUNCHER_ROM="$3" DQIX_UPDATE_SOURCE=$(winepath -w "$2" 2>/dev/null) wine ./dqix-launcher.exe > "$T/out.txt" 2>&1); }
 
 # not built yet, nothing newer: the build runs, PLAY lights up, the news comes from "GitHub"
 source_at v3.2; project p1 v3.2 0
@@ -68,5 +69,15 @@ else
     [ "$r" = 0 ] && grep -q "update=done build=done" "$T/out.txt" && [ -f "$T/p4/update/previous/BUILD.bat" ] && [ -f "$T/p4/update/rollback.bat" ] && grep -q v3.3 "$T/p4/runtime/version.h"
     check $? work_update_then_build
 fi
+
+# first launch: no ROM copy yet: it waits for one (PLAY off), then builds from the chosen file
+project p5 v3.2 0; rm -f "$T/p5/game/data/dqix.nds"
+set +e; launch "$T/p5" "$T/src-v3.2"; r=$?; set -e
+[ "$r" = 1 ] && grep -q "can_play=0" "$T/out.txt" && grep -qi "ROM" "$T/out.txt"
+check $? work_first_launch_waits_for_rom
+mkdir -p "$T/my roms & co"; echo rom > "$T/my roms & co/Dragon Quest IX (E).nds"
+set +e; launch_rom "$T/p5" "$T/src-v3.2" "$(winepath -w "$T/my roms & co/Dragon Quest IX (E).nds" 2>/dev/null)"; r=$?; set -e
+[ "$r" = 0 ] && grep -q "build=done" "$T/out.txt" && [ -f "$T/p5/rom/dq9-rom.nds" ] && [ -f "$T/p5/game/data/dqix.nds" ] && grep -q 'rom\\dq9-rom.nds' "$T/p5/build-rom-arg.txt"
+check $? work_first_build_from_rom
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed"; exit 1; }

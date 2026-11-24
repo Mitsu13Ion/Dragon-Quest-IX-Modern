@@ -47,6 +47,9 @@ int ui_init(SDL_Renderer* r) {
     SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);
     g_ttf[FONT_TITLE] = read_all("fonts/Marcellus.ttf");
     g_ttf[FONT_TEXT] = read_all("fonts/Nunito.ttf");
+    /* the first launch (no build yet, so no game/fonts): the project's fonts/ */
+    if (!g_ttf[FONT_TITLE]) g_ttf[FONT_TITLE] = read_all("../fonts/Marcellus.ttf");
+    if (!g_ttf[FONT_TEXT]) g_ttf[FONT_TEXT] = read_all("../fonts/Nunito.ttf");
     g_ttf[FONT_BOLD] = g_ttf[FONT_TEXT];
     return g_ttf[FONT_TITLE] && g_ttf[FONT_TEXT];
 }

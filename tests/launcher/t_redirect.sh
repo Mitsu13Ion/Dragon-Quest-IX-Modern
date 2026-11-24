@@ -34,4 +34,11 @@ rm -f "$T/marker"; set +e; timeout 5 ./dqix data/dqix.nds data/code 60 1 t.sav >
 rm -f "$T/marker"; set +e; DQIX_LAUNCHER=1 timeout 5 ./dqix >/dev/null 2>&1; r=$?; set -e
 [ "$r" = 124 ] && [ ! -f "$T/marker" ]; check $? redirect_not_with_env
 
-[ "$fails" = 0 ] && echo "4/4 passed" || { echo "$fails failed"; exit 1; }
+# the release zip's launcher, in the project folder (next to BUILD.sh): the game folder's one takes over
+mkdir -p "$T/root/game"; cp "$GAME/dqix-launcher" "$T/root/"; echo '#!/bin/sh' > "$T/root/BUILD.sh"
+printf '#!/bin/sh\necho "game launcher started" > "%s/marker2"\n' "$T" > "$T/root/game/dqix-launcher"; chmod +x "$T/root/game/dqix-launcher"
+rm -f "$T/marker2"; set +e; (cd /; DQIX_LAUNCHER_HEADLESS=1 timeout 10 "$T/root/dqix-launcher" >/dev/null 2>&1); set -e
+sleep 1
+grep -q "game launcher started" "$T/marker2" 2>/dev/null; check $? root_hands_over_to_game_launcher
+
+[ "$fails" = 0 ] && echo "5/5 passed" || { echo "$fails failed"; exit 1; }

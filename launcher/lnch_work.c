@@ -10,6 +10,8 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#else
+#include <sys/stat.h>
 #endif
 
 #define RELEASES_PATH "/repos/" UPDATE_REPO "/releases?per_page=10"
@@ -56,7 +58,8 @@ static void scan_local(Model* m) {
     m->st.game_built = exists("dqix") && exists("data/dqix.nds");
 #endif
     m->st.pack_complete = exists("textures/hd-pack/hd-pack.txt");
-    m->st.update_unbuilt = exists("../update/download.zip");     /* deleted only once its build succeeded */
+    m->st.update_unbuilt = exists("../update/download.zip");
+    m->st.rom_needed = !exists("data/dqix.nds");     /* deleted only once its build succeeded */
     m->background_ready = exists("textures/hd-pack/launcher-back.jpg");
     local_version(m->st.installed, sizeof m->st.installed);
     settings_wants(&m->st);
@@ -172,6 +175,117 @@ static int do_news(void) {
     return 1;
 }
 
+/* run a tool and wait: its lines go to on_line; 0 on success, else its exit code (or -1 not started) */
+static int run(const char* const* argv, const char* const* env, const char* cwd, void (*on_line)(const char*, void*), void* u) {
+    LProc* p = proc_start(argv, env, cwd);
+    if (!p) return -1;
+    char line[1024]; int r;
+    while ((r = proc_read_line(p, line, sizeof line)) != -1) {
+        if (r == 1) { if (on_line) on_line(line, u); }
+        else SDL_Delay(30);
+    }
+    int code = proc_exit_code(p);
+    proc_free(p);
+    return code;
+}
+
+/* the ROM the player chose (UTF-8, set by the main thread under LOCK), copied
+ * into the project's rom/ under a plain name before the first build */
+static char g_rom_src[1024];
+static int copy_rom(char* rel, size_t n) {
+    char src[1024];
+    LOCK; snprintf(src, sizeof src, "%s", g_rom_src); UNLOCK;
+    if (!src[0]) return 0;
+    const char* ext = strlen(src) > 4 ? src + strlen(src) - 4 : ".nds";
+    int zip = (ext[1] | 32) == 'z';
+    snprintf(rel, n, "rom/dq9-rom.%s", zip ? "zip" : "nds");
+    char dst[96]; snprintf(dst, sizeof dst, "../%s", rel);
+    bar(&g_m.in, tr("rom_copy"), "", 0.01f, 0);
+#ifdef _WIN32
+    CreateDirectoryA("../rom", NULL);
+    wchar_t ws[1024], wd[96];
+    if (!MultiByteToWideChar(CP_UTF8, 0, src, -1, ws, 1024) || !MultiByteToWideChar(CP_UTF8, 0, dst, -1, wd, 96)) return -1;
+    if (!CopyFileW(ws, wd, FALSE)) return -1;
+#else
+    mkdir("../rom", 0755);
+    FILE* in = fopen(src, "rb"); FILE* out = in ? fopen(dst, "wb") : NULL;
+    int ok = in && out;
+    char b[1 << 16]; size_t got;
+    while (ok && (got = fread(b, 1, sizeof b, in)) > 0) ok = fwrite(b, 1, got, out) == got;
+    if (in) fclose(in);
+    if (out && fclose(out) != 0) ok = 0;
+    if (!ok) { remove(dst); return -1; }
+#endif
+    return 1;
+}
+/* the ROM the build gets: the last build's copy, else the chosen one copied; 0 none yet */
+static int rom_for_build(char* rel, size_t n) {
+    if (exists("data/dqix.nds")) { snprintf(rel, n, "game/data/dqix.nds"); return 1; }
+    int r = copy_rom(rel, n);
+    if (r < 0) { bar(&g_m.in, tr("rom_bad"), "", 0, 2); step(&g_m.st.build, ST_FAILED); }
+    return r;
+}
+
+#ifdef _WIN32
+/* cmd.exe from System32 (declared here for do_build) */
+static const char* cmd_exe(void);
+#endif
+typedef struct { char failed[200]; int steps; } BuildRun;
+static void on_build_line(const char* l, void* u) {
+    BuildRun* b = u;
+    float f; char title[160];
+    int k = parse_build_line(l, &f, title, sizeof title);
+    if (k == 1) {
+        char t[200], r[16];
+        snprintf(t, sizeof t, tr("in_build"), tr(title));     /* the step's title, translated when known */
+        snprintf(r, sizeof r, "%d%%", (int)(f * 100));
+        bar(&g_m.in, t, r, f, 0);
+    } else if (k == 2) snprintf(b->failed, sizeof b->failed, "%s", title);
+}
+static long long file_time(const char* p) {
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA d;
+    if (!GetFileAttributesExA(p, GetFileExInfoStandard, &d)) return 0;
+    return (long long)d.ftLastWriteTime.dwHighDateTime << 32 | d.ftLastWriteTime.dwLowDateTime;
+#else
+    struct stat st;
+    return stat(p, &st) == 0 ? (long long)st.st_mtime : 0;
+#endif
+}
+/* the build, from the project folder; rom: the ROM relative to it
+ * ("game/data/dqix.nds", the copy the last build made, or "rom/dq9-rom.nds" the
+ * first time), so no folder name of the player's goes through a shell */
+static int do_build(const char* rom) {
+    step(&g_m.st.build, ST_RUNNING);
+    char t[200]; snprintf(t, sizeof t, tr("in_build"), "...");
+    bar(&g_m.in, t, "", 0.01f, 0);
+    BuildRun b; memset(&b, 0, sizeof b);
+    /* a relative ROM path (BUILD.bat makes it whole): the player's folder names
+     * (&, ^, %...) never go through cmd.exe; .\\ for programs that set
+     * NoDefaultCurrentDirectoryInExePath (RecompLauncher) */
+#ifdef _WIN32
+    char wrom[64]; snprintf(wrom, sizeof wrom, "%s", rom);
+    for (char* c = wrom; *c; c++) if (*c == '/') *c = '\\';
+    const char* argv[] = {cmd_exe(), "/c", ".\\BUILD.bat", "--prepare", wrom, NULL};
+    const char* me = "dqix-launcher.exe";
+#else
+    const char* argv[] = {"sh", "./BUILD.sh", "--prepare", rom, NULL};
+    const char* me = "dqix-launcher";
+#endif
+    const char* env[] = {"DQIX_NOPAUSE=1", NULL};
+    long long before = file_time(me);
+    int code = run(argv, env, "..", on_build_line, &b);
+    if (code != 0) {
+        bar(&g_m.in, b.failed[0] ? b.failed : tr("err_build"), "", g_m.in.frac, 2);
+        step(&g_m.st.build, ST_FAILED);
+        return 0;
+    }
+    remove("../update/download.zip");                 /* the update is whole now */
+    if (file_time(me) != before) SDL_AtomicSet(&g_restart, 1);   /* new, or the first one (the root launcher hands over) */   /* a new launcher was put in place */
+    step(&g_m.st.build, ST_DONE);
+    return 1;
+}
+
 #ifdef _WIN32
 /* the project's new version in place, like the game's updater (runtime/update.c
  * APPLY_BAT) without waiting for a game or building: run from update\ */
@@ -222,19 +336,6 @@ static const char* cmd_exe(void) {
     return p;
 }
 
-/* run a tool and wait: its lines go to on_line; 0 on success, else its exit code (or -1 not started) */
-static int run(const char* const* argv, const char* const* env, const char* cwd, void (*on_line)(const char*, void*), void* u) {
-    LProc* p = proc_start(argv, env, cwd);
-    if (!p) return -1;
-    char line[1024]; int r;
-    while ((r = proc_read_line(p, line, sizeof line)) != -1) {
-        if (r == 1) { if (on_line) on_line(line, u); }
-        else SDL_Delay(30);
-    }
-    int code = proc_exit_code(p);
-    proc_free(p);
-    return code;
-}
 
 static void on_dl(long long done, long long total) {
     char r[80]; dl_right(done, total, r, sizeof r);
@@ -281,50 +382,6 @@ static int do_apply(int resume) {
     return 1;
 }
 
-typedef struct { char failed[200]; int steps; } BuildRun;
-static void on_build_line(const char* l, void* u) {
-    BuildRun* b = u;
-    float f; char title[160];
-    int k = parse_build_line(l, &f, title, sizeof title);
-    if (k == 1) {
-        char t[200], r[16];
-        snprintf(t, sizeof t, tr("in_build"), tr(title));     /* the step's title, translated when known */
-        snprintf(r, sizeof r, "%d%%", (int)(f * 100));
-        bar(&g_m.in, t, r, f, 0);
-    } else if (k == 2) snprintf(b->failed, sizeof b->failed, "%s", title);
-}
-static long long file_time(const char* p) {
-    WIN32_FILE_ATTRIBUTE_DATA d;
-    if (!GetFileAttributesExA(p, GetFileExInfoStandard, &d)) return 0;
-    return (long long)d.ftLastWriteTime.dwHighDateTime << 32 | d.ftLastWriteTime.dwLowDateTime;
-}
-static int do_build(void) {
-    step(&g_m.st.build, ST_RUNNING);
-    if (!exists("data/dqix.nds")) {
-        bar(&g_m.in, "Your ROM copy (game\\data\\dqix.nds) is missing: run the install again", "", 0, 2);
-        step(&g_m.st.build, ST_FAILED);
-        return 0;
-    }
-    char t[200]; snprintf(t, sizeof t, tr("in_build"), "...");
-    bar(&g_m.in, t, "", 0.01f, 0);
-    BuildRun b; memset(&b, 0, sizeof b);
-    /* a relative ROM path (BUILD.bat makes it whole): the player's folder names
-     * (&, ^, %...) never go through cmd.exe; .\\ for programs that set
-     * NoDefaultCurrentDirectoryInExePath (RecompLauncher) */
-    const char* argv[] = {cmd_exe(), "/c", ".\\BUILD.bat", "--prepare", "game\\data\\dqix.nds", NULL};
-    const char* env[] = {"DQIX_NOPAUSE=1", NULL};
-    long long before = file_time("dqix-launcher.exe");
-    int code = run(argv, env, "..", on_build_line, &b);
-    if (code != 0) {
-        bar(&g_m.in, b.failed[0] ? b.failed : "The build stopped: build\\build.log says why", "", g_m.in.frac, 2);
-        step(&g_m.st.build, ST_FAILED);
-        return 0;
-    }
-    remove("../update/download.zip");                 /* the update is whole now */
-    if (file_time("dqix-launcher.exe") != before) SDL_AtomicSet(&g_restart, 1);   /* a new launcher was put in place */
-    step(&g_m.st.build, ST_DONE);
-    return 1;
-}
 
 static int read_status(PackStatus* s) {
     char line[256];
@@ -403,14 +460,23 @@ static int work_thread(void* arg) {
     else if (st.online && st.update_check && st.available[0] && update_newer(st.available, st.installed)) {
         if (do_download(branch, st.available)) ok = updated = do_apply(0);
     } else step(&g_m.st.update, ST_SKIPPED);
-    if (ok && (updated || !st.game_built)) ok = do_build();
-    else if (ok) step(&g_m.st.build, ST_SKIPPED);
+    if (ok && (updated || !st.game_built)) {
+        char rom[64]; int r = rom_for_build(rom, sizeof rom);
+        if (r > 0) ok = do_build(rom);
+        else if (r < 0) ok = 0;                       /* the ROM couldn't be copied: said on the bar */
+        else { ok = 0; LOCK; g_m.st.rom_needed = 1; UNLOCK; }   /* first launch: wait for the ROM */
+    } else if (ok) step(&g_m.st.build, ST_SKIPPED);
     LOCK; { int on = g_m.st.online; scan_local(&g_m); g_m.st.online = on; } st = g_m.st; UNLOCK;
     if (ok && st.hd_pack_wanted && st.online) ok = do_pack();
     else if (ok) step(&g_m.st.pack, ST_SKIPPED);
 #else
     int online = do_news();
-    LOCK; g_m.st.online = online; g_m.st.update = g_m.st.build = g_m.st.pack = ST_SKIPPED; UNLOCK;
+    LOCK; g_m.st.online = online; g_m.st.update = g_m.st.pack = ST_SKIPPED; LState st = g_m.st; UNLOCK;
+    if (!st.game_built) {                              /* first launch here too: the build from the chosen ROM */
+        char rom[64]; int r = rom_for_build(rom, sizeof rom);
+        if (r > 0) ok = do_build(rom);
+        else ok = 0;
+    } else step(&g_m.st.build, ST_SKIPPED);
 #endif
     LOCK;
     { int on = g_m.st.online; scan_local(&g_m); g_m.st.online = on; }
@@ -425,6 +491,10 @@ static int work_thread(void* arg) {
         snprintf(g_m.in.text, sizeof g_m.in.text, "%s", tr(lstate_status_key(&g_m.st)));
         snprintf(g_m.in.right, sizeof g_m.in.right, "%s%s%s", g_m.st.installed, g_m.pack_version[0] ? " \xC2\xB7 " : "", g_m.pack_version);
         g_m.in.frac = 1; g_m.in.state = 1;
+    }
+    if (!ok && g_m.st.rom_needed && g_m.st.build != ST_FAILED) {
+        snprintf(g_m.in.text, sizeof g_m.in.text, "%s", tr("st_rom"));
+        g_m.in.frac = 0; g_m.in.state = 0; g_m.in.right[0] = 0;
     }
     g_m.busy = 0;
     UNLOCK;
@@ -467,6 +537,10 @@ void work_poll(void) {
         CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
         SDL_Event q; q.type = SDL_QUIT; SDL_PushEvent(&q);
     }
+#else
+    setenv("DQIX_LAUNCHER_RESTARTED", "1", 1);
+    if (fork() == 0) { setsid(); execl("./dqix-launcher", "./dqix-launcher", (char*)NULL); _exit(127); }
+    SDL_Event q; q.type = SDL_QUIT; SDL_PushEvent(&q);
 #endif
 }
 
@@ -486,6 +560,11 @@ void work_news_language(const char* notes_lang) {
         if (g_m.in.state == 1) snprintf(g_m.in.text, sizeof g_m.in.text, "%s", tr(lstate_status_key(&g_m.st)));
     }
     UNLOCK;
+}
+
+void work_set_rom(const char* path) {
+    LOCK; snprintf(g_rom_src, sizeof g_rom_src, "%s", path); UNLOCK;
+    work_start(1);
 }
 
 void work_settings_changed(void) {

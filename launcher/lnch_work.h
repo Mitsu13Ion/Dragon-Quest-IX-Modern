@@ -23,3 +23,4 @@ void work_poll(void);                     /* from the main loop */
 void work_stop(void);
 void work_news_language(const char* notes_lang);
 void work_settings_changed(void);         /* mode or HD pack choice changed: what PLAY waits for changes */
+void work_set_rom(const char* path_utf8); /* the ROM chosen on the first launch: copied to rom/, then built */

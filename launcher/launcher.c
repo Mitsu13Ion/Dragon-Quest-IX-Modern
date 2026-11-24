@@ -3,10 +3,11 @@
  * Spec: docs/superpowers/specs/2026-11-23-launcher-design.md; the work itself
  * (update, build, pack) is lnch_work.c, the drawing lnch_ui.c.
  *
- * Tests and pictures: DQIX_LAUNCHER_DEMO=download|build|ready|failed|options|options-classic|language
+ * Tests and pictures: DQIX_LAUNCHER_DEMO=download|build|ready|failed|options|options-classic|language|rom
  * shows a fixed state (no network, nothing run); DQIX_LAUNCHER_SHOT=<file.png>
  * saves the window and quits; DQIX_LAUNCHER_HEADLESS=1 does the work without
- * a window and prints how it ended. */
+ * a window and prints how it ended (DQIX_LAUNCHER_ROM=<file> stands for the
+ * ROM chosen on a first launch). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,10 +19,12 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <commdlg.h>
 #include <direct.h>
 #define chdir _chdir
 #else
 #include <unistd.h>
+#include <sys/stat.h>
 #endif
 
 #define DISCORD_URL "https://discord.gg/z9X9PH8AH4"
@@ -63,7 +66,7 @@ static void set_language(int l) {
 
 /* ---- hit areas, made again every frame */
 enum { A_NONE, A_LANG, A_LANG1, A_LANG5 = A_LANG1 + 4, A_DISCORD, A_GITHUB, A_FOLDER, A_NEWS_ALL, A_VERIFY, A_OPTIONS,
-       A_PLAY, A_RETRY, A_CLASSIC, A_MODERN, A_FULLSCREEN, A_VOLUME, A_KEYS_PAD, A_KEYS_KB, A_RESET, A_CLOSE_OPT };
+       A_PLAY, A_RETRY, A_CLASSIC, A_MODERN, A_FULLSCREEN, A_VOLUME, A_KEYS_PAD, A_KEYS_KB, A_RESET, A_CLOSE_OPT, A_CHOOSE_ROM };
 typedef struct { float x, y, w, h; int id; } Hit;
 static Hit g_hits[64]; static int g_nhits;
 static int g_mx = -1, g_my = -1;
@@ -255,19 +258,22 @@ static void draw(int W, int H) {
     float mx = 210, mw = 1100 - 22 - 220 - 24 - mx;
     draw_bar(mx, by + 46, mw, tr("download"), &m.dl, 0);
     draw_bar(mx, by + 104, mw, tr("install"), &m.in, 1);
-    int can = lstate_can_play(&m.st) && !m.busy;
+    int rom = m.st.rom_needed && !m.busy && m.st.build != ST_RUNNING;   /* first launch: the button asks for the ROM */
+    int can = rom || (lstate_can_play(&m.st) && !m.busy);
+    const char* label = tr(rom ? "choose_rom" : "play");
+    float lpx = rom ? 22 : 30;                           /* "CHOISIR LA ROM" is longer than JOUER */
     float px = 1100 - 22 - 220, py = by + 54;
     if (can) {
         int hv = hover(px, py, 220, 74);
         rrect(px - 3, py - 3, 226, 80, 16, col(0xE8C46A, hv ? 110 : 70), col(0xE8C46A, hv ? 110 : 70));
         rrect(px, py, 220, 74, 14, col(0xFFE9A0, 255), col(0xB8892F, 255));
         rborder(px, py, 220, 74, 14, 2, col(0xFFF3C4, 255));
-        text(FONT_TITLE, 30, px + 110, py + 18, col(0x1B1204, 255), tr("play"), 200, 1);
-        hit(px, py, 220, 74, A_PLAY);
+        text(FONT_TITLE, lpx, px + 110, py + 37 - lpx * 0.63f, col(0x1B1204, 255), label, 200, 1);
+        hit(px, py, 220, 74, rom ? A_CHOOSE_ROM : A_PLAY);
     } else {
         rrect(px, py, 220, 74, 14, col(0x141C36, 255), col(0x141C36, 255));
         rborder(px, py, 220, 74, 14, 2, col(0x2A3558, 255));
-        text(FONT_TITLE, 30, px + 110, py + 18, col(0x6B7699, 255), tr("play"), 200, 1);
+        text(FONT_TITLE, lpx, px + 110, py + 37 - lpx * 0.63f, col(0x6B7699, 255), label, 200, 1);
     }
     char ver[96]; snprintf(ver, sizeof ver, "%s%s", m.st.installed[0] ? m.st.installed : "", m.pack_version[0] ? "  \xC2\xB7  " : "");
     if (m.pack_version[0]) strncat(ver, m.pack_version, sizeof ver - strlen(ver) - 1);
@@ -286,6 +292,8 @@ static void draw(int W, int H) {
         }
     }
 }
+
+static int pick_rom(char* out, size_t n);
 
 /* ---- actions */
 static void open_url(const char* u) { if (SDL_OpenURL(u)) fprintf(stderr, "launcher: can't open %s\n", u); }
@@ -335,6 +343,13 @@ static void action(int a) {
     case A_FOLDER: open_here(""); break;
     case A_OPTIONS: g_options = !g_options; break;
     case A_CLOSE_OPT: g_options = 0; break;
+    case A_CHOOSE_ROM: {
+        char path[1024];
+        if (!pick_rom(path, sizeof path)) break;          /* cancelled */
+        if (rom_kind_ok(path)) work_set_rom(path);
+        else { SDL_LockMutex(g_m.lock); snprintf(g_m.in.text, sizeof g_m.in.text, "%s", tr("rom_bad")); g_m.in.state = 2; SDL_UnlockMutex(g_m.lock); }
+        break;
+    }
     case A_VERIFY: case A_RETRY: work_start(1); break;
     case A_PLAY: if (start_game()) { SDL_Event q; q.type = SDL_QUIT; SDL_PushEvent(&q); } break;
     case A_CLASSIC: g_classic = 1; settings_set("mode", "classic"); work_settings_changed(); break;
@@ -393,6 +408,11 @@ static void demo(const char* d) {
     }
     if (!strncmp(d, "options", 7)) { g_options = 1; if (!strcmp(d, "options-classic")) g_classic = 1; }
     if (!strcmp(d, "language")) g_lang_menu = 1;
+    if (!strcmp(d, "rom")) {                             /* first launch */
+        m->st.game_built = 0; m->st.rom_needed = 1; m->st.build = ST_IDLE; m->st.pack = ST_IDLE; m->st.pack_complete = 0;
+        snprintf(m->dl.text, sizeof m->dl.text, "%s", tr("dl_waiting")); m->dl.frac = 0; m->dl.state = 0; m->dl.right[0] = 0;
+        snprintf(m->in.text, sizeof m->in.text, "%s", tr("st_rom")); m->in.frac = 0; m->in.state = 0; m->in.right[0] = 0;
+    }
 }
 
 static const char* step_name(StepState s) {
@@ -403,12 +423,13 @@ static const char* step_name(StepState s) {
  * stdout; exit 0 if PLAY would light up, 1 if not */
 static int to_own_folder(void);
 static int headless(void) {
-    if (!to_own_folder()) return 2;
+    if (to_own_folder() != 1) return 2;
     settings_read();
     tr_set_language(g_lang);
     g_m.lock = SDL_CreateMutex();
     work_init(NOTES_LANG[g_lang]);
-    work_start(0);
+    const char* rom = getenv("DQIX_LAUNCHER_ROM");      /* tests: the ROM "chosen" on the first launch */
+    if (rom && *rom) work_set_rom(rom); else work_start(0);
     for (;;) {
         SDL_LockMutex(g_m.lock); int busy = g_m.busy; SDL_UnlockMutex(g_m.lock);
         if (!busy) break;
@@ -423,7 +444,17 @@ static int headless(void) {
     return can ? 0 : 1;
 }
 
-/* the game folder (the launcher's own): every path after this is relative to it */
+#ifdef _WIN32
+#define LAUNCHER_EXE "dqix-launcher.exe"
+#else
+#define LAUNCHER_EXE "dqix-launcher"
+#endif
+static int file_here(const char* p) { FILE* f = fopen(p, "rb"); if (f) fclose(f); return f != NULL; }
+
+/* the game folder: every path after this is relative to it. Started from the
+ * project folder (the release zip's ready-made launcher, next to BUILD.bat):
+ * the game folder's own launcher (rebuilt with every update) takes over when
+ * there is one (2: we quit); else game/ is made and worked in (first launch) */
 static int to_own_folder(void) {
 #ifdef _WIN32
     wchar_t dir[MAX_PATH];                            /* wide: folders with any letters (C:\\Users\\Hélène...) */
@@ -432,12 +463,62 @@ static int to_own_folder(void) {
     wchar_t* s = wcsrchr(dir, L'\\');
     if (!s) return 0;
     *s = 0;
-    return SetCurrentDirectoryW(dir) != 0;
+    if (!SetCurrentDirectoryW(dir)) return 0;
 #else
     char* b = SDL_GetBasePath();
     int ok = b && chdir(b) == 0;
     SDL_free(b);
-    return ok;
+    if (!ok) return 0;
+#endif
+    if (!file_here("BUILD.bat") && !file_here("BUILD.sh")) return 1;   /* the game folder already */
+#ifdef _WIN32
+    CreateDirectoryA("game", NULL);
+    if (!SetCurrentDirectoryA("game")) return 0;
+    if (file_here(LAUNCHER_EXE)) {
+        STARTUPINFOA si; memset(&si, 0, sizeof si); si.cb = sizeof si;
+        PROCESS_INFORMATION pi;
+        char cmd[] = "\"" LAUNCHER_EXE "\"";
+        if (CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) { CloseHandle(pi.hThread); CloseHandle(pi.hProcess); return 2; }
+    }
+#else
+    mkdir("game", 0755);
+    if (chdir("game") != 0) return 0;
+    if (file_here(LAUNCHER_EXE) && fork() == 0) { setsid(); execl("./" LAUNCHER_EXE, "./" LAUNCHER_EXE, (char*)NULL); _exit(127); }
+    if (file_here(LAUNCHER_EXE)) return 2;
+#endif
+    return 1;
+}
+
+/* the ROM, chosen in the system's own file window; 0 if cancelled */
+static int pick_rom(char* out, size_t n) {
+#ifdef _WIN32
+    wchar_t file[1024] = L"", title[128];
+    MultiByteToWideChar(CP_UTF8, 0, tr("rom_title"), -1, title, 128);
+    OPENFILENAMEW o; memset(&o, 0, sizeof o);
+    o.lStructSize = sizeof o;
+    o.hwndOwner = NULL;
+    o.lpstrFilter = L"Nintendo DS ROM (*.nds, *.zip)\0*.nds;*.zip\0";
+    o.lpstrFile = file; o.nMaxFile = 1024;
+    o.lpstrTitle = title;
+    o.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    if (!GetOpenFileNameW(&o)) return 0;
+    return WideCharToMultiByte(CP_UTF8, 0, file, -1, out, (int)n, NULL, NULL) > 0;
+#else
+    /* the desktop's own file window: zenity (GNOME, SteamOS), else kdialog (KDE) */
+    const char* z[] = {"zenity", "--file-selection", "--title", tr("rom_title"), "--file-filter", "Nintendo DS ROM | *.nds *.NDS *.zip *.ZIP", NULL};
+    const char* k[] = {"kdialog", "--getopenfilename", ".", "*.nds *.NDS *.zip *.ZIP", NULL};
+    const char* const* tries[2] = {z, k};
+    for (int t = 0; t < 2; t++) {
+        LProc* p = proc_start(tries[t], NULL, NULL);
+        if (!p) continue;
+        char line[1024] = ""; int r, got = 0;
+        while ((r = proc_read_line(p, line, sizeof line)) != -1) { if (r == 1 && line[0] == '/') { snprintf(out, n, "%s", line); got = 1; } else if (r == 0) SDL_Delay(30); }
+        int code = proc_exit_code(p);
+        proc_free(p);
+        if (code == 127) continue;                       /* not installed: the other one */
+        return got && code == 0;
+    }
+    return 0;
 #endif
 }
 
@@ -464,7 +545,9 @@ int main(int argc, char** argv) {
     (void)argc; (void)argv;
     SDL_SetMainReady();
     if (getenv("DQIX_LAUNCHER_HEADLESS")) return headless();
-    if (!to_own_folder()) { fprintf(stderr, "launcher: can't go to its own folder\n"); return start_game() ? 0 : 1; }
+    int where = to_own_folder();
+    if (where == 2) return 0;                            /* the game folder's launcher took over */
+    if (!where) { fprintf(stderr, "launcher: can't go to its own folder\n"); return start_game() ? 0 : 1; }
     if (!getenv("DQIX_LAUNCHER_SHOT") && !single_instance()) return 0;
     /* any failure to show the window: the game starts as before (dqix handed over to us) */
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_GAMECONTROLLER) != 0) { fprintf(stderr, "launcher: SDL: %s\n", SDL_GetError()); return start_game() ? 0 : 1; }

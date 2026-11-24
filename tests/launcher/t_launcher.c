@@ -180,6 +180,22 @@ static void state_unbuilt_update_cannot_play(void) {
     s.online = 0;                          /* offline changes nothing: the tree here is half new */
     CHECK(!lstate_can_play(&s));
 }
+static void state_rom_needed_cannot_play(void) {
+    LState s = ready();                    /* first launch: no game, no ROM copy */
+    s.game_built = 0; s.rom_needed = 1; s.build = ST_IDLE;
+    CHECK(!lstate_can_play(&s));
+    CHECK(!strcmp(lstate_status_key(&s), "st_rom"));
+    s.online = 0;
+    CHECK(!strcmp(lstate_status_key(&s), "st_rom"));
+}
+static void rom_kind_ok_extensions(void) {
+    CHECK(rom_kind_ok("C:\\Jeux\\Dragon Quest IX (Europe).nds"));
+    CHECK(rom_kind_ok("/home/deck/roms/dq9.NDS"));
+    CHECK(rom_kind_ok("dq9.zip"));
+    CHECK(!rom_kind_ok("dq9.7z"));
+    CHECK(!rom_kind_ok("nds"));
+    CHECK(!rom_kind_ok(""));
+}
 static void branch_nightly_stays_main(void) {
     CHECK(!strcmp(lstate_branch("v3.3-nightly2"), "main"));
     CHECK(!strcmp(lstate_branch("v3.2"), "stable"));
@@ -343,7 +359,7 @@ int main(int argc, char** argv) {
     RUN(state_ready_can_play); RUN(state_offline_complete_can_play); RUN(state_offline_pack_incomplete_plays_without_it);
     RUN(state_pack_incomplete_online_cannot_play); RUN(state_pack_not_wanted_can_play); RUN(state_classic_does_not_wait_pack);
     RUN(state_failed_cannot_play); RUN(state_resume_after_kill); RUN(state_update_pending_cannot_play);
-    RUN(state_not_built_cannot_play); RUN(state_linux_no_updates); RUN(branch_nightly_stays_main); RUN(state_unbuilt_update_cannot_play);
+    RUN(state_not_built_cannot_play); RUN(state_linux_no_updates); RUN(branch_nightly_stays_main); RUN(state_unbuilt_update_cannot_play); RUN(state_rom_needed_cannot_play); RUN(rom_kind_ok_extensions);
     RUN(news_github_three_latest); RUN(news_title_strips_prefix); RUN(news_local_sorted_newest_first);
     RUN(progress_build_line); RUN(progress_build_failed_line); RUN(pack_status_download);
     RUN(pack_status_failed_reason); RUN(pack_status_garbage_is_zero); RUN(proc_runs_echo);

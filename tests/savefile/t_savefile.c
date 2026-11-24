@@ -60,14 +60,14 @@ int main(int argc, char** argv) {
     CHECK("folder missing: returns -1", save_file_atomic(p, data, SIZE) == -1);
     CHECK("folder missing: nothing created", !exists(p));
 
-    /* save_slot_path: slot 1 is the given save, slots 2..10 in saves/ next to it */
+    /* save_slot_path: slot 1 is the given save, slots 2..3 in saves/ next to it */
     char o[64];
     CHECK("slot 1: the save itself", save_slot_path(o, sizeof o, "dqix.sav", 1) == 0 && !strcmp(o, "dqix.sav"));
     CHECK("slot 2: saves/ here", save_slot_path(o, sizeof o, "dqix.sav", 2) == 0 && !strcmp(o, "saves/slot2.sav"));
-    CHECK("slot 10: next to a full path", save_slot_path(o, sizeof o, "/tmp/x/dqix.sav", 10) == 0 && !strcmp(o, "/tmp/x/saves/slot10.sav"));
+    CHECK("slot 3: next to a full path", save_slot_path(o, sizeof o, "/tmp/x/dqix.sav", 3) == 0 && !strcmp(o, "/tmp/x/saves/slot3.sav"));
     CHECK("slot 3: Windows path", save_slot_path(o, sizeof o, "C:\\g\\dqix.sav", 3) == 0 && !strcmp(o, "C:\\g\\saves/slot3.sav"));
     CHECK("slot 0 refused", save_slot_path(o, sizeof o, "dqix.sav", 0) == -1);
-    CHECK("slot 11 refused", save_slot_path(o, sizeof o, "dqix.sav", 11) == -1);
+    CHECK("slot 4 refused", save_slot_path(o, sizeof o, "dqix.sav", 4) == -1);
     CHECK("too small refused", save_slot_path(o, 8, "dqix.sav", 2) == -1);
 
     printf("t_savefile: %d passed, %d failed\n", pass, fail);

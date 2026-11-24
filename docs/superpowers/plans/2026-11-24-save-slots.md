@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** up to 10 saves, switched from Game > Saves by restarting the game on the chosen one.
+**Goal:** up to 3 saves, switched from Game > Saves by restarting the game on the chosen one.
 
-**Architecture:** slot 1 is the save named on the command line (`dqix.sav`); slots 2..10 are `saves/slot<N>.sav` next to it. `settings.ini` holds the active slot and the names. After `settings_load`, `frontend_init` reloads the save chip from the active slot's file; switching = `settings_save` + `restart_with(NULL)`.
+**Architecture:** slot 1 is the save named on the command line (`dqix.sav`); slots 2..3 are `saves/slot<N>.sav` next to it. `settings.ini` holds the active slot and the names. After `settings_load`, `frontend_init` reloads the save chip from the active slot's file; switching = `settings_save` + `restart_with(NULL)`.
 
 **Tech Stack:** C (runtime), gcc/mingw+Wine for `tests/savefile`.
 
@@ -12,14 +12,14 @@
 
 ## Global Constraints
 - `dqix.sav` stays slot 1, same name, same place; missing `save_slot` = 1.
-- Max 10 slots (`SAVE_SLOTS 10`).
+- Max 3 slots (`SAVE_SLOTS 3`).
 - Never switch while the game is writing its save; always `backup_flush` before restarting (`restart_with` does).
 - English texts in the code; fr/de/it/es in `lang/*.txt` by `dqix-langues`.
 - Nothing runs on Romuald's PC: `tests/savefile/run.sh` and the game run in a cloud session.
 
 ## Review Focus
 - A name with `=`, `#`, a newline or > 40 bytes typed in Rename: stored on one line, cut to 40 bytes, newlines removed (Task 3).
-- `settings.ini` with `save_slot = 0`, `11` or garbage: falls back to slot 1 (Task 3).
+- `settings.ini` with `save_slot = 0`, `4` or garbage: falls back to slot 1 (Task 3).
 - A slot file that exists but has no name (copied in by hand): shown as used, default name (Task 3).
 - `saves/` folder cannot be made (read-only folder): the write fails like any save write (warned, retried), `dqix.sav` untouched (Task 2).
 - Switching during a session: refused like Reset (Task 3).
@@ -30,9 +30,9 @@
 
 **Files:** Modify `runtime/savefile.h`, `runtime/savefile.c`; Test `tests/savefile/t_savefile.c`
 
-**Interfaces — Produces:** `#define SAVE_SLOTS 10`; `int save_slot_path(char* out, size_t n, const char* base, int slot);` 0 = ok, -1 = slot out of 1..10 or `out` too small. Slot 1 → `base`; slot N → folder of `base` (up to and including its last `/` or `\`, or nothing) + `saves/slot<N>.sav`.
+**Interfaces — Produces:** `#define SAVE_SLOTS 3`; `int save_slot_path(char* out, size_t n, const char* base, int slot);` 0 = ok, -1 = slot out of 1..3 or `out` too small. Slot 1 → `base`; slot N → folder of `base` (up to and including its last `/` or `\`, or nothing) + `saves/slot<N>.sav`.
 
-- [ ] Step 1: tests in `t_savefile.c`: `save_slot_path(o,sizeof o,"dqix.sav",1)` → `"dqix.sav"`; `(…,"dqix.sav",2)` → `"saves/slot2.sav"`; `(…,"/tmp/x/dqix.sav",10)` → `"/tmp/x/saves/slot10.sav"`; `(…,"C:\\g\\dqix.sav",3)` → `"C:\\g\\saves/slot3.sav"`; slot 0 and 11 → -1; `n = 8` with slot 2 → -1.
+- [ ] Step 1: tests in `t_savefile.c`: `save_slot_path(o,sizeof o,"dqix.sav",1)` → `"dqix.sav"`; `(…,"dqix.sav",2)` → `"saves/slot2.sav"`; `(…,"/tmp/x/dqix.sav",3)` → `"/tmp/x/saves/slot3.sav"`; `(…,"C:\\g\\dqix.sav",3)` → `"C:\\g\\saves/slot3.sav"`; slot 0 and 4 → -1; `n = 8` with slot 2 → -1.
 - [ ] Step 2: cloud: `sh tests/savefile/run.sh` → FAIL (undefined `save_slot_path`).
 - [ ] Step 3: implement in `savefile.c` with `snprintf`.
 - [ ] Step 4: cloud: `run.sh` → `all passed` (Linux and Wine).
@@ -53,9 +53,9 @@
 
 ### Task 3: settings, menu, switch
 
-**Files:** Modify `runtime/menu.h` (ids `MI_SLOT0`..`+9`, `MI_SLOT_RENAME`, range from the coordinator), `runtime/menu_win32.c` (Game > Saves submenu after `MI_SAVEBAK`), `runtime/frontend_sdl.c`.
+**Files:** Modify `runtime/menu.h` (ids `MI_SLOT0`..`+2`, `MI_SLOT_RENAME`, range from the coordinator), `runtime/menu_win32.c` (Game > Saves submenu after `MI_SAVEBAK`), `runtime/frontend_sdl.c`.
 
-- [ ] Step 1: settings: `g_save_slot` (1..10, else 1), `g_save_name[11][41]`; keys `save_slot`, `save_name_<N>` read and written with a comment line; names cleaned of `\r\n`, cut to 40 bytes.
+- [ ] Step 1: settings: `g_save_slot` (1..3, else 1), `g_save_name[SAVE_SLOTS + 1][41]`; keys `save_slot`, `save_name_<N>` read and written with a comment line; names cleaned of `\r\n`, cut to 40 bytes.
 - [ ] Step 2: `frontend_init`: after `settings_load`, before the DLC unlock: `backup_use_slot(g_save_slot)`.
 - [ ] Step 3: menu labels refreshed where `MI_SAVEBAK` is checked: `"%d. %s"` with the name or `T("Adventure %d")`, or `T("%d. (empty: a new adventure)")` when no file and no name; check on the active one; all enabled only when `!session_requested()`.
 - [ ] Step 4: actions: other slot → refuse in a session (like Reset), refuse with "The game is saving: try again in a moment." if `backup_busy()`; empty slot asks a name (`ask_text`, NULL = default); confirm with `ask_yes("Saves", "Switch to <name>? The game restarts on that save.\n\nAnything since you last saved in the game is lost.", "Switch")`; then `g_save_slot = N`, `restart_with(NULL)` (it saves the settings). `MI_SLOT_RENAME`: `ask_text`, store, `settings_save`.

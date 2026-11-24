@@ -7,20 +7,20 @@ same PC) and to switch between them from the game's menu.
 
 ## Decided (Romuald, 2026-11-24)
 - Slot 1 stays `game/dqix.sav` (nothing changes for existing players, the
-  launcher or the in-game updater, which never touch `game/`). Slots 2..10 are
+  launcher or the in-game updater, which never touch `game/`). Slots 2..3 are
   `game/saves/slot<N>.sav`, each with its own copies in `game/saves/save-backups`.
 - Switching restarts the game on the chosen save (like Game > Reset).
-- At most 10 slots.
+- At most 3 slots (Romuald, changed from 10 the same day).
 - Each slot has a free name the player can change; default "Adventure <N>".
 
 ## How (builder's calls)
-- **Menu** Game > Saves: ten items, one per slot, a check on the active one.
+- **Menu** Game > Saves: three items, one per slot, a check on the active one.
   A used slot shows its name; an unused one shows "<N>. (empty: a new adventure)".
   Then "Rename this save...". Clicking another slot asks to confirm ("the game
   restarts on that save; anything since you last saved in the game is lost"),
   an empty one first asks a name. The slots are greyed in a multiplayer session
   (like Reset).
-- **Settings** (`settings.ini`): `save_slot = 1..10` (missing = 1, so old
+- **Settings** (`settings.ini`): `save_slot = 1..3` (missing = 1, so old
   settings files keep `dqix.sav`), `save_name_<N> = ...` for named slots.
   A slot is "used" when its file exists or it has a name.
 - **Start**: `main.c` still opens the save given on the command line

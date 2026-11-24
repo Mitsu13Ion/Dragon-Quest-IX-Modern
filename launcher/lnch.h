@@ -32,7 +32,11 @@ typedef struct {
     StepState update, build, pack;
 } LState;
 int         lstate_can_play(const LState* s);
-const char* lstate_status_key(const LState* s);    /* a text key (lnch_text.c) for the status line */
+const char* lstate_status_key(const LState* s);
+/* the INSTALL bar over the whole run: a step of weight w, after `done` of the bar,
+ * with `rest` (weights) still to come, gets [lo, hi]; its own 0..1 maps into it */
+void  install_share(float done, int w, int rest, float* lo, float* hi);
+float install_frac(float lo, float hi, float f);    /* a text key (lnch_text.c) for the status line */
 const char* lstate_branch(const char* installed);  /* "main" for a nightly, else "stable" */
 int         rom_kind_ok(const char* path);         /* a .nds, or a .zip holding it (any letter case) */
 /* settings.ini's choices that decide what PLAY waits for: mode, hd_pack_download, update_check */

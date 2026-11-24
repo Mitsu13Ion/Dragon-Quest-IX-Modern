@@ -57,6 +57,16 @@ set +e; launch "$T/p2" "$T/src-v3.2"; r=$?
 [ "$r" = 1 ] && grep -q "build=failed" "$T/out.txt" && grep -q "BUILD FAILED (compiling): gcc missing" "$T/out.txt"
 check $? work_build_failure_shown
 
+# the release zip's launcher, in the project folder (no launcher in game/ yet): it works in
+# game/, and PLAY starts game\dqix.exe there (it looked next to itself: "error 2")
+project p8 v3.2 0; rm -f "$T/p8/game/dqix-launcher.exe"; cp "$T/dqix-launcher.exe" "$SDL/bin/SDL2.dll" "$T/p8/"
+printf '#include <stdio.h>\nint main(void){FILE*f=fopen("played.txt","w");if(f){fputs("played",f);fclose(f);}return 0;}\n' > "$T/fakegame.c"
+$GCC -o "$T/p8/game/dqix.exe" "$T/fakegame.c"
+set +e; (cd "$T/p8" && DQIX_LAUNCHER_HEADLESS=1 DQIX_LAUNCHER_PLAY=1 DQIX_UPDATE_SOURCE=$(winpath "$T/nowhere") $WINE ./dqix-launcher.exe > "$T/out.txt" 2>&1)
+for i in 1 2 3 4 5 6 7 8 9 10; do [ -f "$T/p8/game/played.txt" ] && break; sleep 1; done
+grep -q "can_play=1" "$T/out.txt" && grep -q "play=started" "$T/out.txt" && [ -f "$T/p8/game/played.txt" ]
+check $? work_root_launcher_plays_the_game_folder
+
 # offline (no source): a built game can be played
 project p3 v3.2 0; echo x > "$T/p3/game/dqix.exe"
 set +e; launch "$T/p3" "$T/nowhere"; r=$?

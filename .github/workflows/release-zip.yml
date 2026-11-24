@@ -12,10 +12,15 @@
 # with SDL2.dll (Windows), dqix-launcher (Linux). It asks for the ROM on the first
 # launch and builds; afterwards game/dqix-launcher, rebuilt with every update,
 # takes over. It is built here and never kept in the repository.
+#
+# Pushed to a test-zip/<name> branch: the same zips, kept 7 days as the run's
+# artifact for a test install, attached to no release.
 name: Release zip
 on:
   release:
     types: [published]
+  push:
+    branches: ['test-zip/**']
 permissions:
   contents: write
 jobs:
@@ -28,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || github.ref }}
       - name: Make the zip
         run: python3 tools/make-release.py out
       - name: Build tools for the launchers
@@ -57,7 +62,7 @@ jobs:
       - name: Attach it to the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ github.event.release.tag_name || 'test' }}
         run: |
           zip=$(ls out/*/DQIX-PC-*.zip | grep -v -- -extras.zip)
           name="Dragon-Quest-IX-Modern-$TAG-Windows-x64.zip"
@@ -69,4 +74,12 @@ jobs:
           (cd stage/linux && zip -q "$GITHUB_WORKSPACE/$linux" DQIX-PC/dqix-launcher)
           unzip -l "$name" | grep -q "DQIX-PC/DQIX Launcher.exe"
           unzip -l "$linux" | grep -q "DQIX-PC/dqix-launcher"
-          gh release upload "$TAG" "$name" "$linux" --clobber
+          if [ "$GITHUB_EVENT_NAME" = release ]; then gh release upload "$TAG" "$name" "$linux" --clobber; fi
+      - name: Keep the zips (test-zip branch)
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-zips
+          path: Dragon-Quest-IX-Modern-test-*.zip
+          retention-days: 7
+          if-no-files-found: error

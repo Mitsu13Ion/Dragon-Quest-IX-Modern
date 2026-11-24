@@ -69,3 +69,11 @@ int pack_outcome(int exe_found, int code, int have, const PackStatus* s) {
         return PACK_NET;
     return PACK_FAILED;
 }
+
+void install_share(float done, int w, int rest, float* lo, float* hi) {
+    *lo = done;
+    *hi = rest > 0 && w + rest > 0 ? done + (1 - done) * (float)w / (float)(w + rest) : 1;
+}
+float install_frac(float lo, float hi, float f) {
+    return lo + (hi - lo) * (f < 0 ? 0 : f > 1 ? 1 : f);
+}

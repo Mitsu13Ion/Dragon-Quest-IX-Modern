@@ -50,6 +50,7 @@ static const char* const T[][6] = {
     {"fullscreen", "Full screen", "Plein écran", "Vollbild", "Schermo intero", "Pantalla completa"},
     {"windowed", "Window", "Fenêtre", "Fenster", "Finestra", "Ventana"},
     {"volume", "Volume", "Volume", "Lautstärke", "Volume", "Volumen"},
+    {"launcher_size", "Launcher size", "Taille du launcher", "Launcher-Größe", "Dimensione del launcher", "Tamaño del launcher"},
     {"keys_pad", "Controller buttons", "Touches de la manette", "Controller-Tasten", "Tasti del controller", "Botones del mando"},
     {"keys_keyboard", "Keyboard keys", "Touches du clavier", "Tastatur", "Tasti della tastiera", "Teclas del teclado"},
     {"configure", "Set up… ›", "Configurer… ›", "Einrichten… ›", "Configura… ›", "Configurar… ›"},

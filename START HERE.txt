@@ -6,7 +6,8 @@ USA and European versions work, others can be tried) into a PC version of the ga
 
 1. Double-click "DQIX Launcher.exe" (in the release zip; "dqix-launcher" on
    Linux and the Steam Deck). The first time it asks for your ROM, then builds
-   the game and gets the HD pack, with two bars.
+   the game and gets the HD pack, with two bars (Linux and Steam Deck: no HD
+   pack or updates yet, Windows only for now).
    - The first time it installs free build tools (MSYS2) and takes 10-20 minutes.
    - It needs Windows 10/11 (64-bit), ~4 GB free space and the internet once.
 2. PLAY lights up when everything is ready. Open the launcher again to play:

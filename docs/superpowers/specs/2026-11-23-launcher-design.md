@@ -68,7 +68,7 @@ quand tout est installé.
      faits par `tools/setup-wizard.ps1` vers `game\dqix.exe` sont repointés ;
    - `dqix.exe` lancé directement (ancien raccourci, `apply.bat` d'une ancienne
      version, RecompLauncher) ouvre le launcher et se ferme ; le launcher lance
-     ensuite `dqix.exe --from-launcher` ;
+     ensuite `dqix` avec `DQIX_LAUNCHER=1` dans l'environnement ;
    - RecompLauncher : il fait toujours l'installation (`BUILD.bat --prepare`) ;
      `recomplauncher.json` `start` pointe vers le launcher. Les installs
      RecompLauncher existantes basculent d'elles-mêmes à la mise à jour suivante.
@@ -103,7 +103,7 @@ quand tout est installé.
   `game/dqix-launcher.exe` (Windows) / `game/dqix-launcher` (Linux).
 - Tests : rien ne tourne sur le PC de Romuald ; tests cloud (`docs/TESTS-CLOUD.md`).
 - Fichiers partagés touchés (à annoncer au coordinateur) : `tools/build-game.sh`,
-  `runtime/frontend_sdl.c` (redirection vers le launcher, `--from-launcher`),
+  `runtime/frontend_sdl.c` (redirection vers le launcher, `DQIX_LAUNCHER=1`),
   sans doute `build-windows.sh`.
 - `tools/hd-pack.c` est aussi changé par la PR 167 (`graph/hd-pack-movies-only`) :
   se coordonner avec sa session, partir de `main` après sa fusion si possible.
@@ -169,7 +169,7 @@ quand tout est installé.
   du jeu, `controls.ini`) ; un écran de remappage dans le launcher est une
   tâche suivante.
 - **Pendant la partie** : le launcher se ferme en lançant le jeu.
-  `dqix.exe --from-launcher` ne cherche pas de mise à jour et ne lance pas
+  `dqix` avec `DQIX_LAUNCHER=1` dans l'environnement ne cherche pas de mise à jour et ne lance pas
   `hd-pack.exe` (pas deux outils sur les mêmes fichiers).
 - **Launcher absent** (build optionnel raté, vieille install) : `dqix` démarre
   normalement, comme aujourd'hui. La redirection vers le launcher vaut aussi sous

@@ -139,6 +139,8 @@ Windows 10 or 11 (64-bit), about 3 GB free, and Internet the first time.
    everything is there.
 3. Then open the launcher the same way: it brings the game and the HD pack up
    to date before you play, and shows the news, Discord and the options.
+   On Linux and the Steam Deck the launcher builds the game and shows the news
+   and options; updates and the HD pack are Windows only for now.
 
 With shortcuts and an uninstaller instead: **`Install Dragon Quest IX.bat`**
 (it builds the game, then the launcher takes over).
@@ -333,6 +335,9 @@ première fois.
    **JOUER** s'allume quand tout est là.
 3. Ensuite, ouvrez le launcher de la même façon : il met le jeu et le pack HD à
    jour avant de jouer, et montre les nouveautés, Discord et les options.
+   Sous Linux et sur Steam Deck, le launcher compile le jeu et montre les
+   nouveautés et les options ; les mises à jour et le pack HD sont pour Windows
+   seulement pour l'instant.
 
 Avec raccourcis et désinstallation : **`Install Dragon Quest IX.bat`** (il
 compile le jeu, puis le launcher prend le relais).

@@ -24,6 +24,8 @@ typedef struct {
     int hd_pack_wanted;       /* hd_pack_download != 0 and mode = enhanced */
     int game_built;           /* game/dqix[.exe] and game/data/dqix.nds are there */
     int pack_complete;        /* textures/hd-pack/hd-pack.txt is there (the pack is all or nothing) */
+    int modern;               /* mode = enhanced (the default) */
+    int download_failed;      /* an update or HD pack download broke off (red bar, RETRY) */
     int rom_needed;           /* no data/dqix.nds: the player must choose the ROM (first launch) */
     int update_unbuilt;       /* ../update/download.zip is there: an update was put in place but its build didn't finish */
     char installed[32], available[32];   /* the local version.h's, the remote one's ("" unknown) */

@@ -46,6 +46,7 @@ static void settings_wants(LState* s) {
     int classic = ini_get(t, "mode", v, sizeof v) && strcmp(v, "enhanced") != 0;
     int pack = !ini_get(t, "hd_pack_download", v, sizeof v) || atoi(v) != 0;
     s->hd_pack_wanted = pack && !classic;
+    s->modern = !classic;
     s->update_check = !ini_get(t, "update_check", v, sizeof v) || atoi(v) != 0;
     free(t);
 }
@@ -359,7 +360,7 @@ static int do_download(const char* branch, const char* version) {
     if (!update_download(branch, "../update/download.zip", on_dl, err, sizeof err)) {
         char t2[200]; snprintf(t2, sizeof t2, tr("err_download"), err);
         bar(&g_m.dl, t2, "", g_m.dl.frac, 2);
-        LOCK; g_m.st.online = 0; g_m.st.update = ST_SKIPPED; UNLOCK;
+        LOCK; g_m.st.online = 0; g_m.st.update = ST_SKIPPED; g_m.st.download_failed = 1; UNLOCK;
         return 0;
     }
     LOCK; g_m.dl.frac = 1; g_m.dl.state = 1; UNLOCK;
@@ -428,7 +429,7 @@ static int do_pack(void) {
     const char* why = code == 2 ? "hd-pack.exe is already at work (the game open?)" : have && s.kind == 'f' && s.reason[0] ? s.reason : "The HD pack couldn't be installed: hd-pack.log says why";
     char t[200]; snprintf(t, sizeof t, "HD pack: %s", why);
     if (have && s.kind == 'i') bar(&g_m.in, t, "", g_m.in.frac, 2); else bar(&g_m.dl, t, "", g_m.dl.frac, 2);
-    if (net) { LOCK; g_m.st.online = 0; g_m.st.pack = ST_SKIPPED; UNLOCK; return 1; }
+    if (net) { LOCK; g_m.st.online = 0; g_m.st.pack = ST_SKIPPED; g_m.st.download_failed = 1; UNLOCK; return 1; }
     step(&g_m.st.pack, ST_FAILED);
     return 0;
 }
@@ -440,6 +441,7 @@ static int work_thread(void* arg) {
     snprintf(g_work_lang, sizeof g_work_lang, "%s", g_notes_lang);
     scan_local(&g_m);
     g_m.st.update = g_m.st.build = g_m.st.pack = ST_IDLE;
+    g_m.st.download_failed = 0;                       /* RETRY / VERIFY try again */
     g_m.dl.state = g_m.in.state = 0; g_m.dl.frac = g_m.in.frac = 0; g_m.dl.right[0] = g_m.in.right[0] = 0;
     snprintf(g_m.dl.text, sizeof g_m.dl.text, "%s", tr("dl_waiting"));
     snprintf(g_m.in.text, sizeof g_m.in.text, "%s", tr("dl_waiting"));

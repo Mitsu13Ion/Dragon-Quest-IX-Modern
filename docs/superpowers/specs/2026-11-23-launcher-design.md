@@ -217,3 +217,10 @@ besoin) comme l'autre ; ses polices viennent de `fonts/` du projet tant que
 `game/fonts/` n'existe pas ; le chemin de la ROM du joueur ne passe jamais par
 `cmd.exe` (copie par l'API Windows, puis chemin relatif). Pas de raccourcis ni
 de désinstallation dans le launcher (l'installeur garde ce rôle).
+
+## Téléchargement qui échoue (`DÉCIDÉ (Romuald, 2026-11-24)`)
+
+Un téléchargement (mise à jour ou pack HD) qui casse en cours de route : la barre
+reste rouge avec RÉESSAYER ; en mode **Classique** JOUER s'allume (le jeu est
+complet), en mode **Moderne** il reste éteint. Hors ligne dès la vérification :
+inchangé (jeu complet → JOUER allumé).

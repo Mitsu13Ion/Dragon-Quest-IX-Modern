@@ -101,6 +101,7 @@ static void ini_save_then_load(void) {
 /* ---- state */
 static LState ready(void) {
     LState s; memset(&s, 0, sizeof s);
+    s.modern = 1;
     s.platform_updates = 1; s.online = 1; s.update_check = 1; s.hd_pack_wanted = 1;
     s.game_built = 1; s.pack_complete = 1;
     strcpy(s.installed, "v3.2"); strcpy(s.available, "v3.2");
@@ -195,6 +196,15 @@ static void rom_kind_ok_extensions(void) {
     CHECK(!rom_kind_ok("dq9.7z"));
     CHECK(!rom_kind_ok("nds"));
     CHECK(!rom_kind_ok(""));
+}
+static void state_download_failed_modern_cannot_play(void) {
+    /* Romuald (2026-11-24): a download that broke off: Classic can play, Modern can't */
+    LState s = ready();
+    s.download_failed = 1; s.online = 0; s.pack_complete = 0; s.pack = ST_SKIPPED;
+    CHECK(!lstate_can_play(&s));
+    CHECK(!strcmp(lstate_status_key(&s), "st_failed"));
+    s.modern = 0; s.hd_pack_wanted = 0;
+    CHECK(lstate_can_play(&s));
 }
 static void branch_nightly_stays_main(void) {
     CHECK(!strcmp(lstate_branch("v3.3-nightly2"), "main"));
@@ -363,7 +373,7 @@ int main(int argc, char** argv) {
     RUN(state_ready_can_play); RUN(state_offline_complete_can_play); RUN(state_offline_pack_incomplete_plays_without_it);
     RUN(state_pack_incomplete_online_cannot_play); RUN(state_pack_not_wanted_can_play); RUN(state_classic_does_not_wait_pack);
     RUN(state_failed_cannot_play); RUN(state_resume_after_kill); RUN(state_update_pending_cannot_play);
-    RUN(state_not_built_cannot_play); RUN(state_linux_no_updates); RUN(branch_nightly_stays_main); RUN(state_unbuilt_update_cannot_play); RUN(state_rom_needed_cannot_play); RUN(rom_kind_ok_extensions);
+    RUN(state_not_built_cannot_play); RUN(state_linux_no_updates); RUN(branch_nightly_stays_main); RUN(state_unbuilt_update_cannot_play); RUN(state_rom_needed_cannot_play); RUN(state_download_failed_modern_cannot_play); RUN(rom_kind_ok_extensions);
     RUN(news_github_three_latest); RUN(news_title_strips_prefix); RUN(news_local_sorted_newest_first);
     RUN(progress_build_line); RUN(progress_build_failed_line); RUN(pack_status_download);
     RUN(pack_status_failed_reason); RUN(pack_status_garbage_is_zero); RUN(proc_runs_echo);

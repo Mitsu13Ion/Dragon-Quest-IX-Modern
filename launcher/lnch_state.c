@@ -14,7 +14,8 @@ static int pack_pending(const LState* s) {
 }
 
 int lstate_can_play(const LState* s) {
-    if (s->rom_needed || s->update_unbuilt) return 0;                  /* a half-new tree: the build must finish first */
+    if (s->rom_needed || s->update_unbuilt) return 0;
+    if (s->download_failed && s->modern) return 0;    /* Romuald: a broken download blocks Modern, not Classic */                  /* a half-new tree: the build must finish first */
     if (s->update == ST_RUNNING || s->build == ST_RUNNING || s->pack == ST_RUNNING) return 0;
     if (s->update == ST_FAILED || s->build == ST_FAILED || s->pack == ST_FAILED) return 0;
     if (!s->game_built) return 0;
@@ -23,6 +24,7 @@ int lstate_can_play(const LState* s) {
 
 const char* lstate_status_key(const LState* s) {
     if (s->update == ST_FAILED || s->build == ST_FAILED || s->pack == ST_FAILED) return "st_failed";
+    if (s->download_failed && s->modern) return "st_failed";
     if (s->rom_needed && s->build != ST_RUNNING) return "st_rom";
     if (s->update == ST_RUNNING || update_pending(s)) return "st_updating";
     if (s->build == ST_RUNNING || !s->game_built || s->update_unbuilt) return "st_building";

@@ -20,6 +20,9 @@ permissions:
   contents: write
 jobs:
   zip:
+    # Not for the HD pack's releases (hd-pack-N): RecompLauncher takes the newest
+    # release that has a Windows-x64 zip, so a game zip there would be installed.
+    if: ${{ !startsWith(github.event.release.tag_name, 'hd-pack-') }}
     # 22.04: a glibc old enough for SteamOS and older desktops (the Linux launcher)
     runs-on: ubuntu-22.04
     steps:

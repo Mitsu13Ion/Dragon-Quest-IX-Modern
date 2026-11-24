@@ -61,7 +61,7 @@ static void scan_local(Model* m) {
     m->st.pack_complete = exists("textures/hd-pack/hd-pack.txt");
     m->st.update_unbuilt = exists("../update/download.zip");   /* whole (renamed from .part), deleted after a good build */
     m->st.rom_needed = !exists("data/dqix.nds");     /* the build writes it from the chosen ROM: none yet = first launch */
-    m->background_ready = exists("textures/hd-pack/launcher-back.jpg");
+    m->background_ready = exists("movies/launcher-back.jpg");
     local_version(m->st.installed, sizeof m->st.installed);
     settings_wants(&m->st);
     m->pack_version[0] = 0;

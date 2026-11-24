@@ -224,3 +224,8 @@ Un téléchargement (mise à jour ou pack HD) qui casse en cours de route : la b
 reste rouge avec RÉESSAYER ; en mode **Classique** JOUER s'allume (le jeu est
 complet), en mode **Moderne** il reste éteint. Hors ligne dès la vérification :
 inchangé (jeu complet → JOUER allumé).
+
+Note (Graphismes, 2026-11-24) : l'image voyage dans le zip des films
+(`movies/launcher-back.jpg`, `make_hd_pack.py --extra`), pas dans un zip de
+textures, qui ferait retélécharger toutes les textures avec la PR 167. Elle
+arrivera avec un `hd-pack-3` ; sans elle, le launcher montre le ciel étoilé.

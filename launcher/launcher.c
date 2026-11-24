@@ -240,7 +240,7 @@ static void draw(int W, int H) {
     Model m = g_m;                                       /* a copy: the work thread goes on meanwhile */
     m.lock = NULL;
     SDL_UnlockMutex(g_m.lock);
-    if (!g_back && m.background_ready) g_back = ui_load_picture("textures/hd-pack/launcher-back.jpg", &g_back_w, &g_back_h);
+    if (!g_back && m.background_ready) g_back = ui_load_picture("movies/launcher-back.jpg", &g_back_w, &g_back_h);
     /* the background: the HD picture, or the night sky; never a tint over the picture */
     if (g_back) {
         ui_picture_cover(g_back, g_back_w, g_back_h, 0, 0, (float)W, (float)H);

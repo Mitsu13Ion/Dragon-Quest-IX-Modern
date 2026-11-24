@@ -12,9 +12,11 @@ Writes hd-pack-textures-N.zip (entries textures/<16 hex>.png), hd-pack-movies.zi
 
 Entries are ZIP_STORED (the game's own minimal reader only does method 0).
 Each zip stays under --max-gb, zip overhead included.
---extra puts the launcher's background picture in a textures zip as
-textures/launcher-back.jpg (installed as textures/hd-pack/launcher-back.jpg,
-read by launcher/launcher.c). It is never kept in the repository.
+--extra puts the launcher's background picture in the movies zip as
+movies/launcher-back.jpg (installed as movies/launcher-back.jpg, read by
+launcher/launcher.c): the movies zip already changes with each movie fix, and
+a textures zip would make everyone fetch the textures again for one picture.
+It is never kept in the repository.
 """
 import argparse
 import hashlib
@@ -109,7 +111,7 @@ def main(argv=None):
     if not movies:
         raise SystemExit("no .mpg/.sig movie files found in %s" % args.movies_dir)
     if args.extra:
-        textures.append(("launcher-back.jpg", args.extra, os.path.getsize(args.extra)))
+        movies.append(("launcher-back.jpg", args.extra, os.path.getsize(args.extra)))
     os.makedirs(args.out_dir, exist_ok=True)
     for old in os.listdir(args.out_dir):
         if old == "hd-pack.txt" or (old.startswith("hd-pack-") and old.endswith(".zip")):

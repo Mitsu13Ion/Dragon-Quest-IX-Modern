@@ -78,7 +78,7 @@ else
     [ "$r" = 0 ] && grep -q "update=done build=done" "$T/out.txt" && [ -f "$T/p4/update/previous/BUILD.bat" ] && [ -f "$T/p4/update/rollback.bat" ] && grep -q v3.3 "$T/p4/runtime/version.h"
     check $? work_update_then_build
     # the player's save and settings: untouched by the update (robocopy /XD game)
-    cmp -s "$T/p4/game/settings.ini" "$T/settings-before.ini" && grep -q "the player's save" "$T/p4/game/dqix.sav"
+    [ "$(cat "$T/p4/game/settings.ini")" = "$(cat "$T/settings-before.ini")" ] && grep -q "the player's save" "$T/p4/game/dqix.sav"
     check $? work_update_keeps_saves_and_settings
 fi
 

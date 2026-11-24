@@ -47,19 +47,19 @@ launch_rom() { (cd "$1/game" && DQIX_LAUNCHER_HEADLESS=1 DQIX_LAUNCHER_ROM="$3" 
 
 # not built yet, nothing newer: the build runs, PLAY lights up, the news comes from "GitHub"
 source_at v3.2; project p1 v3.2 0
-set +e; launch "$T/p1" "$T/src-v3.2"; r=$?; set -e
+set +e; launch "$T/p1" "$T/src-v3.2"; r=$?
 [ "$r" = 0 ] && grep -q "update=skipped build=done pack=skipped online=1 can_play=1" "$T/out.txt" && grep -q "news: v3.2 2026-11-22 install fixed." "$T/out.txt"
 check $? work_builds_when_not_built
 
 # the build fails: its BUILD FAILED line is shown, PLAY stays off
 project p2 v3.2 1
-set +e; launch "$T/p2" "$T/src-v3.2"; r=$?; set -e
+set +e; launch "$T/p2" "$T/src-v3.2"; r=$?
 [ "$r" = 1 ] && grep -q "build=failed" "$T/out.txt" && grep -q "BUILD FAILED (compiling): gcc missing" "$T/out.txt"
 check $? work_build_failure_shown
 
 # offline (no source): a built game can be played
 project p3 v3.2 0; echo x > "$T/p3/game/dqix.exe"
-set +e; launch "$T/p3" "$T/nowhere"; r=$?; set -e
+set +e; launch "$T/p3" "$T/nowhere"; r=$?
 [ "$r" = 0 ] && grep -q "online=0 can_play=1" "$T/out.txt"
 check $? work_offline_complete_can_play
 
@@ -69,7 +69,7 @@ source_at v3.3
 mkdir -p "$T/zip/DQIX-PC/runtime"; cp "$T/p1/BUILD.bat" "$T/zip/DQIX-PC/"; printf '#define DQIX_VERSION "v3.3"\n' > "$T/zip/DQIX-PC/runtime/version.h"
 (cd "$T/zip" && zip -qr "$T/src-v3.3/stable.zip" DQIX-PC)
 project p4 v3.2 0; echo x > "$T/p4/game/dqix.exe"
-set +e; launch "$T/p4" "$T/src-v3.3"; r=$?; set -e
+set +e; launch "$T/p4" "$T/src-v3.3"; r=$?
 if [ -n "$WINE" ] && grep -qi "tar\|robocopy" "$T/out.txt" && grep -q "update=failed" "$T/out.txt"; then
     echo "skip work_update_then_build (Wine has no tar/robocopy: check on Windows)"
 else
@@ -79,11 +79,11 @@ fi
 
 # first launch: no ROM copy yet: it waits for one (PLAY off), then builds from the chosen file
 project p5 v3.2 0; rm -f "$T/p5/game/data/dqix.nds"
-set +e; launch "$T/p5" "$T/src-v3.2"; r=$?; set -e
+set +e; launch "$T/p5" "$T/src-v3.2"; r=$?
 [ "$r" = 1 ] && grep -q "can_play=0" "$T/out.txt" && grep -qi "ROM" "$T/out.txt"
 check $? work_first_launch_waits_for_rom
 mkdir -p "$T/my roms & co"; echo rom > "$T/my roms & co/Dragon Quest IX (E).nds"
-set +e; launch_rom "$T/p5" "$T/src-v3.2" "$(winpath "$T/my roms & co/Dragon Quest IX (E).nds")"; r=$?; set -e
+set +e; launch_rom "$T/p5" "$T/src-v3.2" "$(winpath "$T/my roms & co/Dragon Quest IX (E).nds")"; r=$?
 [ "$r" = 0 ] && grep -q "build=done" "$T/out.txt" && [ -f "$T/p5/rom/dq9-rom.nds" ] && [ -f "$T/p5/game/data/dqix.nds" ] && grep -q 'rom\\dq9-rom.nds' "$T/p5/build-rom-arg.txt"
 check $? work_first_build_from_rom
 

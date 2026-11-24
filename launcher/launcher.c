@@ -298,10 +298,10 @@ static void draw_keys(void) {
             rborder(cx, yy + 3, cw, rh - 6, 6, 1, asking ? GOLD : col(0x2F4277, 255));
             char n[64];
             if (asking) snprintf(n, sizeof n, "%s", tr(g_keys == 1 ? "keys_press_key" : g_pad ? "keys_press_button" : "keys_no_pad"));
-            else if (slot < 2 ? !g_ctl_key[a][slot] : g_ctl_pad[a] == CTL_NONE) snprintf(n, sizeof n, "â");   /* none: a dash, not the "-" key */
+            else if (slot < 2 ? !g_ctl_key[a][slot] : g_ctl_pad[a] == CTL_NONE) snprintf(n, sizeof n, "\xE2\x80\x94");   /* none: a dash, not the "-" key */
             else if (slot < 2) controls_key_label(g_ctl_key[a][slot], n, sizeof n);
             else controls_pad_name(g_ctl_pad[a], n, sizeof n);
-            int none = !asking && !strcmp(n, "â");
+            int none = !asking && !strcmp(n, "\xE2\x80\x94");
             text(asking ? FONT_BOLD : FONT_TEXT, 13.5f, cx + cw / 2, yy + 7, asking ? GOLD : none ? MUTE : INK, ui_tr(n), cw - 12, 1);
             hit(cx, yy + 3, cw, rh - 6, A_KEYCELL + a * 3 + slot);
         }

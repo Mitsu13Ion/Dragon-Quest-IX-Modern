@@ -89,7 +89,8 @@ static void size_apply(void) {
     if (SDL_GetWindowFlags(g_win) & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) return;
     int s = size_fit(g_size);
     SDL_SetWindowSize(g_win, 1100 * s / 100, 674 * s / 100);
-    SDL_SetWindowPosition(g_win, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    int d = SDL_GetWindowDisplayIndex(g_win);              /* the screen it is on, not always the first */
+    SDL_SetWindowPosition(g_win, SDL_WINDOWPOS_CENTERED_DISPLAY(d < 0 ? 0 : d), SDL_WINDOWPOS_CENTERED_DISPLAY(d < 0 ? 0 : d));
 }
 static void set_language(int l) {
     g_lang = l;
@@ -243,7 +244,7 @@ static void draw_options(void) {
             hit(sx - 8, yy + 5, sw + 16, 30, A_VOLUME);
         } else if (i == 4) {
             text(FONT_TEXT, 14, rx, yy + 10, INK, tr("launcher_size"), 0, 0);
-            char v[32]; snprintf(v, sizeof v, "\xE2\x80\xB9  %d %%  \xE2\x80\xBA", g_size ? g_size : size_fit(0));
+            char v[32]; snprintf(v, sizeof v, "\xE2\x80\xB9  %d %%  \xE2\x80\xBA", size_fit(g_size));
             text(FONT_BOLD, 14, rx + colw, yy + 10, GOLD, v, 0, 2);
             hit(rx + colw - 220, yy, 220, 40, A_SIZE);
         } else {
@@ -421,8 +422,8 @@ static void action(int a) {
         break;
     case A_VOLUME: g_drag_volume = 1; break;
     case A_SIZE: {
-        int s = g_size ? g_size : size_fit(0);
-        s = s == 100 ? 125 : s == 125 ? 150 : 100;
+        int s = size_fit(g_size), max = size_fit(0);
+        s = s >= max ? 100 : s == 100 ? 125 : 150;
         char v[8]; snprintf(v, sizeof v, "%d", s);
         if (settings_update("launcher.ini", "size", v)) { g_size = s; size_apply(); }
         else say_failed(tr("err_settings"));
@@ -643,13 +644,12 @@ int main(int argc, char** argv) {
     if (!shot) size_apply();
     g_ren = SDL_CreateRenderer(g_win, -1, shot ? SDL_RENDERER_SOFTWARE : SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
-    SDL_RendererInfo ri;
-    int vsync = g_ren && SDL_GetRendererInfo(g_ren, &ri) == 0 && (ri.flags & SDL_RENDERER_PRESENTVSYNC);
     if (!g_ren || !ui_init(g_ren)) { fprintf(stderr, "launcher: can't draw (fonts/Marcellus.ttf and fonts/Nunito.ttf needed)\n"); return start_game() ? 0 : 1; }
     if (d) { demo(d); g_m.background_ready = 1; }
     else { work_init(NOTES_LANG[g_lang]); work_start(); if (g_settings_unreadable) say_failed(tr("err_settings_read")); }
     int W = 1100, H = 674, frames = 0, run = 1;
     while (run) {
+        Uint32 t0 = SDL_GetTicks();
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) run = 0;
@@ -682,7 +682,8 @@ int main(int argc, char** argv) {
         }
         SDL_RenderPresent(g_ren);
         if (shot) continue;
-        if (!vsync) SDL_Delay(16);                       /* vsync already waits for the screen: 60 images a second */
+        Uint32 el = SDL_GetTicks() - t0;                /* vsync already waited for the screen: nothing more. A driver */
+        if (el < 15) SDL_Delay(15 - el);                 /* that turns it off: 60 images a second, not a spinning core */
     }
     work_stop();
     SDL_Quit();

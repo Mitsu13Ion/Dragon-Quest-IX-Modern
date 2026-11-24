@@ -79,3 +79,4 @@ jobs:
           name: test-zips
           path: Dragon-Quest-IX-Modern-test-*.zip
           retention-days: 7
+          if-no-files-found: error

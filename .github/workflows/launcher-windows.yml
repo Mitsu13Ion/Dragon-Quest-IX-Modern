@@ -31,7 +31,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release download release-2.30.9 --repo libsdl-org/SDL --pattern 'SDL2-devel-2.30.9-mingw.tar.gz' --dir sdl
-          sha256sum sdl/SDL2-devel-2.30.9-mingw.tar.gz
+          echo "b188d165dc4a0372042bff3d0c18e9bb90772581e92a7b8b47b521b47714f75c *sdl/SDL2-devel-2.30.9-mingw.tar.gz" | sha256sum -c   # pinned: the file the release zips also ship
           tar -xzf sdl/SDL2-devel-2.30.9-mingw.tar.gz -C sdl
       - name: Logic tests
         run: sh tests/launcher/run.sh

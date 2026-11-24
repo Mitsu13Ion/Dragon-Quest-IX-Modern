@@ -48,7 +48,7 @@ launch_rom() { (cd "$1/game" && DQIX_LAUNCHER_HEADLESS=1 DQIX_LAUNCHER_ROM="$3" 
 # not built yet, nothing newer: the build runs, PLAY lights up, the news comes from "GitHub"
 source_at v3.2; project p1 v3.2 0
 set +e; launch "$T/p1" "$T/src-v3.2"; r=$?
-[ "$r" = 0 ] && grep -q "update=skipped build=done pack=skipped online=1 can_play=1" "$T/out.txt" && grep -q "news: v3.2 2026-11-22 install fixed." "$T/out.txt"
+[ "$r" = 0 ] && grep -q "update=skipped build=done pack=skipped online=1 can_play=1" "$T/out.txt" && grep -q "news: v3.2 2026-11-22 Install fixed." "$T/out.txt"
 check $? work_builds_when_not_built
 
 # the build fails: its BUILD FAILED line is shown, PLAY stays off

@@ -131,12 +131,19 @@ Windows 10 or 11 (64-bit), about 3 GB free, and Internet the first time.
 
 1. Download the latest version from the
    **[releases page](https://github.com/romusan495/Dragon-Quest-IX-Modern/releases)**
-   (*Source code (zip)*) and unzip it.
-2. Double-click **`Install Dragon Quest IX.bat`**, choose your ROM (the window
-   shows its version), the game folder and the shortcuts. Installing the tools
-   (MSYS2) and building take 10 to 20 minutes the first time. Click
-   **Play now** at the end.
-3. Then start the game from the desktop or the Start menu.
+   (*Dragon-Quest-IX-Modern-…-Windows-x64.zip*, or *-Linux-x64.zip*) and unzip it.
+2. Double-click **`DQIX Launcher.exe`** (`dqix-launcher` on Linux and the Steam
+   Deck). The first time it asks for your ROM (**CHOOSE THE ROM**), then builds
+   the game and gets the HD pack, with two bars: installing the tools (MSYS2)
+   and building take 10 to 20 minutes the first time. **PLAY** lights up when
+   everything is there.
+3. Then open the launcher the same way: it brings the game and the HD pack up
+   to date before you play, and shows the news, Discord and the options.
+   On Linux and the Steam Deck the launcher builds the game and shows the news
+   and options; updates and the HD pack are Windows only for now.
+
+With shortcuts and an uninstaller instead: **`Install Dragon Quest IX.bat`**
+(it builds the game, then the launcher takes over).
 
 Or install it from **RecompLauncher** (button at the top).
 
@@ -320,12 +327,20 @@ première fois.
 
 1. Téléchargez la dernière version sur la
    **[page des versions](https://github.com/romusan495/Dragon-Quest-IX-Modern/releases)**
-   (*Source code (zip)*) et décompressez-la.
-2. Double-cliquez sur **`Install Dragon Quest IX.bat`**, choisissez votre ROM
-   (la fenêtre indique sa version), le dossier du jeu et les raccourcis.
-   L'installation des outils (MSYS2) et la compilation prennent 10 à 20 minutes
-   la première fois. Cliquez sur **Play now** à la fin.
-3. Ensuite, lancez le jeu depuis le bureau ou le menu Démarrer.
+   (*Dragon-Quest-IX-Modern-…-Windows-x64.zip*, ou *-Linux-x64.zip*) et décompressez-la.
+2. Double-cliquez sur **`DQIX Launcher.exe`** (`dqix-launcher` sous Linux et sur
+   Steam Deck). La première fois, il demande votre ROM (**CHOISIR LA ROM**), puis
+   compile le jeu et télécharge le pack HD, avec deux barres : l'installation des
+   outils (MSYS2) et la compilation prennent 10 à 20 minutes la première fois.
+   **JOUER** s'allume quand tout est là.
+3. Ensuite, ouvrez le launcher de la même façon : il met le jeu et le pack HD à
+   jour avant de jouer, et montre les nouveautés, Discord et les options.
+   Sous Linux et sur Steam Deck, le launcher compile le jeu et montre les
+   nouveautés et les options ; les mises à jour et le pack HD sont pour Windows
+   seulement pour l'instant.
+
+Avec raccourcis et désinstallation : **`Install Dragon Quest IX.bat`** (il
+compile le jeu, puis le launcher prend le relais).
 
 Ou installez-le depuis **RecompLauncher** (bouton en haut de la page).
 

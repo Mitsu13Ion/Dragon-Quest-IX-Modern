@@ -77,9 +77,9 @@ quand tout est installé.
 
 ## Non-objectifs
 
-- Pas d'installation de zéro dans le launcher : la première installation reste
-  `Install Dragon Quest IX.bat` / `tools/setup-wizard.ps1` ou RecompLauncher ; à
-  la fin, ils ouvrent le launcher.
+- ~~Pas d'installation de zéro dans le launcher~~ : remplacé le 2026-11-24, voir
+  « Premier lancement » ci-dessous. RecompLauncher garde son propre build ;
+  `Install Dragon Quest IX.bat` reste en secours (raccourcis, désinstallation).
 - Pas le mode « deux écrans façon DS » lui-même : le bouton Classique écrit
   `mode = classic` (image DS exacte, existe déjà). La disposition à deux écrans
   viendra plus tard sans changer l'écran des options.
@@ -194,3 +194,26 @@ Distribuée dans le pack HD (`DÉCIDÉ (Romuald, 2026-11-23)`), affichée en
 « cover » avec un dégradé sombre à gauche sous les Nouveautés (maquette v7).
 Sans pack HD : ciel étoilé. Elle entre dans le pack en même temps que la
 prochaine version du pack (coordination avec la PR 167, `hd-pack-2`).
+
+## Premier lancement (`DÉCIDÉ (Romuald, 2026-11-24)`)
+
+Romuald : « il devra demander où est la ROM pour pouvoir bosser avec au premier
+lancement ». Ses trois oui :
+1. **Un launcher tout fait dans le zip de la release**, compilé par GitHub
+   Actions : `DQIX Launcher.exe` (+ `SDL2.dll`) à la racine du zip Windows,
+   `dqix-launcher` à la racine du zip Linux. C'est lui qu'on ouvre en premier.
+2. **Au premier lancement** (jeu pas construit, pas de `game/data/dqix.nds`), la
+   ligne d'état demande la ROM et le bouton JOUER devient « CHOISIR LA ROM »
+   (fenêtre de choix de fichier : Windows, `zenity`/`kdialog` sous Linux et
+   Steam Deck). La ROM (`.nds`, ou `.zip` qui la contient) est copiée dans `rom/`
+   puis construite (`BUILD.bat --prepare rom\<nom>` / `BUILD.sh`), barres comprises,
+   puis le pack HD. Il remplace l'installeur pour la première fois.
+3. **Ensuite, il passe la main** à `game/dqix-launcher`, recompilé à chaque mise
+   à jour : le launcher de la racine ne se met pas à jour lui-même, celui de
+   `game/` si. Aucun binaire dans le dépôt.
+
+Réglages (Claude) : le launcher de la racine travaille dans `game/` (créé au
+besoin) comme l'autre ; ses polices viennent de `fonts/` du projet tant que
+`game/fonts/` n'existe pas ; le chemin de la ROM du joueur ne passe jamais par
+`cmd.exe` (copie par l'API Windows, puis chemin relatif). Pas de raccourcis ni
+de désinstallation dans le launcher (l'installeur garde ce rôle).

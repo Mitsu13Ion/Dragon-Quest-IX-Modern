@@ -1,6 +1,5 @@
 /* Copyright (C) 2026 Romuald (romusan495). SPDX-License-Identifier: GPL-3.0-or-later */
-/* When PLAY lights up, and what the status line says: see lnch.h and the
- * spec (docs/superpowers/specs/2026-11-23-launcher-design.md). */
+/* When PLAY lights up, and what the status line says: see lnch.h. */
 #include <stdlib.h>
 #include <string.h>
 #include "lnch.h"

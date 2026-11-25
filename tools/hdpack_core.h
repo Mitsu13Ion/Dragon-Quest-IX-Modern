@@ -3,8 +3,7 @@
  * installing the pack and setting the Real-ESRGAN textures aside.
  * Included by tools/hd-pack.c and tests/hdpack/t_hdpack.c (Windows only).
  *
- * Deletion safety (docs/superpowers/plans/2026-11-14-hd-pack-download.md,
- * Global Constraints; after the 2026-11-14 incident):
+ * Deletion safety (after the 2026-11-14 incident):
  *  - nothing here deletes a folder that holds anything, and nothing deletes
  *    recursively: old folders are renamed into game/hd-pack-ancien/;
  *  - the only files deleted are ones this program wrote, by exact name

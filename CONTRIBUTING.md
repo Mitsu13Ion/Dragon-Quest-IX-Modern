@@ -19,13 +19,12 @@ the code. Two folders on the play PC use it:
    copy J:\DQIX-Enhanced-repo\rom\last-rom.txt J:\DQIX-wt\<role>-<topic>\rom\
    ```
    Roles and branch prefixes (`graph/`, `langues/`, `dev/`, `integ/`, `orga/`)
-   are described in `CLAUDE.md` and `docs/roles/`.
-2. Edit and commit. Tests run in a cloud session, never on the play PC (see
-   `docs/TESTS-CLOUD.md`).
+   are listed above.
+2. Edit and commit. Tests run in a cloud session, never on the play PC.
 3. Push the branch and open a pull request to `main`. It is reviewed, then
    merged once the cloud test report passes for the exact commit. A visual
    change needs before/after screenshots shown to Romuald first. Releases
-   follow `docs/roles/integration.md` and are published only when Romuald
+   are made with `tools/release.py` and published only when Romuald
    says "release".
 4. The play folder `J:\DQIX-Enhanced` is updated by the game's built-in
    updater. Only if Romuald asks, update it by hand from `main`:

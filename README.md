@@ -120,8 +120,7 @@ Claude.
   the whole number (v4, v5…).
 - More than 160 pull requests merged, with automatic tests before code
   changes are merged.
-- Full recap: [docs/RECAP.md](docs/RECAP.md); task tracking:
-  [docs/SUIVI.md](docs/SUIVI.md); technical map:
+- Technical map:
   [docs/TECHNICAL.md](docs/TECHNICAL.md) (all in French).
 
 ---
@@ -319,8 +318,7 @@ avec l'aide de Claude.
   décimale (v3.1, v3.2…), les gros ajouts le nombre entier (v4, v5…).
 - Plus de 160 pull requests fusionnées, avec des tests automatiques avant
   la fusion de tout changement de code.
-- Récapitulatif complet : [docs/RECAP.md](docs/RECAP.md) ; suivi des tâches :
-  [docs/SUIVI.md](docs/SUIVI.md) ; carte technique :
+- Carte technique :
   [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
 ### Installer

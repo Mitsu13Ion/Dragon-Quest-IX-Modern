@@ -214,7 +214,7 @@ case "$(uname -s)" in MINGW*|MSYS*)
         gcc -O2 -municode -I tools -o game/hd-pack.exe tools/hd-pack.c -lbcrypt -lwinhttp || echo "   hd-pack.exe: not rebuilt (optional: no HD pack download)"
     fi ;;
 esac
-# the launcher (launcher/, docs/superpowers/specs/2026-11-23-launcher-design.md):
+# the launcher (launcher/):
 # dqix started with no arguments hands over to it. Optional: without it the
 # game starts as before. It may be running (it starts this build for an
 # update): a running .exe can be renamed but not overwritten, so the old one

@@ -33,7 +33,7 @@
 - `gh release create … --latest` obligatoire pour une vraie release (sinon RecompLauncher garde l'ancienne).
 - Zips attendus après publication : `Dragon-Quest-IX-Modern-vX-Windows-x64.zip` **et** `Dragon-Quest-IX-Modern-vX-Linux-x64.zip`.
 - `runtime/version.h` : la ligne de commentaire `#define DQIX_VERSION "v48 (vX)"` reste **la première** ligne `DQIX_VERSION` du fichier.
-- Ne jamais éditer `J:\DQIX-Enhanced` ni `J:\DQ9 Décompiler`. Ne jamais présenter sackchief comme l'origine du projet.
+- Ne jamais éditer `J:\DQIX-Enhanced` ni `J:\DQ9 Décompiler`.
 - Dépôt privé `romusan495/dqix-test-prive` : reste privé ; rien n'en sort (ROM, captures du jeu) vers le dépôt public, une release ou Discord.
 
 ## Points d'attention pour la revue
@@ -184,7 +184,7 @@ Elle compare à l'état gardé dans `J:\DQIX-Passation\veille-etat.json` : tags 
 **Fichiers :** `docs/SUIVI.md`, `ROADMAP.md`.
 
 - `SUIVI.md` : tâches ouvertes seulement (Linux/Nouveautés intégrées, points blancs du menu Divers en attente d'un F10, « Utiliser ×N » et code mort planifiés après la v3, contrôles joueurs à obtenir : vrai Steam Deck, manette Xbox, images des trophées, PNJ 3D avec ROM 3DS) ; tableau des décisions complété jusqu'au 14/11 (dont celles de ce plan) ; fichiers partagés ; flux de release ; tests cloud ; ligne datée de fin de session. L'audit du 28/10 déplacé en annexe `docs/archives/audit-2026-10-28.md`. Reprend les 3 commits de `claude/project-thread-on5r0q` (cherry-pick) pour garder leur contenu.
-- `ROADMAP.md` : ce projet (sans multijoueur), ce qui est fait, la suite (v3, Utiliser ×N, nettoyage, remake Godot après la décompilation), sans présenter sackchief comme l'origine.
+- `ROADMAP.md` : ce projet (sans multijoueur), ce qui est fait, la suite (v3, Utiliser ×N, nettoyage, remake Godot après la décompilation)
 
 - [ ] **Étape 1 :** cherry-pick `263c36a ecd4f78 e112778`. **Étape 2 :** réécrire les 2 fichiers. **Étape 3 :** relecture par `dqix-relecteur`. **Étape 4 : commit** `SUIVI rewritten for the autonomous release flow; ROADMAP for this project`.
 

@@ -233,8 +233,8 @@ la branche qui les modifie) : `runtime/gl_render.c`, `runtime/menu_win32.c`,
 ### Fils permanents utiles
 - « [Dev] Bugs signalés » : tous les rapports de bug (tester EU **et** USA).
 - « [Intégration] Fusions et build », « [Intégration] Releases hebdomadaires ».
-- « [Coord] Veille des versions » : surveille chaque jour les nouvelles
-  versions du projet d'origine.
+- « [Coord] Veille des versions » : arrêtée le 2026-11-25 pour le projet
+  d'origine (on ne regarde plus son dépôt).
 
 ---
 
@@ -266,8 +266,8 @@ Ces règles valent pour **tous** les Claude, des deux équipes.
 10. **Une seule police** pour le texte HD : Source Sans 3.
 11. Les options nouvelles sont **désactivées par défaut** sauf décision contraire ;
     les options inutiles sont **cachées**, pas supprimées (`all_options = 0`).
-12. **Pas de portage de la v32** du projet d'origine (décidé le 28/10) ; la
-    veille signale seulement les versions plus récentes.
+12. **Projet d'origine (sackchief)** : toujours le créditer ; ne plus regarder
+    son dépôt ni reprendre son travail (décidé le 2026-11-25).
 13. Textes de l'interface PC : toujours via `T()` / `TW()` avec une entrée dans
     `lang/*.txt` (vérifier avec `tools/lang_check.py`).
 14. Notes de version : **une ligne par puce** (pas de retour à la ligne forcé,

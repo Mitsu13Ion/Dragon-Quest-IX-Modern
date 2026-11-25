@@ -7,8 +7,7 @@
 # the .bat files, so the launcher, trying recomplauncher.json's programs in
 # order, finds BUILD.sh and game/dqix there).
 #
-# Each zip also gets a ready-made launcher at its top (launcher/, docs/superpowers/
-# specs/2026-11-23-launcher-design.md "Premier lancement"): "DQIX Launcher.exe"
+# Each zip also gets a ready-made launcher at its top (launcher/): "DQIX Launcher.exe"
 # with SDL2.dll (Windows), dqix-launcher (Linux). It asks for the ROM on the first
 # launch and builds; afterwards game/dqix-launcher, rebuilt with every update,
 # takes over. It is built here and never kept in the repository.

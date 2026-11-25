@@ -1,12 +1,10 @@
 # Where the project stands
 
 > **This fork (romusan495/Dragon-Quest-IX-Modern)** makes its own weekly releases,
-> v31.1 to v31.11, then whole numbers from v32 (v32, v33...; procedure:
-> `docs/roles/integration.md`): tag `vN`,
+> v31.1 to v31.11, then whole numbers from v32 (v32, v33...): tag `vN`,
 > branch `stable` moved to it, notes in `release-notes/`. Help > Check for
 > updates reads this repository (`runtime/update.h`). The names below the
 > line come from the upstream project; here upstream v31 is commit `9e0666a`.
-> Current work: `docs/SUIVI.md`.
 
 Git tag `v31` (and `bookmark-2026-10-19c`) marks the current stable version.
 The ones before: `v30`, `v29`, `v28`, `v27`, `v26`. To go back: `git checkout v30`.

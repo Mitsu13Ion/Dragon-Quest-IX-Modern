@@ -1,7 +1,7 @@
 /* Copyright (C) 2026 Romuald (romusan495). SPDX-License-Identifier: GPL-3.0-or-later */
 /* The launcher (game/dqix-launcher): the game and its HD pack brought up to
  * date before playing, the news, Discord, the language and the options.
- * Spec: docs/superpowers/specs/2026-11-23-launcher-design.md; the work itself
+ * The work itself
  * (update, build, pack) is lnch_work.c, the drawing lnch_ui.c.
  *
  * Tests and pictures: DQIX_LAUNCHER_DEMO=download|build|ready|failed|options|options-classic|language|rom

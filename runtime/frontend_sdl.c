@@ -1754,12 +1754,20 @@ static void equip_triggers(void) {
 }
 
 /* pictures: ui/equip-shop.png and ui/jobs/<job>.png, loaded once (straight
- * RGBA); drawn into the layers premultiplied, over what is there */
+ * RGBA); drawn into the layers premultiplied, over what is there. A picture
+ * missing from ui/ is looked for in the HD pack too (textures/hd-pack/ui/:
+ * the HD title pictures come with it) */
 static const char* const JOB_FILE[13] = { NULL, "warrior", "priest", "mage", "martial_artist", "thief", "minstrel", "gladiator", "armamentalist", "paladin", "sage", "luminary", "ranger" };
 typedef struct { uint8_t* px; int w, h, tried; } UiPic;
 static UiPic g_shop_pic, g_plate_pic[13];
 static const UiPic* ui_pic(UiPic* p, const char* file) {
-    if (!p->tried) { int n; p->tried = 1; p->px = stbi_load(file, &p->w, &p->h, &n, 4); }
+    if (!p->tried) {
+        int n; p->tried = 1; p->px = stbi_load(file, &p->w, &p->h, &n, 4);
+        if (!p->px) {
+            char f[160]; snprintf(f, sizeof f, "textures/hd-pack/%s", file);
+            p->px = stbi_load(f, &p->w, &p->h, &n, 4);
+        }
+    }
     return p->px ? p : NULL;
 }
 static const UiPic* plate_pic(int job) {

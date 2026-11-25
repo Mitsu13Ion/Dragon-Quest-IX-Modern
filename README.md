@@ -18,8 +18,10 @@ It isn't an emulator: the game's ARM code is **recompiled into C** and linked
 to a runtime that rebuilds the DS hardware (2D, 3D, sound, cartridge, input)
 with SDL2 and OpenGL.
 
-Developed by **Romuald** ([romusan495](https://github.com/romusan495))
-and **TitanFr199**, helped by Claude.
+Built on [dqix-enhanced](https://github.com/sackchief/dqix-enhanced) by **sackchief**, the original project (USA
+ROM only), which this repository is a fork of. Developed by **Romuald**
+([romusan495](https://github.com/romusan495)) and **TitanFr199**, helped by
+Claude.
 
 > **Rights and use, please read.** This project is for **educational purposes only** (studying recompilation and game preservation). Dragon Quest IX and all its content belong to their rights holders (Square Enix, Level-5, Armor Project, Bird Studio, Koichi Sugiyama, Nintendo). **No ROM is provided, and none ever will be.** To make it work, you must use **a ROM dumped from your own cartridge** of Dragon Quest IX, which you legally own. Don't download ROMs, and don't share ROMs, the built game or any game files.
 
@@ -209,8 +211,10 @@ Ce n'est pas un émulateur : le code ARM du jeu est **recompilé en C**, puis li
 à un runtime qui recrée le matériel de la DS (2D, 3D, son, cartouche, entrées)
 avec SDL2 et OpenGL.
 
-Projet développé par **Romuald** ([romusan495](https://github.com/romusan495))
-et **TitanFr199**, avec l'aide de Claude.
+Construit sur [dqix-enhanced](https://github.com/sackchief/dqix-enhanced) de **sackchief**, le projet d'origine
+(ROM américaine seulement), dont ce dépôt est un fork. Projet développé par
+**Romuald** ([romusan495](https://github.com/romusan495)) et **TitanFr199**,
+avec l'aide de Claude.
 
 > **Droits et usage — à lire.** Ce projet est réalisé **à des fins éducatives uniquement** (étude de la recompilation et de la préservation des jeux). Dragon Quest IX et tout son contenu appartiennent à leurs ayants droit (Square Enix, Level-5, Armor Project, Bird Studio, Koichi Sugiyama, Nintendo). **Aucune ROM n'est fournie et aucune ne le sera.** Pour que le projet fonctionne, vous devez utiliser **une ROM extraite de votre propre cartouche** de Dragon Quest IX, que vous possédez légalement. Ne téléchargez pas de ROM et ne partagez ni ROM, ni jeu compilé, ni fichiers du jeu.
 
@@ -393,7 +397,10 @@ Posez vos questions sur le [Discord](https://discord.gg/z9X9PH8AH4).
 
 ## Crédits / Credits
 
-- Projet / project : **Romuald** ([romusan495](https://github.com/romusan495))
+- Projet d'origine / original project : **sackchief**
+  ([dqix-enhanced](https://github.com/sackchief/dqix-enhanced)). Ce dépôt en est un fork, avec son historique. / This
+  repository is a fork of it, with its history.
+- Fork EU et modernisation / EU fork and modernisation : **Romuald** ([romusan495](https://github.com/romusan495))
   et / and **TitanFr199** ([TitanFr199](https://github.com/TitanFr199)), avec
   l'aide de / helped by Claude.
 - Noms et limites des fonctions : projet de décompilation de Dragon Quest IX

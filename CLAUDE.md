@@ -72,6 +72,9 @@ Romuald (`dqix-build-check`) : les tests, eux, sont cloud (section suivante).
   `build-windows.sh`, `tools/build-game.sh`, `build.mk`) : annoncer au
   coordinateur la branche qui les touche ; il fait noter la ligne dans `docs/SUIVI.md`.
   Seul le rôle Intégration écrit `docs/SUIVI.md`.
+- **Projet d'origine** (DÉCIDÉ (Romuald) le 2026-11-25) : ce dépôt est un fork de
+  `sackchief/dqix-enhanced` ; le README crédite sackchief comme projet d'origine,
+  ne jamais retirer ce crédit. Ne plus regarder son dépôt ni reprendre son travail.
 - Ressources du jeu (textures, films, polices, ROM) : sauvegarde avant d'écraser.
 - Textures HD : IA seule (Real-ESRGAN anime) pour toutes les textures.
 
@@ -144,7 +147,7 @@ doublonnent pas Superpowers ou pr-review-toolkit :
 - `dqix-relecteur` : relit le diff d'une PR prête, avant fusion.
 - `dqix-release-manager` : prépare et publie une release avec `tools/release.py`, seulement quand Romuald dit « release ».
 - `dqix-archiviste` : met à jour `docs/SUIVI.md` et `CLAUDE.md` en fin de session ou après une fusion.
-- `dqix-veille` : veille quotidienne (sackchief, PR de Tsu) ; signale seulement.
+- `dqix-veille` : veille quotidienne (PR de Tsu) ; signale seulement.
 - `dqix-build-check` : compile un dossier avec BUILD.bat, surtout le dossier de jeu après mise à jour.
 
 ## Release (seulement quand Romuald dit « release » ; détail : `docs/roles/integration.md`)

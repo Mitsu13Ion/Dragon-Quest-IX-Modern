@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 Romuald (romusan495). SPDX-License-Identifier: GPL-3.0-or-later */
 /* hd-pack.exe: installs the HD pack (FatalPixels textures, SeedVR2 movies).
  *
  * Started by the game in the background (like textures-hd.exe). Works on the

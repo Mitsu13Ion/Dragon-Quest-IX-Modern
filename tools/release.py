@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 Romuald (romusan495). SPDX-License-Identifier: GPL-3.0-or-later
 """Release command line of Dragon Quest IX Modern (used by the release-manager
 agent). Python 3 standard library only; runs on Windows and Linux.
 

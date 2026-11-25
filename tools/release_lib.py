@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 Romuald (romusan495). SPDX-License-Identifier: GPL-3.0-or-later
 """Pure helpers of the release automation (tools/release.py). No I/O, so each
 one is tested on its own (tests/release/test_release_lib.py).
 

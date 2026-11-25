@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 Romuald (romusan495). SPDX-License-Identifier: GPL-3.0-or-later */
 /* textures-hd: makes HD versions (textures/hd) of the textures the game dumped
  * (textures/dump) that don't have one yet, with Real-ESRGAN. The game starts it
  * when it starts (to finish one cut short) and when it closes after dumping new

@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 Romuald (romusan495), TitanFr199 (Tsu). SPDX-License-Identifier: GPL-3.0-or-later */
 /* Modern: markers on the map (Modern > Map markers). The top screen's map
  * gets a mark for every chest, pot, barrel and bookshelf of the place the
  * party is in (chests grey once emptied) and a bubble over everyone with a

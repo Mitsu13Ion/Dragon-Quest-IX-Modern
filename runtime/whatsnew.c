@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 Romuald (romusan495). SPDX-License-Identifier: GPL-3.0-or-later */
 /* What's new after an update (whatsnew.h): the release notes in the journal's
  * panel, alone. Read only; the game waits while it is shown. */
 #include <stdio.h>

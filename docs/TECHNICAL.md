@@ -355,7 +355,7 @@ tools/extract_rom.py   takes the code out of a DS ROM (same output as dsd rom ex
 tools/hd-pack.c        hd-pack.exe: downloads, checks and installs the HD pack (hdpack_core.h)
 tools/make_hd_pack.py  makes the HD pack's zips and manifest (on the dev's PC)
 runtime/hdpack.c       the game's side of the HD pack: start hd-pack.exe, folder ranks
-config/usa/arm9        function names and relocations from the dqix-decomp project
+config/usa/arm9        function names and relocations from the dqix-decomp project (see config/usa/SOURCE.md)
 rom/, extras/          where your ROM and the optional extras go
 ```
 

@@ -6,7 +6,9 @@
 (commits by `dqix-recomp`, 2026-10-12 to 2026-10-19): the static recompiler
 (`recomp/`), the DS runtime (CPU, memory, 2D, 3D, sound, cartridge, input),
 the wireless chip, online multiplayer, the relay, the built-in Nintendo WFC
-and DQVC, and the first SDL/OpenGL front end. This repository is a fork of it.
+and DQVC, and the first SDL/OpenGL front end. This repository is a fork of it;
+since 2026-10-19 (his v31) it no longer takes his updates. / Ce dépôt en est un
+fork ; depuis le 19 octobre 2026 (sa v31), il ne reprend plus ses mises à jour.
 
 ## This fork / Ce fork (since 2026-10-19)
 

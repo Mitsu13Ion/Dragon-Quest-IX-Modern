@@ -19,7 +19,8 @@ to a runtime that rebuilds the DS hardware (2D, 3D, sound, cartridge, input)
 with SDL2 and OpenGL.
 
 Built on [dqix-enhanced](https://github.com/sackchief/dqix-enhanced) by **sackchief**, the original project (USA
-ROM only), which this repository is a fork of. Developed by **Romuald**
+ROM only), which this repository is a fork of. Since 19 October 2026 (his
+v31), this project no longer takes his updates. Developed by **Romuald**
 ([romusan495](https://github.com/romusan495)) and **TitanFr199**, helped by
 Claude.
 
@@ -211,7 +212,8 @@ Ce n'est pas un émulateur : le code ARM du jeu est **recompilé en C**, puis li
 avec SDL2 et OpenGL.
 
 Construit sur [dqix-enhanced](https://github.com/sackchief/dqix-enhanced) de **sackchief**, le projet d'origine
-(ROM américaine seulement), dont ce dépôt est un fork. Projet développé par
+(ROM américaine seulement), dont ce dépôt est un fork. Depuis le 19 octobre
+2026 (sa v31), ce projet ne reprend plus ses mises à jour. Projet développé par
 **Romuald** ([romusan495](https://github.com/romusan495)) et **TitanFr199**,
 avec l'aide de Claude.
 
@@ -396,8 +398,9 @@ Posez vos questions sur le [Discord](https://discord.gg/z9X9PH8AH4).
 ## Crédits / Credits
 
 - Projet d'origine / original project : **sackchief**
-  ([dqix-enhanced](https://github.com/sackchief/dqix-enhanced)). Ce dépôt en est un fork, avec son historique. / This
-  repository is a fork of it, with its history.
+  ([dqix-enhanced](https://github.com/sackchief/dqix-enhanced)). Ce dépôt en est un fork, avec son historique ; ses mises à jour
+  ne sont plus reprises depuis le 19 octobre 2026. / This repository is a fork
+  of it, with its history; his updates are no longer taken since 19 October 2026.
 - Fork EU et modernisation / EU fork and modernisation : **Romuald** ([romusan495](https://github.com/romusan495))
   et / and **TitanFr199** ([TitanFr199](https://github.com/TitanFr199)), avec
   l'aide de / helped by Claude.

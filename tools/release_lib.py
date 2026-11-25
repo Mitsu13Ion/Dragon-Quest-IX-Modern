@@ -58,6 +58,10 @@ def forbidden_tracked(paths):
     return [p for p in paths if _forbidden(p)]
 
 
+# Romuald, 2026-11-25: every release credits the original project.
+ORIGIN_CREDIT = "github.com/sackchief/dqix-enhanced"
+
+
 def check_notes(version, files):
     """Errors in the release notes of a version. `files` maps repo-relative
     paths (release-notes/v3.md, release-notes/fr/v3.md) to their text."""
@@ -69,6 +73,8 @@ def check_notes(version, files):
         if text is None:
             errors.append("%s: missing" % path)
             continue
+        if path == english and ORIGIN_CREDIT not in text:
+            errors.append("%s: no credit to the original project (%s)" % (path, ORIGIN_CREDIT))
         if path != english and "**How to install**" in text:
             errors.append("%s: contains the English install block" % path)
         in_list = False

@@ -17,8 +17,11 @@ with open(os.path.join(ROOT, "runtime", "version.h"), encoding="utf-8") as _f:
 LANGS = ("fr", "de", "it", "es")
 
 
+CREDIT = "Fork of [dqix-enhanced](https://github.com/sackchief/dqix-enhanced) by sackchief.\n"
+
+
 def notes_files(version, **overrides):
-    files = {"release-notes/%s.md" % version: "**How to install**\n- a\n"}
+    files = {"release-notes/%s.md" % version: "**How to install**\n- a\n\n" + CREDIT}
     for lang in LANGS:
         files["release-notes/%s/%s.md" % (lang, version)] = "- a\n- b\n"
     files.update(overrides)
@@ -122,8 +125,13 @@ class CheckNotes(unittest.TestCase):
         text = "- a\n\n**Title**\n- b\n- c\n"
         self.assertEqual(check_notes("v3", notes_files("v3", **{"release-notes/es/v3.md": text})), [])
 
+    def test_english_without_origin_credit(self):
+        errs = check_notes("v3", notes_files("v3", **{"release-notes/v3.md": "**How to install**\n- a\n"}))
+        self.assertEqual(len(errs), 1)
+        self.assertIn("original project", errs[0])
+
     def test_cut_line_in_english_too(self):
-        errs = check_notes("v3", notes_files("v3", **{"release-notes/v3.md": "- a\nbroken\n"}))
+        errs = check_notes("v3", notes_files("v3", **{"release-notes/v3.md": "- a\nbroken\n\n" + CREDIT}))
         self.assertEqual(len(errs), 1)
         self.assertIn("release-notes/v3.md", errs[0])
 

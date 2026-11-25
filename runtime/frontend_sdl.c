@@ -2554,21 +2554,30 @@ static void title_update(int a_on_top) {
  * bottom (cut at its top on a wider screen: sky there), over it its top
  * row's colour (the sky), the picture fading into it; at the window's pixels. *pic = where it is on
  * the canvas: x, y, w, h */
-static UiPic g_title_hd[3];                                        /* ui/title-back-1080, -1440, -2160 */
+static UiPic g_title_hd[6][3];                                     /* ui/title-back[-<lang>]-1080, -1440, -2160: [0] the English logo, [2-5] fr de it es */
 static int g_title_hd_n = -1;                                     /* which of them is in g_title_pic's place (-1: none yet) */
 static int title_back(GlPresent* v, float* pic) {
     static uint8_t* img; static int iw, ih;
     float s = fminf(g_lay_s > 0 ? g_lay_s : 5.625f, 11.25f);
     int W = (int)(v->cw * s + 0.5f), H = (int)(v->ch * s + 0.5f);
     if (W <= 0 || H <= 0) return 0;
-    /* the HD title nearest the window's height (from it up, else the biggest), else ui/title-back.png */
-    static const char* const HD[3] = { "ui/title-back-1080.png", "ui/title-back-1440.png", "ui/title-back-2160.png" };
+    /* the HD title nearest the window's height (from it up, else the biggest), its logo in the
+     * game's language when there (ui/title-back-fr-1080.png...), else ui/title-back.png */
+    static const char* const LANG[6] = { "", "", "fr-", "de-", "it-", "es-" };
     static const int HD_H[3] = { 1080, 1440, 2160 };
-    int want = -1;
-    for (int i = 0; i < 3; i++) if (ui_pic(&g_title_hd[i], HD[i]) && (want < 0 || HD_H[want] < H)) want = i;
-    const UiPic* p = want >= 0 ? &g_title_hd[want] : ui_pic(&g_title_pic, "ui/title-back.png");
+    int lang = rom_is_eur() && g_fw_language >= 2 && g_fw_language <= 5 ? g_fw_language : 0, want = -1;
+    for (;;) {
+        for (int i = 0; i < 3; i++) {
+            char f[48]; snprintf(f, sizeof f, "ui/title-back-%s%d.png", LANG[lang], HD_H[i]);
+            if (ui_pic(&g_title_hd[lang][i], f) && (want < 0 || HD_H[want] < H)) want = i;
+        }
+        if (want >= 0 || lang == 0) break;
+        lang = 0;                                                 /* (none in that language: the English logo's) */
+    }
+    const UiPic* p = want >= 0 ? &g_title_hd[lang][want] : ui_pic(&g_title_pic, "ui/title-back.png");
     if (!p) return 0;
-    if (want != g_title_hd_n) { g_title_hd_n = want; iw = ih = 0; }   /* (another picture: drawn again) */
+    int which = want < 0 ? -1 : lang * 3 + want;
+    if (which != g_title_hd_n) { g_title_hd_n = which; iw = ih = 0; }   /* (another picture: drawn again) */
     float ph = (float)W * p->h / p->w;                           /* (its height at the canvas' width, window pixels) */
     float pw = (float)W, px = 0, py = (float)H - ph;             /* (where it is drawn, window pixels) */
     if (want >= 0) {                                              /* the HD title covers the window: its top kept (the logo), cut at its bottom or its sides */

@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 Romuald (romusan495). SPDX-License-Identifier: GPL-3.0-or-later */
 /* Tests of the launcher's logic without a window (launcher/lnch.h).
  *   t_launcher <temp folder>      (built and run by: sh tests/launcher/run.sh)
  * Writes only inside the temp folder given as argv[1]. */

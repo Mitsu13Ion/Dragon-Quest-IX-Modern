@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 Romuald (romusan495). SPDX-License-Identifier: GPL-3.0-or-later
 """The trophies' pictures (runtime/trophies.c): each trophy's badge from its
 RetroAchievements achievement (game 9093), fetched once into <out>/<key>.png on
 the player's own computer by BUILD.bat. They are the RetroAchievements

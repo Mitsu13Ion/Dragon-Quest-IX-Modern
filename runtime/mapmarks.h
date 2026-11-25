@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 Romuald (romusan495), TitanFr199 (Tsu). SPDX-License-Identifier: GPL-3.0-or-later */
 /* Modern: markers on the map (the top screen) for the chests, pots,
  * barrels, bookshelves and quest givers of the place the party is in
  * (mapmarks.c). */

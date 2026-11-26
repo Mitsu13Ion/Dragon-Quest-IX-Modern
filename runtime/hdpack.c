@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
 /* The HD pack: see hdpack.h. */
 #include "hdpack.h"
 #include <string.h>

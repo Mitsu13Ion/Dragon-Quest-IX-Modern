@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
 /* Safe write of the save file (see savefile.h). */
 #include <stdio.h>
 #include "savefile.h"

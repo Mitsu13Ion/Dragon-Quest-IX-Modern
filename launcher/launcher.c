@@ -1,6 +1,7 @@
+/* Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
 /* The launcher (game/dqix-launcher): the game and its HD pack brought up to
  * date before playing, the news, Discord, the language and the options.
- * Spec: docs/superpowers/specs/2026-11-23-launcher-design.md; the work itself
+ * The work itself
  * (update, build, pack) is lnch_work.c, the drawing lnch_ui.c.
  *
  * Tests and pictures: DQIX_LAUNCHER_DEMO=download|build|ready|failed|options|options-classic|language|rom
@@ -32,7 +33,7 @@
 #endif
 
 #define DISCORD_URL "https://discord.gg/z9X9PH8AH4"
-#define REPO_URL    "https://github.com/romusan495/Dragon-Quest-IX-Modern"
+#define REPO_URL    "https://github.com/recompsmith/Dragon-Quest-IX-Modern"
 static const char* const LANGUAGE_KEY[6] = {"", "english", "french", "german", "italian", "spanish"};
 static const char* const NOTES_LANG[6] = {"", "", "fr", "de", "it", "es"};
 

@@ -124,8 +124,13 @@ static uint32_t g_bk_addr, g_bk_count;
 static uint8_t* g_backup_at_boot;     /* the save as it was at launch (for replays) */
 static int g_backup_existed;
 
+static char g_backup_base[1024];      /* the save given at launch: slot 1, the others next to it */
+
 void backup_init(const char* path) {
     memset(g_backup, 0xFF, sizeof g_backup);
+    if (!g_backup_base[0]) snprintf(g_backup_base, sizeof g_backup_base, "%s", path);
+    free(g_backup_at_boot); g_backup_at_boot = NULL;   /* again for a save slot (backup_use_slot) */
+    g_backup_size = 64 * 1024; g_backup_existed = 0;
     snprintf(g_backup_path, sizeof g_backup_path, "%s", path);
     FILE* f = fopen(path, "rb");
     if (f) {
@@ -137,6 +142,22 @@ void backup_init(const char* path) {
     g_backup_at_boot = malloc(g_backup_size);
     memcpy(g_backup_at_boot, g_backup, g_backup_size);
 }
+
+/* Game > Saves (frontend_sdl.c): the save slots, files from save_slot_path. */
+int backup_slot_path(int slot, char* out, size_t n) { return save_slot_path(out, n, g_backup_base, slot); }
+
+/* At start, once the settings are read and before the game reads its save. */
+void backup_use_slot(int slot) {
+    char path[1024];
+    if (slot == 1 || backup_slot_path(slot, path, sizeof path) != 0) return;
+    char dir[1024];
+    snprintf(dir, sizeof dir, "%.*s", (int)(strrchr(path, '/') - path), path);   /* .../saves */
+    make_dir(dir);
+    backup_init(path);
+}
+
+/* the game wrote to its save chip less than half a second ago and the file is not written yet */
+int backup_busy(void) { return g_backup_dirty && g_frame - g_backup_written < 30; }
 
 /* For reports: the save at launch (if there was one) and as it is now. */
 int backup_write_boot(FILE* f) { if (!g_backup_existed) return 0; fwrite(g_backup_at_boot, 1, g_backup_size, f); return 1; }

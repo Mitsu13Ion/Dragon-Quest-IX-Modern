@@ -29,6 +29,39 @@ it = &Comandi...
 en = &Keep a copy of every save (save-backups folder)
 it = &Tieni una copia di ogni salvataggio (cartella save-backups)
 
+en = &Saves
+it = Sa&lvataggi
+
+en = Rename this save...
+it = Rinomina questo salvataggio...
+
+en = Adventure %d
+it = Avventura %d
+
+en = %d. (empty: a new adventure)
+it = %d. (vuoto: una nuova avventura)
+
+en = Saves
+it = Salvataggi
+
+en = Switch
+it = Passa
+
+en = Switch to %s? The game restarts on that save.\n\nAnything since you last saved in the game is lost.
+it = Passare a %s? Il gioco si riavvia su quel salvataggio.\n\nTutto ciò che è successo dall'ultimo salvataggio nel gioco andrà perso.
+
+en = The game is saving: try again in a moment.
+it = Il gioco sta salvando: riprova tra un momento.
+
+en = New save
+it = Nuovo salvataggio
+
+en = Rename this save
+it = Rinomina questo salvataggio
+
+en = Name of this save:
+it = Nome di questo salvataggio:
+
 en = Save &screenshot\tF12
 it = Salva &schermata\tF12
 

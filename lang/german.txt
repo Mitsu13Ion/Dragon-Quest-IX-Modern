@@ -29,6 +29,39 @@ de = S&teuerung...
 en = &Keep a copy of every save (save-backups folder)
 de = &Jeden Spielstand als Kopie behalten (Ordner save-backups)
 
+en = &Saves
+de = Sp&ielstände
+
+en = Rename this save...
+de = Diesen Spielstand umbenennen...
+
+en = Adventure %d
+de = Abenteuer %d
+
+en = %d. (empty: a new adventure)
+de = %d. (leer: ein neues Abenteuer)
+
+en = Saves
+de = Spielstände
+
+en = Switch
+de = Wechseln
+
+en = Switch to %s? The game restarts on that save.\n\nAnything since you last saved in the game is lost.
+de = Zu %s wechseln? Das Spiel startet mit diesem Spielstand neu.\n\nAlles seit dem letzten Speichern im Spiel geht verloren.
+
+en = The game is saving: try again in a moment.
+de = Das Spiel speichert gerade: versuche es gleich noch einmal.
+
+en = New save
+de = Neuer Spielstand
+
+en = Rename this save
+de = Diesen Spielstand umbenennen
+
+en = Name of this save:
+de = Name dieses Spielstands:
+
 en = Save &screenshot\tF12
 de = &Bildschirmfoto speichern\tF12
 

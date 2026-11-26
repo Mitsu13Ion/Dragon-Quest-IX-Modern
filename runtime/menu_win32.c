@@ -84,6 +84,10 @@ static void build(int all, const char* const* shell_names, int n_shells) {
     item(game, MI_PAUSE, L"&Pause\tP");
     item(game, MI_TURBO, L"&Fast forward\t(or hold Tab)");
     item(game, MI_RESET, L"&Reset...\tCtrl+R");
+    Menu saves = sub(game, L"&Saves");                  /* (the slots' names: frontend_sdl.c slot_menu_update) */
+    for (int i = 0; i < 3; i++) item(saves, MI_SLOT0 + i, L"Adventure %d");
+    sep(saves);
+    item(saves, MI_SLOT_RENAME, L"Rename this save...");
     sep(game);
     item(game, MI_VOLUME, L"&Volume...\t- / =");
     item(game, MI_MUTE, L"&Mute");

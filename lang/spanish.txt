@@ -29,6 +29,39 @@ es = &Controles...
 en = &Keep a copy of every save (save-backups folder)
 es = &Guardar una copia de cada partida (carpeta save-backups)
 
+en = &Saves
+es = Par&tidas
+
+en = Rename this save...
+es = Renombrar esta partida...
+
+en = Adventure %d
+es = Aventura %d
+
+en = %d. (empty: a new adventure)
+es = %d. (vacía: una nueva aventura)
+
+en = Saves
+es = Partidas
+
+en = Switch
+es = Cambiar
+
+en = Switch to %s? The game restarts on that save.\n\nAnything since you last saved in the game is lost.
+es = ¿Cambiar a %s? El juego se reinicia con esa partida.\n\nSe perderá todo lo ocurrido desde la última vez que guardaste en el juego.
+
+en = The game is saving: try again in a moment.
+es = El juego está guardando: vuelve a intentarlo en un momento.
+
+en = New save
+es = Nueva partida
+
+en = Rename this save
+es = Renombrar esta partida
+
+en = Name of this save:
+es = Nombre de esta partida:
+
 en = Save &screenshot\tF12
 es = Guardar &captura de pantalla\tF12
 

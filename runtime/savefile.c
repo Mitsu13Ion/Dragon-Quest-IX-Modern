@@ -26,3 +26,11 @@ int save_file_atomic(const char* path, const void* data, size_t n) {
     if (!ok) { remove(tmp); return -1; }
     return replace(tmp, path) == 0 ? 0 : -1;   /* a whole .tmp is kept if only the replace failed */
 }
+
+int save_slot_path(char* out, size_t n, const char* base, int slot) {
+    if (slot < 1 || slot > SAVE_SLOTS) return -1;
+    const char* end = base;                     /* after the folder's last separator */
+    for (const char* p = base; *p; p++) if (*p == '/' || *p == '\\') end = p + 1;
+    int len = slot == 1 ? snprintf(out, n, "%s", base) : snprintf(out, n, "%.*ssaves/slot%d.sav", (int)(end - base), base, slot);
+    return len < 0 || (size_t)len >= n ? -1 : 0;
+}

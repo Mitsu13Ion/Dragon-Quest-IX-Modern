@@ -45,6 +45,7 @@
 #include "mapmarks.h"
 #include "npc3d.h"
 #include "journal.h"
+#include "savefile.h"
 #include "trophies.h"
 #include "version.h"
 #include "session.h"
@@ -2381,6 +2382,15 @@ static void caract_pieces(GlPresent* v) {
  *    the save..." too.
  * 4. The Nintendo Wi-Fi Connection settings: the system's two screens side by
  *    side over the title's picture. */
+static int g_save_slot = 1;                                       /* Game > Saves: the save slot played (1..SAVE_SLOTS; card.c backup_use_slot) */
+static char g_save_name[SAVE_SLOTS + 1][48];                      /* ...each one's name ("": "Adventure <N>") */
+static void restart_with(const char* session);
+static void settings_save(void);
+static const char* save_slot_name(int n, char* buf, size_t size) {
+    if (g_save_name[n][0]) return g_save_name[n];
+    snprintf(buf, size, T("Adventure %d"), n);
+    return buf;
+}
 static int g_title;                                               /* 1 the movie and START, 2 the menu, 3 a question (the quick save's), 4 the Wi-Fi settings; 0 neither */
 static float g_title_fade = 1; static int g_title_white;          /* the game's fade over the title: 1 shown, 0 black (or white) */
 static int g_title_n, g_title_box[6][4];                          /* 1: the button's box; 2: each window (its grey line included): x, y, w, h on the touch screen; 3: on the 3D's screen */
@@ -2664,10 +2674,83 @@ static void title_pieces(GlPresent* v) {
 
 /* the menu's windows at the bottom right, in their order, their right edges in
  * line, as big as they can be without covering the title's words (avoid) */
+/* the save slots on the title's menu: L plays the next slot (R the one before;
+ * the game starts again on it), X names this one. The adventure log's heading shows
+ * which (its name, three dots); no log (an empty slot): a small window of ours */
+#define SLOT_HEAD 15                                              /* (the log's heading, in the touch screen's pixels) */
+static void title_slot_keys(void) {
+    if (g_title != 2 || g_title_fade < 0.999f || session_requested()) return;
+    int d = g_keys_down & (1u << 9) ? 1 : g_keys_down & (1u << 8) ? -1 : 0;   /* (L alone goes round all: many players have no R key) */
+    if (d && !backup_busy()) { g_save_slot = (g_save_slot - 1 + d + SAVE_SLOTS) % SAVE_SLOTS + 1; restart_with(NULL); }
+    if ((g_keys_down & (1u << 10)) && g_win) {
+        char* t = ask_text(g_win, T("Rename this save"), T("Name of this save:"));
+        if (t && t[0]) { snprintf(g_save_name[g_save_slot], sizeof g_save_name[0], "%s", t); settings_save(); }
+        free(t);
+    }
+}
+
+/* the heading's picture: the slot's name (gold) between < and >, its dots at the right; w x h touch screen pixels */
+static void title_slot_head(GlPresent* v, float x, float y, float w, float h, float kw) {
+    float s = fminf(g_lay_s > 0 ? g_lay_s : 5.625f, 11.25f), u = kw * s;
+    static uint8_t* pic; static int pw, ph, pslot = -1; static float pu, pwd; static unsigned pfont; static char pname[48];
+    char buf[48]; const char* name = save_slot_name(g_save_slot, buf, sizeof buf);
+    if (g_save_slot != pslot || u != pu || w != pwd || pfont != text_font_gen() || strcmp(name, pname)) {
+        int W = (int)(w * u + 0.5f), H = (int)(h * u + 0.5f);
+        uint8_t* n = W > 0 && H > 0 ? (uint8_t*)realloc(pic, (size_t)W * H * 4) : NULL;
+        if (!n) return;
+        pic = n; pw = W; ph = H; pslot = g_save_slot; pu = u; pwd = w; pfont = text_font_gen();
+        snprintf(pname, sizeof pname, "%s", name);
+        memset(pic, 0, (size_t)W * H * 4);
+        JournalCanvas c = { pic, W, H, u, 0, 0, 0, 0, w, h, g_fw_language >= 1 && g_fw_language <= 5 ? g_fw_language - 1 : 0 };
+        const float px = 12;
+        journal_text(&c, (w - journal_text_width(px, name)) / 2, 1, px, 0xF0C846, name);
+        journal_text(&c, 5, 1, px, 0xC8C8C8, "<");
+        journal_text(&c, w - 5 - journal_text_width(px, ">"), 1, px, 0xC8C8C8, ">");
+        for (int i = 0; i < SAVE_SLOTS; i++) {                    /* (the dots: the slot played filled) */
+            float cx = (w - 18 - 8 * (SAVE_SLOTS - 1) + 8 * i) * u, cy = h / 2 * u, r = 2.6f * u;
+            for (int py = (int)(cy - r - 1); py <= (int)(cy + r + 1); py++)
+                for (int qx = (int)(cx - r - 1); qx <= (int)(cx + r + 1); qx++) {
+                    if (qx < 0 || py < 0 || qx >= W || py >= H) continue;
+                    float dd = sqrtf((qx - cx) * (qx - cx) + (py - cy) * (py - cy));
+                    float a = i + 1 == g_save_slot ? fminf(1, fmaxf(0, r + 0.5f - dd)) : fminf(1, fmaxf(0, 0.5f - fabsf(dd - r + 0.6f * u / 2) + 0.3f * u));
+                    if (a <= 0) continue;
+                    uint8_t* o = pic + ((size_t)py * W + qx) * 4;
+                    uint32_t col = i + 1 == g_save_slot ? 0xF0C846 : 0xC8C8C8;
+                    o[0] = (uint8_t)((col >> 16 & 255) * a); o[1] = (uint8_t)((col >> 8 & 255) * a); o[2] = (uint8_t)((col & 255) * a); o[3] = (uint8_t)(255 * a);
+                }
+        }
+        gl_set_layer(GL_LAYER_SLOTS, pic, pw, ph);
+    }
+    float* q = v->layer[GL_LAYER_SLOTS]; q[0] = x; q[1] = y; q[2] = w * kw; q[3] = h * kw;
+}
+
+/* the keys for it, over the title's windows at the right */
+static void title_slot_keybar(GlPresent* v, float right, float bottom) {
+    static const char* const ch_[5] = { "Another adventure", "Changer d'aventure", "Anderes Abenteuer", "Altra avventura", "Otra aventura" };
+    static const char* const rn[5] = { "Rename", "Renommer", "Umbenennen", "Rinomina", "Renombrar" };
+    int lg = g_fw_language >= 1 && g_fw_language <= 5 ? g_fw_language - 1 : 0;
+    KeybarEntry k[2]; memset(k, 0, sizeof k);
+    const int act[2] = { CA_L, CA_X }; const char* def[2] = { "L", "X" };
+    for (int i = 0; i < 2; i++)
+        if (!action_sign(act[i], 0, &k[i].style, &k[i].face, k[i].key, sizeof k[i].key)) k[i].key[0] = 0;
+        else if (!k[i].key[0]) snprintf(k[i].key, sizeof k[i].key, "%s", def[i]);
+    k[0].what = ch_[lg]; k[1].what = rn[lg];
+    float C = v->ch / 1080.0f, s = fminf(g_lay_s > 0 ? g_lay_s : 5.625f, 11.25f);
+    int pw, ph, chg; float wu, hu;
+    const uint8_t* pic = keybar_picture(k, 2, C * s, &pw, &ph, &wu, &hu, &chg);
+    if (!pic) return;
+    if (chg || !g_keybar_up) gl_set_layer(GL_LAYER_KEYBAR, pic, pw, ph);
+    g_keybar_up = 1;
+    float* q = v->layer[GL_LAYER_KEYBAR]; q[0] = right - wu * C; q[1] = bottom - hu * C; q[2] = wu * C; q[3] = hu * C;
+}
+
 static void title_windows_pieces(GlPresent* v, float avoid[2][4]) {
     float cw = v->cw, ch = v->ch;
     float M = 5, gap = 3, tot = 0, wmax = 0;
+    int slots = g_title == 2 && !session_requested(), card = slots && g_title_n >= 2 ? g_title_n - 1 : -1, own = slots && g_title_n == 1;
+    title_slot_keys();
     for (int i = 0; i < g_title_n; i++) { tot += (float)g_title_box[i][3]; wmax = fmaxf(wmax, (float)g_title_box[i][2]); }
+    if (own) tot += SLOT_HEAD + 4 + gap;                          /* (an empty slot: our small window under the menu) */
     float kw = 0.56f;
     for (; kw > 0.3f; kw -= 0.01f) {
         int hit = 0; float y = ch - M - tot * kw - gap * (g_title_n - 1);
@@ -2678,10 +2761,17 @@ static void title_windows_pieces(GlPresent* v, float avoid[2][4]) {
         if (!hit) break;
     }
     float y = ch - M - tot * kw - gap * (g_title_n - 1);
+    if (slots) title_slot_keybar(v, cw - M, y - gap);
     for (int i = 0; i < g_title_n; i++) {
         const int* b = g_title_box[i];
         float w = (float)b[2] * kw, h = (float)b[3] * kw, x = cw - M - w;
         modern_window(v, x, y, w, h);
+        if (i == card) {                                           /* the log: our heading in place of the game's "Adventure Log" */
+            title_slot_head(v, x + kw, y + kw, (float)b[2] - 2, SLOT_HEAD, kw);
+            bestiary_piece(v, 1, (float)b[0] + 1, (float)b[1] + 1 + SLOT_HEAD, (float)b[2] - 2, (float)b[3] - 2 - SLOT_HEAD, 3, x + kw, y + kw * (1 + SLOT_HEAD), kw);
+            y += h + gap;
+            continue;
+        }
         const int* hd = g_title_hand[i];
         float row = 0, rh = 0;
         if (hd[2]) {                                               /* the chosen row lit gold (three times: seen over the bright picture too) */
@@ -2694,6 +2784,11 @@ static void title_windows_pieces(GlPresent* v, float avoid[2][4]) {
         if (hd[2])                                                 /* the hand whole, its own colours, over our window's left line (not cut by it) */
             bestiary_piece(v, 1, (float)hd[0], (float)hd[1], (float)hd[2], (float)hd[3], 27, x + ((float)hd[0] - (float)b[0]) * kw, y + ((float)hd[1] - (float)b[1]) * kw, kw);
         y += h + gap;
+    }
+    if (own) {                                                     /* an empty slot: its name alone, the menu's width */
+        float w = (float)g_title_box[0][2] * kw, x = cw - M - w;
+        modern_window(v, x, y, w, (SLOT_HEAD + 4) * kw);
+        title_slot_head(v, x + kw, y + 2 * kw, (float)g_title_box[0][2] - 2, SLOT_HEAD, kw);
     }
 }
 
@@ -3642,7 +3737,17 @@ static void settings_load(void) {
     int seen_rs = 0;                                              /* render_scale (v29) wins over the older resolution_3d */
     while (fgets(line, sizeof line, f)) {
         char key[64]; char val[64];
+        if (!strncmp(line, "save_name_", 10)) {                    /* (a name: spaces kept) */
+            int n = atoi(line + 10); const char* e = strchr(line, '=');
+            if (n >= 1 && n <= SAVE_SLOTS && e) {
+                for (e++; *e == ' '; e++) {}
+                snprintf(g_save_name[n], sizeof g_save_name[n], "%s", e);
+                g_save_name[n][strcspn(g_save_name[n], "\r\n")] = 0;
+            }
+            continue;
+        }
         if (line[0] == '#' || sscanf(line, " %63[^= ] = %63s", key, val) != 2) continue;
+        if (!strcmp(key, "save_slot")) { int n = atoi(val); g_save_slot = n >= 1 && n <= SAVE_SLOTS ? n : 1; continue; }
         if (version < 2 && look_key(key)) continue;
         if (version < 4 && !strcmp(key, "npc_3d")) continue;       /* (on by default since v4) */
         if (!strcmp(key, "player_name")) {                       /* the whole rest of the line (may have spaces) */
@@ -3751,6 +3856,9 @@ static void settings_save(void) {
     fprintf(f, "settings_version = %d\n", SETTINGS_VERSION);
     fprintf(f, "# every option in the menus and on the keys (other layouts, DS Lite screen, fonts...): 0 or 1\n");
     fprintf(f, "all_options = %d\n", g_all_options);
+    fprintf(f, "# Game > Saves: the save slot played (1: dqix.sav, 2-%d: saves/slot<N>.sav), each one's name\n", SAVE_SLOTS);
+    fprintf(f, "save_slot = %d\n", g_save_slot);
+    for (int n = 1; n <= SAVE_SLOTS; n++) if (g_save_name[n][0]) fprintf(f, "save_name_%d = %s\n", n, g_save_name[n]);
     fprintf(f, "# mode: classic (exactly like the DS) or enhanced (sharper 3D on the graphics card). F5 switches.\n");
     fprintf(f, "mode = %s\n", g_classic ? "classic" : "enhanced");
     fprintf(f, "# 3D resolution in enhanced mode: 1 to 12, or auto (as sharp as the window shows it; F4)\n");
@@ -4165,6 +4273,7 @@ void frontend_init(int argc, char** argv) {
     if (getenv("DQIX_NO_SETTINGS")) controls_defaults(); else controls_load();
     if (!getenv("DQIX_NO_SETTINGS")) {
         settings_load();
+        if (g_save_slot != 1) backup_use_slot(g_save_slot);       /* (before the game reads its save, before the DLC unlock) */
         whatsnew_start(g_last_version, g_had_settings);
         if (!g_wireless.mac_set && !g_headless) { wireless_mac_new(); settings_save(); }
     }

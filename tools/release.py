@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later
 """Release command line of Dragon Quest IX Modern (used by the release-manager
 agent). Python 3 standard library only; runs on Windows and Linux.
 
@@ -33,8 +34,8 @@ sys.path.insert(0, HERE)
 from release_lib import (bump_version_h, merged_prs, forbidden_tracked, check_notes,  # noqa: E402
                          check_announce, is_rc_tag, parse_cloud_report, NOTE_LANGS)
 
-PUBLIC_REPO = "romusan495/Dragon-Quest-IX-Modern"
-PRIVATE_REPO = "romusan495/dqix-test-prive"
+PUBLIC_REPO = "recompsmith/Dragon-Quest-IX-Modern"
+PRIVATE_REPO = "recompsmith/dqix-test-prive"
 WATCH_TIMEOUT = 15 * 60
 SIGNATURE = "\U0001F916 Generated with [Claude Code](https://claude.com/claude-code)"
 DEFAULT_ANNOUNCE_DIR = r"J:\DQIX-Passation\annonces"
@@ -106,6 +107,13 @@ def bump_file(version):
 
 # --- prepare ---------------------------------------------------------------
 
+def last_tag():
+    """The last published version's tag (pre-versions vX-rcN left out), or None."""
+    tags = [t for t in out_of(["git", "tag", "--list", "v*", "--sort=-creatordate"]).split()
+            if not is_rc_tag(t)]
+    return tags[0] if tags else None
+
+
 def cmd_prepare(args):
     version = args.version
     if is_rc_tag(version):
@@ -121,9 +129,7 @@ def cmd_prepare(args):
     if out_of(["git", "status", "--porcelain"]):
         raise Fail("L'arbre de travail n'est pas propre : commiter ou ranger les changements.")
     run(["git", "fetch", "origin"])
-    tags = [t for t in out_of(["git", "tag", "--list", "v*", "--sort=-creatordate"]).split()
-            if not is_rc_tag(t)]
-    last = tags[0] if tags else None
+    last = last_tag()
     log_cmd = ["git", "log", "--merges", "--format=%s"]
     log = out_of(log_cmd + [("%s..origin/main" % last) if last else "origin/main"])
     prs = merged_prs(log)
@@ -139,7 +145,8 @@ def cmd_prepare(args):
                                                 ", ".join("#%d" % n for n in prs)))
     else:
         print("Aucune PR fusionnée depuis %s : pas de release." % (last or "le début"))
-    print("Suite : écrire release-notes/%s.md (+ fr/de/it/es), puis commiter." % version)
+    print("Suite : écrire release-notes/%s.md (+ fr/de/it/es), ajouter ses nouveautés au README.md "
+          "(« Done so far » et « Travaux réalisés »), puis commiter." % version)
 
 
 # --- check -----------------------------------------------------------------
@@ -172,6 +179,12 @@ def cmd_check(args):
     bad = forbidden_tracked(out_of(["git", "ls-files"]).splitlines())
     if bad:
         raise Fail("Fichiers interdits suivis par git : " + ", ".join(bad))
+    last = last_tag()
+    if last and not run(["git", "diff", "--quiet", last, "HEAD", "--", "README.md"],
+                        check=False).returncode:
+        raise Fail("README.md n'a pas changé depuis %s : ajouter les nouveautés de %s à « Done so far » "
+                   "et à « Travaux réalisés » (RecompLauncher montre ce README aux joueurs), puis "
+                   "commiter et relancer le test cloud." % (last, base))
     errors = check_notes(base, load_notes(base))
     if errors:
         raise Fail("Notes de release invalides :\n  " + "\n  ".join(errors))

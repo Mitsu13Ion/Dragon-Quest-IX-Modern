@@ -1,4 +1,5 @@
-/* The launcher (game/dqix-launcher): see docs/superpowers/specs/2026-11-23-launcher-design.md.
+/* Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
+/* The launcher (game/dqix-launcher).
  * This header is the part without SDL: settings.ini, the state that decides
  * when PLAY lights up, the news, the tools it runs and the texts. */
 #pragma once

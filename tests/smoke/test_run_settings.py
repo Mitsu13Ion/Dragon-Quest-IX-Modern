@@ -1,3 +1,4 @@
+# Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later
 """The smoke test must not be stopped by the What's new box: its settings.ini
 has to carry the current version (no game needed to check that)."""
 import os

@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
 /* Modern: save by itself every 10 minutes (Modern > Save by itself).
  *
  * The game saves only when the priest is asked to. Its save routine (the

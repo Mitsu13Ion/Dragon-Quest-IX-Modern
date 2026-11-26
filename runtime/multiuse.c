@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 TitanFr199 (Tsu), recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
 /* Use several at once (multiuse.h). On an everyday item the party has more
  * than one of (a fixed heal: Medicinal herb and the Strong, Special and
  * Superior medicines; Magic water, the Sage's and Elfin elixirs; or a seed), the item's "What do you want to do?" has

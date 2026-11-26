@@ -20,7 +20,7 @@ with SDL2 and OpenGL.
 
 Built on [dqix-enhanced](https://github.com/sackchief/dqix-enhanced) by **sackchief**, the original project (USA
 ROM only), which this repository is a fork of. Since 19 October 2026 (his
-v31), this project no longer takes his updates. Developed by **[recompsmith](https://github.com/recompsmith)** and **TitanFr199**, helped by
+v31), this project no longer takes his updates. Developed by **[recompsmith](https://github.com/recompsmith)** and **[TitanFr199](https://github.com/TitanFr199)**, helped by
 Claude.
 
 > **Rights and use, please read.** This project is for **educational purposes only** (studying recompilation and game preservation). Dragon Quest IX and all its content belong to their rights holders (Square Enix, Level-5, Armor Project, Bird Studio, Koichi Sugiyama, Nintendo). **No ROM is provided, and none ever will be.** To make it work, you must use **a ROM dumped from your own cartridge** of Dragon Quest IX, which you legally own. Don't download ROMs, and don't share ROMs, the built game or any game files.
@@ -211,7 +211,7 @@ avec SDL2 et OpenGL.
 Construit sur [dqix-enhanced](https://github.com/sackchief/dqix-enhanced) de **sackchief**, le projet d'origine
 (ROM américaine seulement), dont ce dépôt est un fork. Depuis le 19 octobre
 2026 (sa v31), ce projet ne reprend plus ses mises à jour. Projet développé par
-**[recompsmith](https://github.com/recompsmith)** et **TitanFr199**,
+**[recompsmith](https://github.com/recompsmith)** et **[TitanFr199](https://github.com/TitanFr199)**,
 avec l'aide de Claude.
 
 > **Droits et usage — à lire.** Ce projet est réalisé **à des fins éducatives uniquement** (étude de la recompilation et de la préservation des jeux). Dragon Quest IX et tout son contenu appartiennent à leurs ayants droit (Square Enix, Level-5, Armor Project, Bird Studio, Koichi Sugiyama, Nintendo). **Aucune ROM n'est fournie et aucune ne le sera.** Pour que le projet fonctionne, vous devez utiliser **une ROM extraite de votre propre cartouche** de Dragon Quest IX, que vous possédez légalement. Ne téléchargez pas de ROM et ne partagez ni ROM, ni jeu compilé, ni fichiers du jeu.
@@ -397,7 +397,7 @@ Posez vos questions sur le [Discord](https://discord.gg/z9X9PH8AH4).
   ne sont plus reprises depuis le 19 octobre 2026. / This repository is a fork
   of it, with its history; his updates are no longer taken since 19 October 2026.
 - Fork EU et modernisation / EU fork and modernisation : **[recompsmith](https://github.com/recompsmith)**
-  et / and **TitanFr199** ([TitanFr199](https://github.com/TitanFr199)), avec
+  et / and **[TitanFr199](https://github.com/TitanFr199)**, avec
   l'aide de / helped by Claude.
 - Noms et limites des fonctions : projet de décompilation de Dragon Quest IX
   (domaine public). Puce Wi-Fi, rendu 3D et son : recherches de l'émulateur

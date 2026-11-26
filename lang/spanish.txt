@@ -53,8 +53,6 @@ es = ¿Cambiar a %s? El juego se reinicia con esa partida.\n\nSe perderá todo l
 en = The game is saving: try again in a moment.
 es = El juego está guardando: vuelve a intentarlo en un momento.
 
-en = New save
-es = Nueva partida
 
 en = Rename this save
 es = Renombrar esta partida
@@ -1309,3 +1307,14 @@ es = Mapa en la esquina: redon&do, centrado en ti (anillo plateado con brújula)
 
 en = What's new needs the graphics card (OpenGL)
 es = «Novedades» necesita la tarjeta gráfica (OpenGL)
+
+# ---- the Journal (menu, controls, message)
+
+en = &Journal: quests, skills, vocations\tJ
+es = &Diario: misiones, habilidades, vocaciones\tJ
+
+en = The journal needs the graphics card (OpenGL)
+es = El diario necesita la tarjeta gráfica (OpenGL)
+
+en = Journal (quests, skills, vocations)
+es = Diario (misiones, habilidades, vocaciones)

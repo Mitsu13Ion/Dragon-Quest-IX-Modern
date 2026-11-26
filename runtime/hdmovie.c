@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
 /* HD movies (hdmovie.h). */
 #include <stdio.h>
 #include <stdlib.h>

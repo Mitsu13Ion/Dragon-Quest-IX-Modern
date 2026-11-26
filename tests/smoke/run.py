@@ -1,3 +1,4 @@
+# Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later
 """Smoke test of a built game: play a scripted input from a save, take window
 shots at chosen frames, and compare them with reference shots.
 
@@ -6,7 +7,7 @@ shots at chosen frames, and compare them with reference shots.
 
 Linux only (runs the game under xvfb-run, OpenGL through Mesa). Nothing from
 the game or the player is kept in the project: the save and its input script
-live outside the repository (see docs/TESTS-CLOUD.md for the cloud recipe).
+live outside the repository.
 
 Exit code: 0 when the game ran to the last frame, every shot exists and, with
 --ref, every shot is within the tolerance (mean difference per channel,

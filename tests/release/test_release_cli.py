@@ -1,3 +1,4 @@
+# Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for tools/release.py with a fake run(): no real git, gh or network.
 
     python -m unittest discover -s tests/release -v"""
@@ -24,7 +25,7 @@ SIGNATURE = "\U0001F916 Generated with [Claude Code](https://claude.com/claude-c
 
 
 def good_notes(version):
-    files = {"release-notes/%s.md" % version: "**How to install**\n- a\n"}
+    files = {"release-notes/%s.md" % version: "**How to install**\n- a\n\nFork of https://github.com/sackchief/dqix-enhanced\n"}
     for lang in ("fr", "de", "it", "es"):
         files["release-notes/%s/%s.md" % (lang, version)] = "- a\n"
     return files

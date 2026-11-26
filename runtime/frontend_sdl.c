@@ -6344,6 +6344,14 @@ static void menu_sync(void) {
     for (int i = 0; i < 3; i++) { menu_check(MI_SSIZE0 + i, g_small_size == i); menu_enable(MI_SSIZE0 + i, WIDE_GL && g_map_shown); }
     menu_check(MI_MUTE, g_mute);
     menu_enable(MI_RESET, !session_requested());
+    for (int i = 0; i < SAVE_SLOTS; i++) {                     /* Game > Saves: each slot's name, the one played checked */
+        char name[48], buf[96], path[1024]; FILE* f;
+        int used = g_save_name[i + 1][0] || (backup_slot_path(i + 1, path, sizeof path) == 0 && (f = fopen(path, "rb")) && !fclose(f));
+        if (used) snprintf(buf, sizeof buf, "%d. %s", i + 1, save_slot_name(i + 1, name, sizeof name));
+        else snprintf(buf, sizeof buf, T("%d. (empty: a new adventure)"), i + 1);
+        menu_set_text(MI_SLOT0 + i, buf);
+        menu_check(MI_SLOT0 + i, g_save_slot == i + 1); menu_enable(MI_SLOT0 + i, !session_requested());
+    }
     menu_check(MI_TWO, g_two && !g_side_by_side && g_gl); menu_enable(MI_TWO, g_gl);
     menu_check(MI_SWAP, g_swap && !wide); menu_enable(MI_SWAP, !wide);
     for (int i = 0; i < 4; i++) { menu_check(MI_OPACITY1 + i, g_small_opacity == 100 - 25 * i); menu_enable(MI_OPACITY1 + i, g_gl); }
@@ -7020,6 +7028,21 @@ static void do_action(int id) {
     case MI_SSIZE0: case MI_SSIZE0 + 1: case MI_SSIZE0 + 2: {
         static const char* const N[3] = { "small", "medium", "large" };
         g_small_size = id - MI_SSIZE0; notice("Small screen: %s", T(N[g_small_size])); break;
+    }
+    case MI_SLOT0: case MI_SLOT0 + 1: case MI_SLOT0 + 2: {         /* Game > Saves: play another slot (the game starts again on it) */
+        int n = id - MI_SLOT0 + 1;
+        if (n == g_save_slot || session_requested()) break;
+        if (backup_busy()) { SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, T("Saves"), T("The game is saving: try again in a moment."), g_win); break; }
+        char name[48], text[400];
+        snprintf(text, sizeof text, T("Switch to %s? The game restarts on that save.\n\nAnything since you last saved in the game is lost."), save_slot_name(n, name, sizeof name));
+        if (ask_yes(T("Saves"), text, T("Switch"))) { g_save_slot = n; restart_with(NULL); }
+        break;
+    }
+    case MI_SLOT_RENAME: {
+        char* t = g_win ? ask_text(g_win, T("Rename this save"), T("Name of this save:")) : NULL;
+        if (t && t[0]) { snprintf(g_save_name[g_save_slot], sizeof g_save_name[0], "%s", t); settings_save(); }
+        free(t);
+        break;
     }
     case MI_RESET:
         if (session_requested()) { info_box(SDL_MESSAGEBOX_INFORMATION, "Reset", "Not while playing with friends: it would leave them out of step. Leave the session first (Wireless menu).", g_win); break; }

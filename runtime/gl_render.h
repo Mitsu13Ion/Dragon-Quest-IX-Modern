@@ -19,6 +19,8 @@ enum { GL_LAYER_HINT,                                 /* a button's sign over th
        GL_LAYER_RING,                                 /* the round minimap's gold ring and compass, over it */
        GL_LAYER_SPECIES,                              /* ...the monsters near: their kinds' colours and names, under it */
        GL_LAYER_KEY3,                                 /* a fourth key (the character's creation: L, R, A, B) */
+       GL_LAYER_PARTY,                                /* the party's HP and MP, bottom left (partyhud.c) */
+       GL_LAYER_KEYBAR,                               /* a row of the player's keys with what they do (keybar.c: Equip) */
        GL_LAYERS };
 
 int gl_render_init(int scale);                        /* 0 on failure (use the software path) */
@@ -83,9 +85,9 @@ void gl_set_split(int on);                            /* the next gl_compose(): 
 float gl_3d_centre_w(void);                          /* the last 3D frame: how far (w) its polygons in the middle of the picture are, by area (0: none) */
 void gl_set_top_cut(int on);                          /* the next gl_compose(): the top screen's pixels tagged 1 (top byte) see-through (its pop-up) */
 int gl_dialog_box(int r[4]);                          /* the dialogue window on the last 3D frame: x0, y0, x1, y1 on the DS's picture; 0 when none */
+int gl_dialog_boxes(int r[][4], int max);             /* ...each of its windows (the dialogue's, Yes / No's...): x0, y0, x1, y1; how many */
 uint8_t* gl_read_full(int* w, int* h);
 void gl_read_screens(uint32_t out[2][256 * 192]);
-int gl_read_3d(uint8_t* out, int* w, int* h);
 
 /* Per-frame counters (the frontend reads and clears them). */
 typedef struct { double render_ms, upload_ms; int uploads, polys; long upload_texels; } GlStats;

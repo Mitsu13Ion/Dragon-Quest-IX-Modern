@@ -339,7 +339,6 @@ static struct {
     double last_sent;
 } R;
 
-int relay_broken(void) { return R.broken; }
 
 static void send_msg(int type, int id, const uint8_t* d, size_t n) {
     uint8_t* m = malloc(n + 2);

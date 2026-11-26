@@ -89,11 +89,6 @@ static uint8_t* addr_ptr(uint32_t a) {
     return NULL;
 }
 
-void hdtext_forget(const uint8_t* p, int size) {
-    uint32_t off; uint32_t* pg = page_for(p, 0, &off);
-    if (pg) memset(pg + off, 0, (size_t)size * 2 * sizeof(uint32_t));   /* (writes never cross a 4 KB page: they're aligned) */
-}
-
 void hdtext_write(const uint8_t* p, const uint8_t* v, int size) {
     uint32_t off; uint32_t* pg = page_for(p, 0, &off);
     if (!pg) return;
@@ -461,7 +456,6 @@ void hdtext_set_font(const char* name) {
     if (strcmp(name, "original") != 0) load_ttf(name);
     g_font_gen++;
 }
-const char* hdtext_font_name(void) { return g_font_name; }
 int hdtext_font_ok(void) { return g_tt_data != NULL; }
 uint32_t hdtext_font_gen(void) { return g_font_gen; }
 
@@ -673,4 +667,75 @@ float hdtext_follow(int ga, float xa, int gb, float xb, float shift, float k, fl
     if (track < 0) { const char* e = getenv("DQIX_HD_TEXT_TRACK"); track = e ? (float)atof(e) : 0.6f; if (track < 0) track = 0; }
     float sp = gap > 2.0f ? as + track : 0;                      /* a space between them: the PC font's */
     return (xa + shift + (ar + track + sp + extra) * k) - (xb + bl * k);
+}
+
+/* ---------------------------------------------------------------- the game's letters, for our own windows */
+/* The game's menu font (font 0: its windows' letters; font 1 is the
+ * dialogues') as it sits in main RAM: its letters' strip (the "1.0" block,
+ * 0x02107834 + 4 * font: its width in pixels, 12 rows, 1 bit per pixel) and
+ * their list (the "1.1" block, 0x0210782C + 4 * font: each letter 8 bytes: its
+ * name's address, its width, its name's length, where it starts in the
+ * strip; then pairs of letters and the pixels between them changed). Read
+ * once the game has it. */
+#define GL_FONT 0
+#define GL_MAX 512
+static struct { int cp; int8_t w; uint16_t xo; } g_gl[GL_MAX];
+static int g_gl_n = -1;                                        /* -1 not read yet, 0 not there */
+static uint32_t g_gl_bm, g_gl_stride, g_gl_kern, g_gl_nkern;
+
+static int game_font(void) {
+    if (g_gl_n > 0) return 1;
+    uint32_t lay = mem_read32(0x0210782Cu + 4u * GL_FONT), fo = mem_read32(0x02107834u + 4u * GL_FONT);
+    if ((lay >> 24) != 2 || (fo >> 24) != 2 || mem_read32(lay) != 0x00312E31u || mem_read32(fo) != 0x00302E31u) return 0;
+    uint32_t n = mem_read32(lay + 4), nk = mem_read32(lay + 8), kern = mem_read32(lay + 12), rec = mem_read32(lay + 16);
+    uint32_t width = mem_read16(fo + 4);
+    if (!n || n > GL_MAX || nk > 4096 || (rec >> 24) != 2 || (kern >> 24) != 2 || width < 64 || mem_read8(fo + 6) != 12) return 0;
+    int m = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t a = rec + 8 * i, sp = mem_read32(a);
+        int w = (int8_t)mem_read8(a + 4), len = mem_read8(a + 5) & 63, xo = mem_read16(a + 6);
+        if ((sp >> 24) != 2 || w < 0 || w > 16 || (uint32_t)(xo + w) > width || len > 15) return 0;
+        char s[16]; for (int j = 0; j < len; j++) s[j] = (char)mem_read8(sp + (uint32_t)j);
+        s[len] = 0;
+        g_gl[m].cp = codepoint(s); g_gl[m].w = (int8_t)w; g_gl[m].xo = (uint16_t)xo;
+        if (len >= 3 && (s[1] == '_' || s[len - 2] == '_') && strcmp(s, "<_%_>")) g_gl[m].cp = 0;   /* (<_66>, <66_>: the same letter spaced for another language) */
+        if (!strcmp(s, "< >")) g_gl[m].cp = 0;                  /* (a bar: the game's space is a gap, 4 pixels) */
+        m++;
+    }
+    g_gl_bm = mem_read32(fo + 12); g_gl_stride = width >> 3; g_gl_kern = kern; g_gl_nkern = nk;
+    if ((g_gl_bm >> 24) != 2) return 0;
+    g_gl_n = m;
+    return 1;
+}
+
+static int game_index(int cp) {
+    if (cp == 0x2212 || cp == 0x2013) cp = '-';                 /* (minus, en dash: the game's hyphen) */
+    for (int i = 0; i < g_gl_n; i++) if (g_gl[i].cp == cp) return i;
+    return -1;
+}
+
+int hdtext_game_letter(int cp, uint16_t rows[12], int* w) {
+    if (!game_font()) return 0;
+    int i = game_index(cp);
+    if (i < 0) return 0;
+    *w = g_gl[i].w;
+    for (int y = 0; y < 12; y++) {
+        rows[y] = 0;
+        for (int x = 0; x < *w; x++) {
+            uint32_t bit = g_gl[i].xo + (uint32_t)x;
+            if (mem_read8(g_gl_bm + (uint32_t)y * g_gl_stride + (bit >> 3)) & (0x80 >> (bit & 7))) rows[y] |= (uint16_t)(1 << x);
+        }
+    }
+    return 1;
+}
+
+int hdtext_game_kern(int cpa, int cpb) {
+    if (!game_font()) return 0;
+    int a = game_index(cpa), b = game_index(cpb);
+    if (a < 0 || b < 0) return 0;
+    for (uint32_t i = 0; i < g_gl_nkern; i++) {
+        uint32_t e = mem_read32(g_gl_kern + 4 * i);
+        if ((int)(e & 0xFF) == a && (int)((e >> 8) & 0xFF) == b) return (int8_t)((e >> 16) & 0xFF);
+    }
+    return 0;
 }

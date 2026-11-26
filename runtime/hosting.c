@@ -23,7 +23,6 @@ EXPORT void dqix_core_setup(const CoreHost* h) { g_host = h; }
 int dqix_main(int argc, char** argv);
 EXPORT int dqix_core_main(int argc, char** argv) { return dqix_main(argc, argv); }
 
-int rt_hosted(void) { return g_host != NULL; }
 
 char* rt_getenv(const char* name) {
     if (!g_host) return getenv(name);

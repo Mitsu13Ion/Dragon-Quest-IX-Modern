@@ -79,11 +79,6 @@ void threads_init(void) {
 }
 
 /* Priority of the ARM9 thread running now (OSThread +0x70; 0 = highest, 32 = idle). */
-int threads_current_priority9(void) {
-    Thread* t = g_ts9.cur;
-    if (!t || !t->ctx) return 16;
-    return (int)g_c9.bus->r32(t->ctx + g_ts9.off_state + 0xC);
-}
 
 /* Record a function entry for the thread running on this CPU. */
 void threads_note_call(int arm7, uint32_t addr) {
@@ -112,7 +107,6 @@ static void dump_sys(FILE* f, ThreadSys* ts) {
 void ipc_dump(FILE* f);
 void threads_dump(FILE* f) { ipc_dump(f); fprintf(f, "arm9 IE %08x IF %08x IME %x / arm7 IE %08x IF %08x IME %x\n", g_c9.ie, g_c9.iflags, g_c9.ime, g_c7.ie, g_c7.iflags, g_c7.ime); dump_sys(f, &g_ts9); if (getenv("DQIX_THREADS7")) dump_sys(f, &g_ts7); }
 
-void* threads_current_coro(Core* k) { return &k->threads->cur->co; }
 int arm7_is_running(void) { return g_in_arm7; }
 
 static void ensure_ctx(ThreadSys* ts, uint32_t ctx) { if (ts->cur && !ts->cur->ctx) ts->cur->ctx = ctx; }

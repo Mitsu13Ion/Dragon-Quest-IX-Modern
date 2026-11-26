@@ -99,14 +99,12 @@ const char* cheats_name(int i) {
     return names[i];
 }
 int cheats_max(int i) { list_init(); return i >= 0 && i < g_n ? CHEATS[g_list[i]].max : 0; }
-int cheats_value(int i) { list_init(); return i >= 0 && i < g_n ? g_val[i] : 0; }
 void cheats_set_value(int i, int v) {
     list_init();
     if (i < 0 || i >= g_n || v < 0 || v > CHEATS[g_list[i]].max) return;
     g_val[i] = v; g_dirty = 1;
     LOG_INFO("cheat %s: %d\n", CHEATS[g_list[i]].key, v);
 }
-const char* cheats_key(int i) { list_init(); return i >= 0 && i < g_n ? CHEATS[g_list[i]].key : ""; }
 int cheats_on(int i) { list_init(); return i >= 0 && i < g_n && g_on[i]; }
 void cheats_set(int i, int on) {
     list_init();

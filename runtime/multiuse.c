@@ -1,4 +1,4 @@
-/* Copyright (C) 2026 TitanFr199 (Tsu), Romuald (romusan495). SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 TitanFr199 (Tsu), recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
 /* Use several at once (multiuse.h): the item menu's "To whom?" answered with
  * A on an everyday item the party has more than one of opens a small window
  * over the game, "How many do you want to use?", then "Use 5 Seeds of

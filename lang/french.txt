@@ -53,8 +53,6 @@ fr = Passer à %s ? Le jeu redémarre sur cette sauvegarde.\n\nTout ce qui s'est
 en = The game is saving: try again in a moment.
 fr = Le jeu est en train de sauvegarder : réessayez dans un instant.
 
-en = New save
-fr = Nouvelle sauvegarde
 
 en = Rename this save
 fr = Renommer cette sauvegarde
@@ -1309,3 +1307,14 @@ fr = Carte dans le coin : ron&de, centrée sur vous (anneau argenté et boussole
 
 en = What's new needs the graphics card (OpenGL)
 fr = « Nouveautés » a besoin de la carte graphique (OpenGL)
+
+# ---- the Journal (menu, controls, message)
+
+en = &Journal: quests, skills, vocations\tJ
+fr = &Journal : quêtes, compétences, vocations\tJ
+
+en = The journal needs the graphics card (OpenGL)
+fr = Le journal a besoin de la carte graphique (OpenGL)
+
+en = Journal (quests, skills, vocations)
+fr = Journal (quêtes, compétences, vocations)

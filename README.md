@@ -62,8 +62,12 @@ Claude.
 - **In-game options menu** (Esc or the PS / Xbox / Home button), works with a
   controller, game paused.
 - **PC-style start**: the logos are skipped.
+- **Launcher**: news, updates, the HD pack, options and keys in one window;
+  PLAY starts the game once everything is ready.
 - **Modern title screen**: the opening movie plays behind "Start your
   adventure", and the adventure log menu sits small at the bottom right.
+  **HD title picture** with the logo in the game's language (with the HD
+  pack), the quick save's questions and the Wi-Fi settings in our windows.
 - **Button hints** with your controller's real buttons, or your keyboard key
   drawn in the game's style (AZERTY included).
 - Quest card in a modern window, vocation icons in colour, confirmation before
@@ -96,7 +100,10 @@ Claude.
   recipes, missing ingredients) and items.
 - **Faster battles** (x2, x3, x4 during the turn only), automatic victory
   messages.
-- **Use several items at once** (European version, not in battles).
+- **Use several items at once** (European version, not in battles): a
+  "Use several" row under Use for seeds and healing herbs.
+- **Three save slots**: one adventure alone, another with friends; on the
+  title screen L changes the adventure and X names it, also Game > Saves.
 - **Autosave** every 10 minutes (option), save backups. **Safer saves**: if
   writing fails (crash, power cut, full disk), `dqix.sav` is no longer left
   empty or cut short; the previous save stays whole.
@@ -253,9 +260,13 @@ avec l'aide de Claude.
 - **Menu d'options dans le jeu** (Échap ou bouton PS / Xbox / Home), jouable à
   la manette, jeu en pause.
 - **Démarrage façon PC** : les logos sont passés.
+- **Lanceur** : actualités, mises à jour, pack HD, options et touches dans une
+  seule fenêtre ; JOUER lance le jeu quand tout est prêt.
 - **Écran titre moderne** : le film d'ouverture joue derrière « Commencer
   l'aventure », et le menu du journal d'aventure se place en petit en bas à
-  droite.
+  droite. **Image du titre en HD** avec le logo dans la langue du jeu (avec le
+  pack HD), questions de la sauvegarde rapide et réglages Wi-Fi dans nos
+  fenêtres.
 - **Indications de boutons** avec les vrais boutons de votre manette, ou votre
   touche clavier dessinée dans le style du jeu (AZERTY compris).
 - Fiche de quête en fenêtre moderne, icônes de vocation en couleur,
@@ -291,7 +302,12 @@ avec l'aide de Claude.
   alchimie (recettes connues, ingrédients manquants) et objets.
 - **Combats plus rapides** (x2, x3, x4 pendant le tour seulement), messages de
   victoire automatiques.
-- **Utiliser plusieurs objets d'un coup** (version européenne, pas en combat).
+- **Utiliser plusieurs objets d'un coup** (version européenne, pas en
+  combat) : une ligne « Utiliser plusieurs » sous Utiliser pour les graines et
+  les herbes de soin.
+- **Trois emplacements de sauvegarde** : une aventure en solo, une autre entre
+  potes ; sur l'écran titre, L change d'aventure et X la nomme, aussi Jeu >
+  Sauvegardes.
 - **Sauvegarde automatique** toutes les 10 minutes (option), copies de
   sauvegarde. **Sauvegardes plus sûres** : si l'écriture échoue (plantage,
   coupure de courant, disque plein), `dqix.sav` ne reste plus vide ou tronqué ;

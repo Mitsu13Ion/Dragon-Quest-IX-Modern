@@ -135,8 +135,6 @@ static int g_npending;
 
 int session_hidden(void) { return g_hidden; }
 int session_running(void) { return g_running; }
-int session_console(void) { return g_me; }
-int session_players(void) { return g_n; }
 int session_requested(void) { return g_requested || g_hidden; }
 
 /* session\\front.log: what happened in the session on this PC, for when something goes wrong */
@@ -1509,5 +1507,3 @@ void session_info(SessionInfo* o) {
     unlock();
 }
 void session_start_now(void) { if (g_host) g_start_req = 1; }
-void session_cancel(void) { g_cancel_req = 1; }
-void session_set_name(const char* name) { if (name && *name) snprintf(g_name, sizeof g_name, "%s", name); }

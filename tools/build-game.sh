@@ -138,7 +138,8 @@ MINGW*|MSYS*)
         # the shortcuts' icon read again from the new program (Windows 10/11; harmless if missing)
         cmd //c "ie4uinit.exe -show" >/dev/null 2>&1 || true
     fi
-    cp /ucrt64/bin/SDL2.dll game/ ;;
+    # only when it changed: the game left open keeps it locked
+    cmp -s /ucrt64/bin/SDL2.dll game/SDL2.dll || cp /ucrt64/bin/SDL2.dll game/ ;;
 *)
     EXE=game/dqix
     # no make (SteamOS on the Steam Deck): tools/build_nomake.py does build.mk's work
@@ -213,6 +214,27 @@ case "$(uname -s)" in MINGW*|MSYS*)
         gcc -O2 -municode -I tools -o game/hd-pack.exe tools/hd-pack.c -lbcrypt -lwinhttp || echo "   hd-pack.exe: not rebuilt (optional: no HD pack download)"
     fi ;;
 esac
+# the launcher (launcher/):
+# dqix started with no arguments hands over to it. Optional: without it the
+# game starts as before. It may be running (it starts this build for an
+# update): a running .exe can be renamed but not overwritten, so the old one
+# becomes dqix-launcher.old and the new one is put in its place.
+mkdir -p build/pc
+case "$(uname -s)" in
+MINGW*|MSYS*) LX=dqix-launcher.exe; LFLAGS="$(sdl2-config --cflags) -lSDL2 -lwinhttp -lcomdlg32 -mwindows ${RES:-}" ;;   # RES: the game's icon (make_icon)
+*)            LX=dqix-launcher;     LFLAGS="${SDL_CFLAGS:-$(sdl2-config --cflags)} ${SDL_LIBS:-$(sdl2-config --libs)}" ;;
+esac
+# shellcheck disable=SC2086
+if gcc -std=c99 -D_DEFAULT_SOURCE -O2 -I launcher -I runtime -o build/pc/$LX launcher/*.c runtime/update.c runtime/controls.c runtime/uitext.c $LFLAGS -lm; then
+    if ! cmp -s build/pc/$LX game/$LX; then
+        # copied whole first, then two renames (the old one to .old); a failure
+        # here (an old .old still locked) never stops the game's build
+        { cp build/pc/$LX game/$LX.new && { [ ! -f game/$LX ] || mv -f game/$LX game/dqix-launcher.old; } && mv -f game/$LX.new game/$LX; } \
+            || echo "   $LX: not replaced (optional: the one there stays)"
+    fi
+else
+    echo "   $LX: not built (optional: dqix starts the game directly)"
+fi
 # optional files: the built-in Wi-Fi server's downloads and DQVC schedule
 for src in extras/wfc wfc; do
     for g in "$src"/*/; do

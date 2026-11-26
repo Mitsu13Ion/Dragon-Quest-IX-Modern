@@ -29,6 +29,39 @@ fr = C&ommandes...
 en = &Keep a copy of every save (save-backups folder)
 fr = &Garder une copie de chaque sauvegarde (dossier save-backups)
 
+en = &Saves
+fr = &Sauvegardes
+
+en = Rename this save...
+fr = Renommer cette sauvegarde...
+
+en = Adventure %d
+fr = Aventure %d
+
+en = %d. (empty: a new adventure)
+fr = %d. (vide : une nouvelle aventure)
+
+en = Saves
+fr = Sauvegardes
+
+en = Switch
+fr = Changer
+
+en = Switch to %s? The game restarts on that save.\n\nAnything since you last saved in the game is lost.
+fr = Passer à %s ? Le jeu redémarre sur cette sauvegarde.\n\nTout ce qui s'est passé depuis votre dernière sauvegarde dans le jeu sera perdu.
+
+en = The game is saving: try again in a moment.
+fr = Le jeu est en train de sauvegarder : réessayez dans un instant.
+
+en = New save
+fr = Nouvelle sauvegarde
+
+en = Rename this save
+fr = Renommer cette sauvegarde
+
+en = Name of this save:
+fr = Nom de cette sauvegarde :
+
 en = Save &screenshot\tF12
 fr = Enregistrer une &capture d'écran\tF12
 

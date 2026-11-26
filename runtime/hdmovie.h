@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
 /* HD movies: the game's Mobiclip movies (the .mods files in data/movie: the opening, the
  * dragon, "to be continued") shown from upscaled copies instead.
  *
@@ -15,9 +16,7 @@ extern int g_hdmovie_on;                      /* set by the frontend (Enhanced o
 extern void (*g_card_read_hook)(uint32_t addr, uint32_t len);   /* card.c: every ROM read (NULL: none) */
 
 void hdmovie_init(void);                      /* look in movies/ (again); how many were found */
-int hdmovie_count(void);
 int hdmovie_two_screens(void);                /* a movie in two halves is playing now (top + bottom screen), HD copy or not */
-int hdmovie_playing(const char* name);        /* the ROM's movie data/movie/<name>.mods is playing now (read lately), HD copy or not */
 
 /* One screen's picture this frame (0xRRGGBB, 256x192). Returns 1 when it is a
  * frame of an HD movie: *rgb = that frame (*w x *h, 3 bytes a pixel), *mask

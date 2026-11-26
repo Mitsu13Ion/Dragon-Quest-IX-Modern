@@ -1706,7 +1706,6 @@ void gpu3d_render_line(int line) {
 }
 
 /* Software renderer output (tests, GPU-renderer verification). */
-const u32* gpu3d_soft_line(int line) { return &cbuf[FIRSTPX + (u32)line * SW]; }
 
 /* ---------------------------------------------------------------- texture helpers for the GPU renderer */
 int gpu3d_tex_size(u32 ti, int* w, int* h) {

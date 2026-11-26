@@ -1,3 +1,4 @@
+# Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for tools/release.py with a fake run(): no real git, gh or network.
 
     python -m unittest discover -s tests/release -v"""
@@ -24,7 +25,7 @@ SIGNATURE = "\U0001F916 Generated with [Claude Code](https://claude.com/claude-c
 
 
 def good_notes(version):
-    files = {"release-notes/%s.md" % version: "**How to install**\n- a\n"}
+    files = {"release-notes/%s.md" % version: "**How to install**\n- a\n\nFork of https://github.com/sackchief/dqix-enhanced\n"}
     for lang in ("fr", "de", "it", "es"):
         files["release-notes/%s/%s.md" % (lang, version)] = "- a\n"
     return files
@@ -99,6 +100,19 @@ class Check(unittest.TestCase):
         self.assertEqual(code, 0, out)
         api = [c for c in fake.joined() if c.startswith("gh api")][0]
         self.assertIn("captures/release-v3/report.md?ref=tests/release-v3", api)
+
+    def test_readme_unchanged_since_last_tag_stops(self):
+        fake = Fake(good_rules(tags=(["git", "tag"], 0, "v3-rc1\nv2.1\nv2.0\n")))
+        code, out = run_main(fake, ["check", "v3"])
+        self.assertEqual(code, 1)
+        self.assertIn("README.md n'a pas changé depuis v2.1", out)
+        self.assertTrue(fake.has("git", "diff", "--quiet", "v2.1", "HEAD", "--", "README.md"))
+
+    def test_readme_changed_since_last_tag_passes(self):
+        fake = Fake(good_rules(tags=(["git", "tag"], 0, "v2.1\n"),
+                               readme=(["git", "diff", "--quiet", "v2.1"], 1, "")))
+        code, out = run_main(fake, ["check", "v3"])
+        self.assertEqual(code, 0, out)
 
     def test_tracked_forbidden_file_stops(self):
         fake = Fake(good_rules(ls=(["git", "ls-files"], 0, "rom/game.nds\n")))

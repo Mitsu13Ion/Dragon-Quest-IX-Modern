@@ -1,3 +1,4 @@
+# Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later
 """Minimal CGFX (.bcmdl) reader: model meshes in bind pose, materials' first texture, textures decoded."""
 import struct
 import numpy as np

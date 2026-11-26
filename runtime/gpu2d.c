@@ -91,10 +91,11 @@ static int win_palette(Engine* e, uint32_t palbase) {
     return palc(e, palbase, 2) == 0x2108 && palc(e, palbase, 4) == 0x4210 && palc(e, palbase, 8) == 0x6B5A && palc(e, palbase, 10) == 0x7FFF;
 }
 /* ...and, modern, for the backgrounds: a window greyed while another is open
- * over it (the battle commands under a list of spells), the same frame in
- * darker greys (not for sprites: the greyed cursor is in those colours) */
+ * over it (the battle commands under a list of spells; the field menu's under
+ * "Create a quick save?", its panel black there), the same frame in darker
+ * greys (not for sprites: the greyed cursor is in those colours) */
 static int win_palette_bg(Engine* e, uint32_t palbase) {
-    return win_palette(e, palbase) || (g_winstyle == 2 && palc(e, palbase, 1) == 0x18C6 && palc(e, palbase, 2) == 0x1084 && palc(e, palbase, 4) == 0x318C
+    return win_palette(e, palbase) || (g_winstyle == 2 && (palc(e, palbase, 1) == 0x18C6 || palc(e, palbase, 1) == 0) && palc(e, palbase, 2) == 0x1084 && palc(e, palbase, 4) == 0x318C
         && palc(e, palbase, 8) == 0x4210 && palc(e, palbase, 10) == 0x5294);
 }
 /* The party's cards in battles (commands screen): a backdrop in the member's

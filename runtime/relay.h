@@ -27,7 +27,6 @@ int relay_host_start(const char* code, int port, char* why, size_t wn);
  * (once). 1 = the host is there; 0 = not (why says so: wrong code...). */
 int relay_join_start(const char* code, int* port, char* why, size_t wn);
 /* the relay connection broke (lobby: friends can't join through it any more) */
-int relay_broken(void);
 
 /* where to write what happens (session/front.log) */
 void relay_set_log(void (*fn)(const char* line));

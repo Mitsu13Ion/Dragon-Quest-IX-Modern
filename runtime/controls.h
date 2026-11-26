@@ -36,7 +36,7 @@ extern int g_ctl_pad[CA_N];                    /* CTL_NONE = none */
 
 void controls_defaults(void);
 void controls_load(void);                      /* controls.ini, or the defaults */
-void controls_save(void);
+int controls_save(void);                       /* 0: not written (the launcher says so) */
 
 int controls_key_action(SDL_Scancode sc, Uint16 mod);   /* DS button or shortcut, most specific modifiers first; -1 if unbound */
 int controls_key_held(int action, const Uint8* ks);     /* one of its keys is down */

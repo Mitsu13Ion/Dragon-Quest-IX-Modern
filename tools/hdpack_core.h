@@ -1,9 +1,9 @@
+/* Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
 /* hd-pack.exe's pure parts: manifest, SHA-256, stored unzip, the path guard,
  * installing the pack and setting the Real-ESRGAN textures aside.
  * Included by tools/hd-pack.c and tests/hdpack/t_hdpack.c (Windows only).
  *
- * Deletion safety (docs/superpowers/plans/2026-11-14-hd-pack-download.md,
- * Global Constraints; after the 2026-11-14 incident):
+ * Deletion safety (after the 2026-11-14 incident):
  *  - nothing here deletes a folder that holds anything, and nothing deletes
  *    recursively: old folders are renamed into game/hd-pack-ancien/;
  *  - the only files deleted are ones this program wrote, by exact name
@@ -44,9 +44,13 @@ typedef struct { char name[128]; long long size; char sha[65]; } HpZip;
 
 /* ---------------------------------------------------------------- log */
 static FILE* hp_logfile;    /* hd-pack.exe sets it; NULL = stderr */
+static char hp_last_log[200];   /* the last line logged (hd-pack.exe's reason when it fails) */
 static void hp_log(const char* fmt, ...) {
     va_list a; va_start(a, fmt);
+    va_list b; va_copy(b, a);
     vfprintf(hp_logfile ? hp_logfile : stderr, fmt, a);
+    vsnprintf(hp_last_log, sizeof hp_last_log, fmt, b);
+    va_end(b);
     va_end(a);
     if (hp_logfile) fflush(hp_logfile);
 }

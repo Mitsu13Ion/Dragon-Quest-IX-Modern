@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
 /* HD text: the game's text drawn again on the graphics card at full
  * resolution, from a TrueType font or the game's own letters smoothed.
  *
@@ -16,7 +17,6 @@ extern int g_hdtext_on;                       /* set by the frontend (Enhanced o
 extern int g_hdtext_any;                      /* some memory carries tags */
 
 /* memory */
-void hdtext_forget(const uint8_t* p, int size);                    /* a write: what was there is gone */
 void hdtext_write(const uint8_t* p, const uint8_t* v, int size);   /* ...before it: a text window's letter written again unchanged stays (HDT_WIN) */
 void hdtext_copy(uint32_t dst, uint32_t src, uint32_t bytes);       /* a copy (after the bytes moved) */
 uint32_t hdtext_tag(uint32_t src2);           /* the tag of a VRAM pixel: src2 = byte address * 2 + high nibble */
@@ -48,7 +48,6 @@ int hdtext_texture_letter(const uint8_t* p, int w, int h, int* glyph, int* ox, i
 /* the letters at high resolution: R pixels per DS pixel, 12 rows */
 #define HDT_R 8
 void hdtext_set_font(const char* name);       /* "original", or a .ttf file (fonts/, the system's fonts) */
-const char* hdtext_font_name(void);
 int hdtext_font_ok(void);                     /* the TrueType font was found */
 /* coverage (0-255) of one letter, (w * HDT_R) x (12 * HDT_R); 0 if unknown */
 int hdtext_render(int glyph, uint8_t* out, int stride, int* w);
@@ -60,3 +59,11 @@ int hdtext_render(int glyph, uint8_t* out, int stride, int* w);
  * extra: DS pixels a takes beyond its letter (its shadow). */
 float hdtext_follow(int ga, float xa, int gb, float xb, float shift, float k, float extra);
 uint32_t hdtext_font_gen(void);               /* changes when the font does (the GPU's copies are stale) */
+
+/* The game's own letters (its windows' font, as in main RAM), for text the
+ * PC version draws itself: a character's picture (12 rows, w pixels; the
+ * game puts 1 pixel between letters, a space is 4 more); 0 if the game has no
+ * such letter (or its font isn't loaded yet). kern: pixels added between two
+ * letters. */
+int hdtext_game_letter(int cp, uint16_t rows[12], int* w);
+int hdtext_game_kern(int cpa, int cpb);

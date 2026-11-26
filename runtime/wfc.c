@@ -41,7 +41,6 @@ void wfc_enable(int on, const char* dir) {
     g_on = on;
     if (dir && dir[0]) snprintf(g_dir, sizeof g_dir, "%s", dir);
 }
-int wfc_enabled(void) { return g_on; }
 
 static void ev(const char* fmt, ...) {
     char line[300];

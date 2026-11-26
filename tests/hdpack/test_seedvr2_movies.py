@@ -1,3 +1,4 @@
+# Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later
 """Test movie_frames.write_movie: .sig layout and the MPEG-1 size/frame count."""
 import os
 import struct

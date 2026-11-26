@@ -553,10 +553,15 @@ static const char* FS_COPY =
     "  vec2 dx = dFdx(v_uv) / 3.0, dy = dFdy(v_uv) / 3.0; float t = 0.0, m = 0.0;\n"   /* averaged, but never fainter than 3/4 of the strongest: thin strokes kept) */
     "  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec2 uv = v_uv + dx * float(i) + dy * float(j); float a = light == 6 ? ink(uv, 0) * (1.0 - redn(uv)) : ink(uv, light) * (light != 0 && light != 3 ? 1.0 : 1.0 - red(uv)); t += a; m = max(m, a); }\n"
     "  return max(t / 9.0, m * 0.75); }\n"
-    "float yellows() {\n"   /* (bright yellow letters: not the parchment, duller and bluer) */
+    "float yellows() {\n"   /* (bright yellow letters, and greyed ones (178, 146, 0: a chosen name behind a message): not the parchment, duller and bluer) */
     "  vec2 dx = dFdx(v_uv) / 3.0, dy = dFdy(v_uv) / 3.0; float t = 0.0, m = 0.0;\n"
     "  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec4 c = textureLod(u_src, v_uv + dx * float(i) + dy * float(j), 0.0); vec3 r = c.rgb / max(c.a, 0.001);\n"
-    "    float a = max(smoothstep(0.8, 0.9, r.r) * smoothstep(0.6, 0.72, r.g) * smoothstep(0.35, 0.22, r.b), smoothstep(0.55, 0.68, r.g) * smoothstep(0.25, 0.4, r.g - max(r.r, r.b))) * c.a; t += a; m = max(m, a); }\n"   /* (and the green of a line the stylus holds: gold too) */
+    "    float a = max(max(smoothstep(0.8, 0.9, r.r) * smoothstep(0.6, 0.72, r.g), smoothstep(0.62, 0.68, r.r) * smoothstep(0.5, 0.55, r.g) * smoothstep(0.1, 0.0, r.b)) * smoothstep(0.35, 0.22, r.b), smoothstep(0.55, 0.68, r.g) * smoothstep(0.25, 0.4, r.g - max(r.r, r.b))) * c.a; t += a; m = max(m, a); }\n"   /* (and the green of a line the stylus holds: gold too) */
+    "  return max(t / 9.0, m * 0.75); }\n"
+    "float reds() {\n"   /* (bright red letters (251, 0, 0: a companion knocked out, in a menu's list): shown red, not dropped as too dark) */
+    "  vec2 dx = dFdx(v_uv) / 3.0, dy = dFdy(v_uv) / 3.0; float t = 0.0, m = 0.0;\n"
+    "  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec4 c = textureLod(u_src, v_uv + dx * float(i) + dy * float(j), 0.0); vec3 r = c.rgb / max(c.a, 0.001);\n"
+    "    float a = smoothstep(0.6, 0.75, r.r) * smoothstep(0.35, 0.2, max(r.g, r.b)) * c.a; t += a; m = max(m, a); }\n"
     "  return max(t / 9.0, m * 0.75); }\n"
     "float greys() {\n"   /* (dim grey letters (121, 121, 121: a list's ??? not known yet): shown grey, their dots and all) */
     "  vec2 dx = dFdx(v_uv) / 3.0, dy = dFdy(v_uv) / 3.0; float t = 0.0, m = 0.0;\n"
@@ -586,6 +591,7 @@ static const char* FS_COPY =
     "  }\n"
     "  if (u_mode == 4) { o_color = vec4(vec3(0.5), 1.0); return; }\n"
     "  if (u_mode == 16) { o_color = vec4(0.0, 0.0, 0.0, 0.55); return; }\n"   /* (a window's panel alone: its line drawn apart, as thin as the game's around it) */
+    "  if (u_mode == 46) { o_color = vec4(vec3(u_line), 1.0) * u_fade; return; }\n"   /* (a plain colour over all, grey level and alpha from the piece: the game's fade to black or white, drawn over a modern screen) */
     "  if (u_mode == 5) {\n"
     "    float m = 0.0;\n"
     "    for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) m += red(v_uv + vec2(i, j) * 0.6 * u_ds);\n"
@@ -605,10 +611,10 @@ static const char* FS_COPY =
     "    float a = (1.0 - bg) * c.a; o_color = vec4(r * a, a); return; }\n"
     "  if (u_mode == 32) { vec3 r = c.rgb / max(c.a, 0.001); float sat = max(r.r, max(r.g, r.b)) - min(r.r, min(r.g, r.b));\n"   /* (a list on its dark panel: the letters and the grey icons, not the panel (0.19) nor its blue frame) */
     "    float a = smoothstep(0.30, 0.42, L) * smoothstep(0.30, 0.15, sat) * c.a; o_color = vec4(r * a, a); return; }\n"
-    "  if (u_mode == 30) { float t = letters(5), y = yellows(), a = max(t, y);\n"   /* (the windows round a menu: letters light or greyed (0.73), not the grey lines (0.51, 0.64)) */
-    "    vec3 col = mix(vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
-    "  if (u_mode == 29) { float t = letters(4), y = yellows(), a = max(t, y);\n"   /* (as 3, for a window going grey: its letters (0.64, 0.73) in white, not its grey lines (0.51); letters(4): above 0.57) */
-    "    vec3 col = mix(vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
+    "  if (u_mode == 30) { float t = letters(5), y = yellows(), rd = reds(), a = max(max(t, y), rd);\n"   /* (the windows round a menu: letters light or greyed (0.73), not the grey lines (0.51, 0.64)) */
+    "    vec3 col = mix(mix(vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)), vec3(0.95, 0.26, 0.22), rd / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
+    "  if (u_mode == 29) { float t = letters(4), y = yellows(), rd = reds(), a = max(max(t, y), rd);\n"   /* (as 3, for a window going grey: its letters (0.64, 0.73) in white, not its grey lines (0.51); letters(4): above 0.57) */
+    "    vec3 col = mix(mix(vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)), vec3(0.95, 0.26, 0.22), rd / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
     "  if (u_mode == 28) { vec3 r = c.rgb / max(c.a, 0.001); float mx = max(r.r, max(r.g, r.b)), sat = (mx - min(r.r, min(r.g, r.b))) / max(mx, 0.02);\n"   /* (stats' letters: light ones light, coloured ones (a value going down: red; up) their own colour; the dark panel not) */
     "    float k = smoothstep(0.4, 0.6, sat) * smoothstep(0.5, 0.7, mx), a = max(smoothstep(0.38, 0.55, L) * (1.0 - k), k) * c.a; vec3 col = mix(vec3(0.93), r * (1.0 / max(mx, 0.01)) * 0.98, k); o_color = vec4(col * a, a); return; }\n"
     "  if (u_mode == 27) { vec3 r = c.rgb / max(c.a, 0.001);\n"   /* (the menus' hand alone, its own colours: its warm pixels (golds, browns, its pale yellow); not the window's black, its grey line, the white letters) */
@@ -631,12 +637,13 @@ static const char* FS_COPY =
     "    for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) b += textureLod(u_src, v_uv + vec2(i, j) * u_ds * 8.0, lod).rgb;\n"
     "    o_color = vec4(b / 25.0 * 0.45, 1.0); return; }\n"
     "  if (u_mode == 36) { vec3 r = c.rgb / max(c.a, 0.001); float a = smoothstep(0.04, 0.14, max(r.r, max(r.g, r.b))) * c.a; o_color = vec4(r * a, a); return; }\n"   /* (the picture without its black: see-through there (the title's button over the movie)) */
-    "  if (u_mode == 42 || u_mode == 43 || u_mode == 45) { vec3 r = c.rgb / max(c.a, 0.001); float mx = max(r.r, max(r.g, r.b)), sat = (mx - min(r.r, min(r.g, r.b))) / max(mx, 0.02); float a = (u_mode == 45 ? smoothstep(0.58, 0.66, L) * smoothstep(0.34, 0.26, sat) : smoothstep(0.80, 0.90, L)) * c.a; vec3 t = u_mode == 42 ? vec3(0.53, 0.71, 1.0) : u_mode == 43 ? vec3(0.95, 0.60, 0.77) : vec3(0.97, 0.77, 0.16); o_color = vec4(t * a, a); return; }\n"   /* (as 40, tinted: a sex sign blue or pink (its white alone), a chosen row's words gold) */
+    "  if (u_mode == 42 || u_mode == 43 || u_mode == 45) { vec3 r = c.rgb / max(c.a, 0.001); float mx = max(r.r, max(r.g, r.b)), sat = (mx - min(r.r, min(r.g, r.b))) / max(mx, 0.02); float a = (u_mode == 45 ? smoothstep(0.58, 0.66, L) * smoothstep(0.34, 0.26, sat) : smoothstep(0.80, 0.90, L)) * c.a; vec3 t = u_mode == 42 ? vec3(0.53, 0.71, 1.0) : u_mode == 43 ? vec3(0.95, 0.60, 0.77) : vec3(0.97, 0.77, 0.16); if (u_mode == 45) { float rd = reds() * c.a, yl = yellows() * c.a; if (yl > a) a = yl; if (rd > a) { a = rd; t = vec3(0.95, 0.26, 0.22); } } o_color = vec4(t * a, a); return; }\n"   /* (as 40, tinted: a sex sign blue or pink (its white alone), a chosen row's words gold (yellow when touched: gold too; red: a companion knocked out)) */
+    "  if (u_mode == 47) { float y = yellows(); o_color = vec4(vec3(0.98, 0.78, 0.16) * y, y); return; }\n"   /* (the game's yellow alone: the hand over a window's edge, gold) */
     "  if (u_mode == 44) { o_color = vec4(0.84, 0.67, 0.24, 1.0) * 0.42; return; }\n"   /* (a chosen row: the gold bar of the item windows) */
     "  if (u_mode == 41) { vec3 r = c.rgb / max(c.a, 0.001); float mx = max(r.r, max(r.g, r.b)), sat = (mx - min(r.r, min(r.g, r.b))) / max(mx, 0.02); float a = smoothstep(0.40, 0.52, L) * smoothstep(0.40, 0.30, sat) * c.a; o_color = vec4(vec3(0.85) * a, a); return; }\n"   /* (as 40 for the thin pale letters on a dark brown box: a header line) */
     "  if (u_mode == 40) { vec3 r = c.rgb / max(c.a, 0.001); float mx = max(r.r, max(r.g, r.b)), sat = (mx - min(r.r, min(r.g, r.b))) / max(mx, 0.02); float a = smoothstep(0.58, 0.66, L) * smoothstep(0.34, 0.26, sat) * c.a; o_color = vec4(vec3(0.93) * a, a); return; }\n"   /* (light letters and signs alone, white: not the brown or the pink round them, nor the cream parchment) */
     "  if (u_mode == 39) { vec3 r = c.rgb / max(c.a, 0.001); float mx = max(r.r, max(r.g, r.b)), sat = (mx - min(r.r, min(r.g, r.b))) / max(mx, 0.02); float a = smoothstep(0.36, 0.30, r.b) * max(smoothstep(0.66, 0.74, r.r), smoothstep(0.40, 0.34, L)) * c.a; o_color = vec4(r * a, a); return; }\n"   /* (a parchment list's hand alone: its dark and yellow pixels, the cream round it see-through) */
-    "  if (u_mode == 38) { vec3 r = c.rgb / max(c.a, 0.001); float d = max(abs(r.r - 0.094), max(abs(r.g - 0.094), abs(r.b - 0.094))); float a = smoothstep(0.012, 0.04, d) * c.a; o_color = vec4(r * a, a); return; }\n"   /* (the picture without the game's dark panel (24, 24, 24): see-through there (the creation's choices)) */
+    "  if (u_mode == 38) { vec3 r = c.rgb / max(c.a, 0.001); vec3 e = abs(r - vec3(0.094)), f = abs(r - vec3(0.157, 0.094, 0.063)); float d = min(max(e.r, max(e.g, e.b)), max(f.r, max(f.g, f.b))); float a = smoothstep(0.012, 0.04, d) * c.a; o_color = vec4(r * a, a); return; }\n"   /* (the picture without the game's dark panel (24, 24, 24), or brown (40, 24, 16) at Patty's: see-through there (the creation's choices)) */
     "  if (u_mode == 17) { vec3 r = c.rgb / max(c.a, 0.001); float d = max(abs(r.r - 0.157), max(abs(r.g - 0.157), abs(r.b - 0.157)));\n"   /* (the picture without its window's dark panel (40, 40, 40): see-through there) */
     "    float a = smoothstep(0.03, 0.07, d) * c.a; o_color = vec4(r * a, a); return; }\n"
     "  if (u_mode == 10) {\n"
@@ -656,7 +663,8 @@ static const char* FS_COPY =
     "  if (u_mode == 1) { float t = smoothstep(0.52, 0.32, L) * c.a;\n"
     "    o_color = vec4(vec3(0.93) * t, t); return; }\n"
     "  if (u_mode == 3 || u_mode == 6 || u_mode == 35 || (u_mode >= 12 && u_mode <= 15)) { float t = letters(u_mode == 6 ? 0 : u_mode == 35 ? 6 : u_mode == 15 ? 3 : u_mode == 12 || u_mode == 14 ? 2 : 1), y = u_mode == 6 || u_mode == 35 || u_mode == 15 ? 0.0 : yellows();\n"   /* (35: as 6, a stamp's shaded edge left out too) */   /* (the game's yellow letters, a chosen line: gold) */
-    "    float g = u_mode == 13 || u_mode == 14 ? greys() : 0.0, a = max(max(t, y), g); vec3 col = mix(g > t ? vec3(0.6) : u_mode == 15 ? vec3(0.7) : vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
+    "    float g = u_mode == 13 || u_mode == 14 ? greys() : 0.0, rd = u_mode == 3 || u_mode == 6 ? reds() : 0.0, a = max(max(t, y), max(g, rd));\n"   /* (3, 6: red letters red: a companion knocked out) */
+    "    vec3 col = mix(mix(g > t ? vec3(0.6) : u_mode == 15 ? vec3(0.7) : vec3(0.93), vec3(0.98, 0.78, 0.16), y / max(a, 0.001)), vec3(0.95, 0.26, 0.22), rd / max(a, 0.001)); o_color = vec4(col * a, a); return; }\n"
     "  o_color = c;\n"
     "}\n";
 
@@ -1184,7 +1192,9 @@ static void pack_scan(const char* dir, int depth, int rank) {
 
 static void hdsprite_update(void) { g_hdsprite_on = g_dump_on || (g_pack_on && (!g_pack_loaded || g_pack_n)); }   /* (not loaded yet: the first check loads it) */
 
+static void recolor_unload(void);
 static void pack_unload(void) {
+    recolor_unload();
     for (int i = 0; i < g_pack_cap; i++) { if (g_pack[i].tex) p_glDeleteTextures(1, &g_pack[i].tex); free(g_pack[i].path); }
     free(g_pack); g_pack = NULL; g_pack_n = g_pack_cap = g_pack_live = 0; g_pack_loaded = 0;
     hdsprite_update();
@@ -1223,6 +1233,160 @@ static GLuint pack_texture(uint64_t key) {
     stbi_image_free(px);
     t->w = w; t->h = h; g_pack_live++;
     return t->tex;
+}
+
+/* ---- The same texels in other colours ----
+ * A picture made HD once (textures/recolor/<shape>-hd.png, by Real-ESRGAN like
+ * the others) with the colours it was made from (<shape>-lo.png) stands for
+ * every other palette of it: the character's creation puts a face or a hair
+ * style together in each skin, eye and hair colour (thousands of pictures,
+ * none in the pack), the companions made at the inn too. Its HD: the base's
+ * HD + (this picture - the base's), both enlarged 4x smoothly (repeating, as
+ * DS textures do); see-through as the base's. <shape>: the texels numbered by
+ * their colours in the order they come (recolor_shape), the same for two
+ * palettes of one picture; one whose colours come out the same twice (black
+ * eyes, black lines) takes a base of its size whose texels of one colour are
+ * of one colour in it too. */
+#define RECOLOR_DIR PACK_DIR "/recolor"
+#define RECOLOR_LIVE 48                                        /* made ones kept in the GPU */
+typedef struct { uint64_t shape; int w, h, tried, ncol; uint8_t *lo, *hd, *idx; } RecolorBase;
+static RecolorBase* g_rcb; static int g_rcb_n = -1;            /* -1: textures/recolor not read yet */
+static struct { uint64_t key; GLuint tex; uint64_t used; } g_rct[RECOLOR_LIVE];
+
+static uint64_t recolor_shape(const uint8_t* rgba, int w, int h, uint8_t* idx) {
+    uint32_t col[256]; int n = 0;
+    uint64_t s = 1469598103934665603ull;                       /* (FNV-1a: its size, then each texel's number) */
+    const uint8_t sz[4] = { (uint8_t)w, (uint8_t)(w >> 8), (uint8_t)h, (uint8_t)(h >> 8) };
+    for (int i = 0; i < 4; i++) { s ^= sz[i]; s *= 1099511628211ull; }
+    for (int i = 0; i < w * h; i++) {
+        uint32_t c; memcpy(&c, rgba + 4 * i, 4);
+        int k = 0;
+        while (k < n && col[k] != c) k++;
+        if (k == n) { if (n == 256) return 0; col[n++] = c; }
+        if (idx) idx[i] = (uint8_t)k;
+        s ^= (uint8_t)k; s *= 1099511628211ull;
+    }
+    return s;
+}
+
+static void recolor_add(const char* name) {                   /* <16 hex digits>-lo.png */
+    if (strlen(name) != 23 || strcmp(name + 16, "-lo.png")) return;
+    uint64_t sh = 0;
+    for (int i = 0; i < 16; i++) {
+        char c = name[i]; int v = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+        if (v < 0) return;
+        sh = sh << 4 | (uint64_t)v;
+    }
+    g_rcb = realloc(g_rcb, sizeof *g_rcb * (size_t)(g_rcb_n + 1));
+    memset(&g_rcb[g_rcb_n], 0, sizeof *g_rcb); g_rcb[g_rcb_n++].shape = sh;
+}
+
+static void recolor_scan(void) {
+    g_rcb_n = 0;
+#ifdef _WIN32
+    struct _finddata_t fd; intptr_t h = _findfirst(RECOLOR_DIR "/*-lo.png", &fd);
+    if (h == -1) return;
+    do recolor_add(fd.name); while (_findnext(h, &fd) == 0);
+    _findclose(h);
+#else
+    DIR* d = opendir(RECOLOR_DIR);
+    if (!d) return;
+    struct dirent* e;
+    while ((e = readdir(d))) recolor_add(e->d_name);
+    closedir(d);
+#endif
+    if (g_rcb_n) fprintf(stderr, "HD textures: %d pictures in other colours in %s/\n", g_rcb_n, RECOLOR_DIR);
+}
+
+static void recolor_unload(void) {
+    for (int i = 0; i < RECOLOR_LIVE; i++) if (g_rct[i].tex) { p_glDeleteTextures(1, &g_rct[i].tex); g_rct[i].tex = 0; }
+    for (int i = 0; i < g_rcb_n; i++) { stbi_image_free(g_rcb[i].lo); stbi_image_free(g_rcb[i].hd); free(g_rcb[i].idx); }
+    free(g_rcb); g_rcb = NULL; g_rcb_n = -1;
+}
+
+static void recolor_load(RecolorBase* b) {
+    b->tried = 1;
+    char p[160]; int lw, lh, hw, hh, ch;
+    snprintf(p, sizeof p, RECOLOR_DIR "/%016llx-lo.png", (unsigned long long)b->shape); b->lo = stbi_load(p, &lw, &lh, &ch, 4);
+    snprintf(p, sizeof p, RECOLOR_DIR "/%016llx-hd.png", (unsigned long long)b->shape); b->hd = stbi_load(p, &hw, &hh, &ch, 4);
+    if (!b->lo || !b->hd || hw != 4 * lw || hh != 4 * lh || lw * lh > 256 * 256) {
+        stbi_image_free(b->lo); stbi_image_free(b->hd); b->lo = b->hd = NULL;
+        fprintf(stderr, "HD textures: can't use %s\n", p);
+        return;
+    }
+    b->w = lw; b->h = lh; b->idx = malloc((size_t)lw * lh);
+    if (b->idx && recolor_shape(b->lo, lw, lh, b->idx)) { b->ncol = 0; for (int t = 0; t < lw * lh; t++) if (b->idx[t] + 1 > b->ncol) b->ncol = b->idx[t] + 1; }
+    else { free(b->idx); b->idx = NULL; }
+}
+
+/* a base this picture is (its texels of one colour there of one colour here
+ * too, and not many fewer colours) */
+static int recolor_fits(const RecolorBase* c, const uint8_t* rgba, int w, int h) {
+    if (!c->idx || c->w != w || c->h != h) return 0;
+    uint32_t col[256]; uint8_t seen[256] = { 0 };
+    for (int t = 0; t < w * h; t++) {
+        uint32_t v; memcpy(&v, rgba + 4 * t, 4); int k = c->idx[t];
+        if (!seen[k]) { seen[k] = 1; col[k] = v; }
+        else if (col[k] != v) return 0;
+    }
+    int n = 0;
+    for (int k = 0; k < c->ncol; k++) { int dup = 0; for (int j = 0; j < k && !dup; j++) dup = col[j] == col[k]; n += !dup; }
+    return n >= c->ncol - 4;
+}
+
+static GLuint recolor_texture(uint64_t key, const uint8_t* rgba, int w, int h) {
+    for (int i = 0; i < RECOLOR_LIVE; i++) if (g_rct[i].tex && g_rct[i].key == key) { g_rct[i].used = g_frameno; return g_rct[i].tex; }
+    if (g_rcb_n < 0) { recolor_scan(); for (int i = 0; i < g_rcb_n; i++) recolor_load(&g_rcb[i]); }
+    int any = 0;                                               /* (none of its size: nothing to work out) */
+    for (int i = 0; i < g_rcb_n && !any; i++) any = g_rcb[i].lo && g_rcb[i].w == w && g_rcb[i].h == h;
+    if (!any) return 0;
+    uint64_t sh = recolor_shape(rgba, w, h, NULL);
+    RecolorBase* b = NULL;
+    for (int i = 0; i < g_rcb_n && sh; i++) if (g_rcb[i].shape == sh) b = &g_rcb[i];
+    if (b && !b->lo) b = NULL;
+    for (int i = 0; i < g_rcb_n && !b; i++)                    /* (some of its colours the same: a base that keeps them apart) */
+        if (recolor_fits(&g_rcb[i], rgba, w, h)) b = &g_rcb[i];
+    if (!b || !b->lo || b->w != w || b->h != h) return 0;
+    int16_t* d = malloc(sizeof *d * (size_t)w * h * 3); uint8_t* o = malloc((size_t)w * h * 64);
+    if (!d || !o) { free(d); free(o); return 0; }
+    int same = b->shape == sh || recolor_fits(b, rgba, w, h);
+    if (same) {
+        for (int i = 0; i < w * h; i++) for (int c = 0; c < 3; c++) d[i * 3 + c] = (int16_t)(rgba[i * 4 + c] - b->lo[i * 4 + c]);
+        for (int Y = 0; Y < 4 * h; Y++) {                      /* the difference, enlarged 4x (bilinear, repeating) */
+            float fy = (Y + 0.5f) / 4 - 0.5f; int y0 = (int)floorf(fy); float ty = fy - y0;
+            int ya = ((y0 % h) + h) % h, yb = (ya + 1) % h;
+            for (int X = 0; X < 4 * w; X++) {
+                float fx = (X + 0.5f) / 4 - 0.5f; int x0 = (int)floorf(fx); float tx = fx - x0;
+                int xa = ((x0 % w) + w) % w, xb = (xa + 1) % w;
+                const uint8_t* hp = b->hd + ((size_t)Y * 4 * w + X) * 4; uint8_t* op = o + ((size_t)Y * 4 * w + X) * 4;
+                for (int c = 0; c < 3; c++) {
+                    float v = (d[(ya * w + xa) * 3 + c] * (1 - tx) + d[(ya * w + xb) * 3 + c] * tx) * (1 - ty)
+                            + (d[(yb * w + xa) * 3 + c] * (1 - tx) + d[(yb * w + xb) * 3 + c] * tx) * ty + hp[c];
+                    op[c] = (uint8_t)(v < 0 ? 0 : v > 255 ? 255 : v + 0.5f);
+                }
+                op[3] = hp[3];
+            }
+        }
+    }
+    free(d);
+    if (!same) { free(o); return 0; }
+    int slot = -1;                                             /* the least recently used one goes (not one drawn this frame) */
+    for (int i = 0; i < RECOLOR_LIVE; i++) {
+        if (!g_rct[i].tex) { slot = i; break; }
+        if (g_rct[i].used != g_frameno && (slot < 0 || g_rct[i].used < g_rct[slot].used)) slot = i;
+    }
+    if (slot < 0) { free(o); return 0; }
+    if (g_rct[slot].tex) {
+        for (int i = 0; i < TEXCACHE; i++) if (g_texcache[i].live && g_texcache[i].hd == g_rct[slot].tex) g_texcache[i].w = 0;   /* those decode again */
+        p_glDeleteTextures(1, &g_rct[slot].tex);
+    }
+    p_glGenTextures(1, &g_rct[slot].tex);
+    p_glBindTexture(GL_TEXTURE_2D, g_rct[slot].tex);
+    p_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4 * w, 4 * h, 0, GL_RGBA, GL_UNSIGNED_BYTE, o);
+    p_glGenerateMipmap(GL_TEXTURE_2D);
+    free(o);
+    g_rct[slot].key = key; g_rct[slot].used = g_frameno;
+    return g_rct[slot].tex;
 }
 
 static void textures_hd_after(void);
@@ -1331,6 +1495,7 @@ static GLuint texture_for(uint32_t ti, uint32_t pl, int* w, int* h, int* hd) {
                     uint64_t key = tex_key(g_decode, *w, *h);
                     if (g_dump_on) dump_texture(key, g_decode, *w, *h);
                     if (g_pack_on && g_pack_n && !piece && *w * *h > PACK_MIN_TEXELS) e->hd = pack_texture(key);
+                    if (g_pack_on && !e->hd && !piece && *w * *h > PACK_MIN_TEXELS) e->hd = recolor_texture(key, g_decode, *w, *h);   /* (the same texels in other colours) */
                 }
                 static int pxbr = -1; if (pxbr < 0) pxbr = !getenv("DQIX_PIECE_XBR") || atoi(getenv("DQIX_PIECE_XBR")) != 0;   /* tests */
                 if (!e->hd && g_texup && *w * *h <= 256 * 256 && (!piece || pxbr)) {   /* upscaled: 4x (2x for the big ones) */
@@ -2461,7 +2626,9 @@ static void draw_pieces(const GlPresent* v, GLuint src, int from, int to) {
             p_glUniform4f(loc_uv, 0, 0, 1, 1);
             p_glUniform2f(p_glGetUniformLocation(prog_copy, "u_px"), q[2] * v->sc, q[3] * v->sc);
         }
+        if (mode == 46) { p_glUniform1f(p_glGetUniformLocation(prog_copy, "u_fade"), q[5]); p_glUniform1f(p_glGetUniformLocation(prog_copy, "u_line"), q[6]); }   /* (its alpha, its grey level) */
         p_glDrawArrays(GL_TRIANGLES, 0, 6);
+        if (mode == 46) { p_glUniform1f(p_glGetUniformLocation(prog_copy, "u_fade"), 1.0f); p_glUniform1f(p_glGetUniformLocation(prog_copy, "u_line"), v->sc); }
     }
     p_glUniform1i(loc_mode, 0);
     p_glDisable(GL_BLEND);
@@ -2769,15 +2936,6 @@ void gl_read_screens(uint32_t out[2][256 * 192]) {
 }
 
 /* For tests: the 3D layer as rendered (premultiplied RGBA8, bottom-up rows). */
-int gl_read_3d(uint8_t* out, int* w, int* h) {
-    if (g_fb_latest < 0) return 0;
-    *w = g_fb3_w; *h = g_fb_h;
-    p_glBindFramebuffer(GL_FRAMEBUFFER, g_fb[g_fb_latest].post_fbo);
-    p_glReadBuffer(GL_COLOR_ATTACHMENT0);
-    p_glReadPixels(0, 0, g_fb3_w, g_fb_h, GL_RGBA, GL_UNSIGNED_BYTE, out);
-    p_glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    return 1;
-}
 
 /* Widescreen: which screen was composed wide last (0 top, 1 bottom, -1
  * none) and the DS pixels added each side. */
@@ -2786,6 +2944,15 @@ int gl_3d_ready(void) { return g_comp_has3d && g_fb_shown >= 0 && g_fb[g_fb_show
 void gl_set_hud_cut(int on) { g_cut = on != 0; }
 void gl_set_top_cut(int on) { g_cut_top = on != 0; }
 void gl_set_split(int on) { g_split = on != 0; }
+int gl_dialog_boxes(int r[][4], int max) {
+    int n = 0;
+    for (int k = 0; k < g_ndlg && n < max; k++) {
+        if (g_dlg_boxes[k][2] <= g_dlg_boxes[k][0] || g_dlg_boxes[k][3] <= g_dlg_boxes[k][1]) continue;
+        for (int i = 0; i < 4; i++) r[n][i] = (int)lroundf(g_dlg_boxes[k][i]);
+        n++;
+    }
+    return n;
+}
 int gl_dialog_box(int r[4]) {
     if (g_dlg_box[2] <= g_dlg_box[0] || g_dlg_box[3] <= g_dlg_box[1]) return 0;
     for (int i = 0; i < 4; i++) r[i] = (int)lroundf(g_dlg_box[i]);

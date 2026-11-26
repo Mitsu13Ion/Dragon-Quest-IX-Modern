@@ -260,10 +260,10 @@ void controls_load(void) {
     fclose(f);
 }
 
-void controls_save(void) {
-    if (getenv("DQIX_NO_SETTINGS")) return;
+int controls_save(void) {
+    if (getenv("DQIX_NO_SETTINGS")) return 1;
     FILE* f = fopen(INI, "w");
-    if (!f) return;
+    if (!f) return 0;
     fprintf(f, "# Dragon Quest IX controls (Game > Controls on Windows). The game writes this file.\n");
     fprintf(f, "# action = key | second key | controller button\n");
     fprintf(f, "# Keys by name (X, Return, Left Shift, F9, -, Ctrl+R), or none.\n");
@@ -277,5 +277,5 @@ void controls_save(void) {
         for (int i = 0; i < N_PADS; i++) if (PADS[i].pad == g_ctl_pad[a]) p = PADS[i].ini;
         fprintf(f, "%s = %s | %s | %s\n", g_ctl[a].id, k0, k1, p);
     }
-    fclose(f);
+    return fclose(f) == 0;
 }

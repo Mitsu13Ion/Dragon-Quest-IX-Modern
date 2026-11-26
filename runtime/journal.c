@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 recompsmith. SPDX-License-Identifier: GPL-3.0-or-later */
 /* Modern > Journal (journal.h): a panel over the game with a tab per page.
  * The picture has the window's own pixels and the GL renderer lays it over
  * everything (gl_set_menu: the journal and the in-game menu are never open
@@ -189,7 +190,6 @@ int journal_wrap(const JournalCanvas* c, int x, int y, int max_w, float px, uint
     return y;
 }
 
-void journal_clean(const char* s, char* out, int cap) { romdata_clean_name(s, out, (size_t)cap); }
 
 /* ---------------------------------------------------------------- the panel */
 #define C_PANEL 0x0E1218

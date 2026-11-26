@@ -1,3 +1,4 @@
+/* Copyright (C) 2026 recompsmith, TitanFr199. SPDX-License-Identifier: GPL-3.0-or-later */
 /* Modern: markers on the map (Modern > Map markers). The top screen's map
  * gets a mark for every chest, pot, barrel and bookshelf of the place the
  * party is in (chests grey once emptied) and a bubble over everyone with a
@@ -1132,7 +1133,7 @@ static void draw_mark(const Mark* m, int hover) {
     if (b->kind == K_QUEST) a = m->opened == 3 ? 0.6f : 1.0f;     /* opened: the quests' state there */
     /* a light halo: seen on the map's sand as on its grass */
     if (hover) rbox(cx, cy, 4.6f * R, 4.0f * R, 2.0f * R, 0xFFFFFF, 0.95f);
-    else if (b->kind != K_POT) rbox(cx, cy, 3.9f * R, 3.3f * R, 1.6f * R, 0xFFF8E0, 0.55f * a);   /* (a pot: as the legend shows it, without, Romuald's choice) */
+    else if (b->kind != K_POT) rbox(cx, cy, 3.9f * R, 3.3f * R, 1.6f * R, 0xFFF8E0, 0.55f * a);   /* (a pot: as the legend shows it, without, recompsmith's choice) */
     switch (b->kind) {
     case K_POT:
         glyph_pot(cx, cy, R, m->opened, a);
@@ -2292,7 +2293,7 @@ int mapmarks_shop(uint32_t* px, uint8_t* info, int desc_y, const uint8_t** rgba,
 #define HERO_ITEMS 0x020F58CC                                     /* the leader's things (Items: their name), u16 each */
 #define HERO_SLOTS 8
 static int bag_pager_is(uint32_t b, int n) {
-    return rd32(b) == (uint32_t)n && rd32(b + 4) == (uint32_t)((n + 7) / 8) && rd32(b + 0xC) == 8
+    return rd32(b) == (uint32_t)n && rd32(b + 4) == (uint32_t)((n + 7) / 8) && rd32(b + 0xC) - 1 < 8u   /* (its lines a page: 8, fewer in a short list (a companion's)) */
         && rd32(b + 0x20) == 0x02000000u + b + 8 && rd32(b + 0x24) == 0x02000000u + b + 0xC
         && rd32(b + 0x28) == 0x02000000u + b + 0x18 && rd32(b + 0x2C) == 0x02000000u + b + 0x1C
         && rd32(b + 0x14) < (uint32_t)((n + 7) / 8) && rd32(b + 0x1C) < 8;

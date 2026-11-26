@@ -53,8 +53,6 @@ it = Passare a %s? Il gioco si riavvia su quel salvataggio.\n\nTutto ciò che è
 en = The game is saving: try again in a moment.
 it = Il gioco sta salvando: riprova tra un momento.
 
-en = New save
-it = Nuovo salvataggio
 
 en = Rename this save
 it = Rinomina questo salvataggio
@@ -1309,3 +1307,14 @@ it = Mappa nell'angolo: roton&da, centrata su di te (anello argentato con bussol
 
 en = What's new needs the graphics card (OpenGL)
 it = «Novità» richiede la scheda grafica (OpenGL)
+
+# ---- the Journal (menu, controls, message)
+
+en = &Journal: quests, skills, vocations\tJ
+it = &Diario: missioni, abilità, vocazioni\tJ
+
+en = The journal needs the graphics card (OpenGL)
+it = Il diario ha bisogno della scheda grafica (OpenGL)
+
+en = Journal (quests, skills, vocations)
+it = Diario (missioni, abilità, vocazioni)

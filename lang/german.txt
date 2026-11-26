@@ -53,8 +53,6 @@ de = Zu %s wechseln? Das Spiel startet mit diesem Spielstand neu.\n\nAlles seit 
 en = The game is saving: try again in a moment.
 de = Das Spiel speichert gerade: versuche es gleich noch einmal.
 
-en = New save
-de = Neuer Spielstand
 
 en = Rename this save
 de = Diesen Spielstand umbenennen
@@ -1309,3 +1307,14 @@ de = Karte in der Ecke: run&d, auf dich zentriert (silberner Kompassring)
 
 en = What's new needs the graphics card (OpenGL)
 de = „Neuigkeiten“ braucht die Grafikkarte (OpenGL)
+
+# ---- the Journal (menu, controls, message)
+
+en = &Journal: quests, skills, vocations\tJ
+de = &Journal: Aufträge, Fertigkeiten, Berufe\tJ
+
+en = The journal needs the graphics card (OpenGL)
+de = Das Journal braucht die Grafikkarte (OpenGL)
+
+en = Journal (quests, skills, vocations)
+de = Journal (Aufträge, Fertigkeiten, Berufe)
